@@ -1,8 +1,13 @@
-# Local development stack. Production uses Neon for the database (F7.x).
-# Backend and frontend services are added in F0.5.
+# Local development stack: db + backend + frontend, with hot reload.
+# Production uses Neon for the database and docker-compose.prod.yml (F7.1).
 #
-#   cp .env.example .env
-#   docker compose up -d db
+#   cp .env.example .env          # then fill in values
+#   docker compose up --build     # http://localhost:${FRONTEND_PORT:-3000}
+#
+# Memory/CPU limits mirror the VPS budget (2 vCPU, 8 GB shared with Coolify and
+# other apps; see docs/MVP-PLAN.md), so resource problems show up locally first.
+# Dev servers (next dev, uvicorn --reload) need more headroom than the
+# production images; production limits are set in F7.1.
 
 name: apexgpt
 
@@ -28,6 +33,94 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          # Local only (production DB is Neon), so not part of the VPS budget.
+          memory: 512M
+          cpus: "1.0"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    # Apply migrations, then serve with auto-reload.
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload
+    environment:
+      # Inside compose the DB host is `db`, not localhost, so the backend uses
+      # COMPOSE_DATABASE_URL here (DATABASE_URL in .env is for running on the host).
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:?set COMPOSE_DATABASE_URL in .env}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      DATABASE_CONNECT_TIMEOUT: ${DATABASE_CONNECT_TIMEOUT:-10}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Source only: the virtualenv stays inside the image.
+      - ./backend/app:/app/app
+      - ./backend/migrations:/app/migrations
+      - ./backend/tests:/app/tests
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Liveness only (/health never touches the DB).
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          # VPS budget for FastAPI + fastembed models is ~0.5–0.7 GB.
+          memory: 768M
+          cpus: "1.0"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      # Read by `next dev` at startup (production bakes it in at build time).
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      # Source only: node_modules and .next stay inside the container.
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          # `next dev` compiles on demand and needs headroom; the production
+          # standalone server uses ~35 MB idle (limit set in F7.1).
+          memory: 1G
+          cpus: "1.0"
     restart: unless-stopped
 
 volumes:

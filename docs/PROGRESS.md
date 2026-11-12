@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 0: Local foundation |
-| **Current feature** | F0.4 `feature/frontend-skeleton` (PR raised, awaiting review) |
-| **Current branch** | `feature/frontend-skeleton` |
-| **Open PR** | [#4](https://github.com/RChaubey16/apexgpt/pull/4) (F0.4) |
+| **Current feature** | F0.5 `feature/docker-compose-setup` (PR raised, awaiting review) |
+| **Current branch** | `feature/docker-compose-setup` |
+| **Open PR** | [#5](https://github.com/RChaubey16/apexgpt/pull/5) (F0.5) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F0.4 PR.
-2. After merge: pull `main`, start **F0.5** `feature/docker-compose-setup`.
+1. User reviews and merges the F0.5 PR.
+2. After merge: pull `main`, start **F0.6** `feature/ci-pipeline` (last Phase 0 feature).
 
 ---
 
@@ -64,10 +64,10 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F0.1 `feature/repo-setup`: monorepo tooling and pre-commit hooks · PR #1 merged
 - [x] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health` · PR #2 merged
 - [x] F0.3 `feature/database-setup`: pgvector database with Alembic · PR #3 merged
-- [ ] F0.4 `feature/frontend-skeleton`: Next.js shell with health check · 🔍 PR #4
-- [ ] F0.5 `feature/docker-compose-setup`: full compose stack with memory limits
+- [x] F0.4 `feature/frontend-skeleton`: Next.js shell with health check · PR #4 merged
+- [ ] F0.5 `feature/docker-compose-setup`: full compose stack with memory limits · 🔍 PR #5
 - [ ] F0.6 `feature/ci-pipeline`: CI for lint, tests and Docker builds
-- [ ] **Phase done check:** `docker compose up` works and the frontend shows a healthy backend
+- [x] **Phase done check:** `docker compose up` works and the frontend shows a healthy backend (verified in F0.5)
 
 ### Phase 1: Structured F1 Data
 - [ ] F1.1 `feature/f1-schema`: structured F1 schema
@@ -151,6 +151,16 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-12: F0.5 docker compose stack
+- PR #4 (F0.4) merged.
+- `docker-compose.yml` now runs db + backend + frontend (dev targets, hot reload via source bind mounts; deps stay in images).
+- Backend container runs `alembic upgrade head` then `uvicorn --reload`; uses new `COMPOSE_DATABASE_URL` (host `db`), so no credentials-bearing URL is written in the compose file. Compose fails with a clear message if it's missing.
+- Startup order via healthchecks: db (pg_isready) → backend (`/health`) → frontend (`/api/health`). All ports bound to `127.0.0.1`.
+- Limits mirror the VPS budget: backend 768M / 1 CPU, frontend (next dev) 1G / 1 CPU, db 512M / 1 CPU (local only). Production limits come in F7.1.
+- Verified: all 3 healthy; idle RAM db ~28 MB, backend ~86 MB, frontend (dev) ~231 MB; `/health/ready` ok; CORS ok; 33 backend tests pass inside the container; backend and frontend hot reload confirmed; fresh stack from an empty volume (separate project name and ports) migrates and comes up healthy, then removed with `down -v`; Chrome shows "All systems go".
+- Noted: Next dev overlay shows a hydration warning caused by the ClickUp Chrome extension adding a class to `<body>`, not by app code.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-12: F0.4 frontend skeleton
 - PR #3 (F0.3) merged. User cleared Docker networks; `docker compose up` verified.
