@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 0: Local foundation |
-| **Current feature** | F0.3 `feature/database-setup` (PR raised, awaiting review) |
-| **Current branch** | `feature/database-setup` |
-| **Open PR** | [#3](https://github.com/RChaubey16/apexgpt/pull/3) (F0.3) |
+| **Current feature** | F0.4 `feature/frontend-skeleton` (PR raised, awaiting review) |
+| **Current branch** | `feature/frontend-skeleton` |
+| **Open PR** | [#4](https://github.com/RChaubey16/apexgpt/pull/4) (F0.4) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F0.3 PR.
-2. After merge: pull `main`, start **F0.4** `feature/frontend-skeleton`.
+1. User reviews and merges the F0.4 PR.
+2. After merge: pull `main`, start **F0.5** `feature/docker-compose-setup`.
 
 ---
 
@@ -63,8 +63,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 0: Local Foundation
 - [x] F0.1 `feature/repo-setup`: monorepo tooling and pre-commit hooks · PR #1 merged
 - [x] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health` · PR #2 merged
-- [ ] F0.3 `feature/database-setup`: pgvector database with Alembic · 🔍 PR #3
-- [ ] F0.4 `feature/frontend-skeleton`: Next.js shell with health check
+- [x] F0.3 `feature/database-setup`: pgvector database with Alembic · PR #3 merged
+- [ ] F0.4 `feature/frontend-skeleton`: Next.js shell with health check · 🔍 PR #4
 - [ ] F0.5 `feature/docker-compose-setup`: full compose stack with memory limits
 - [ ] F0.6 `feature/ci-pipeline`: CI for lint, tests and Docker builds
 - [ ] **Phase done check:** `docker compose up` works and the frontend shows a healthy backend
@@ -143,12 +143,26 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-12 | Local DB pinned to Postgres 18 + pgvector 0.8.1 | Matches Neon's default for new projects (PG 18, pgvector 0.8.1) |
 | 2026-11-12 | Split health: `/health` (liveness, no DB) vs `/health/ready` (DB check) | A 30s Docker healthcheck hitting the DB would keep Neon awake 24/7 (~180 CU-h/month vs 100 free) |
 | 2026-11-12 | Sync SQLAlchemy 2.1 + psycopg 3; prepared statements disabled | Simple with Alembic; low query volume; safe behind Neon's PgBouncer pooler |
+| 2026-11-12 | Frontend: Next.js 16.4 (App Router, TS, Tailwind 4), standalone output; browser calls backend directly | `NEXT_PUBLIC_API_URL` is inlined at build time, so it's a Docker build arg; backend CORS allows the frontend origin |
+| 2026-11-12 | Frontend tests: Vitest + Testing Library | Fast, works with React 19 and the `@/` alias |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-12: F0.4 frontend skeleton
+- PR #3 (F0.3) merged. User cleared Docker networks; `docker compose up` verified.
+- Scaffolded Next.js 16.4.6 (`create-next-app`, App Router, TS, Tailwind 4, src dir); read bundled Next 16 docs (standalone output, build-time `NEXT_PUBLIC_*`, route handlers) as the scaffold's `AGENTS.md` instructs.
+- Home page shell with `BackendStatus`: calls `/health/ready` on load (wakes Neon), 10s timeout, states ready / database unavailable / unreachable / unexpected response / misconfigured, Retry button, `aria-live`.
+- `NEXT_PUBLIC_API_URL` validated (http/https, no credentials/query/fragment). `/api/health` = frontend liveness. `poweredByHeader` off.
+- Multi-stage Dockerfile: `deps` → `dev` (next dev) → `builder` (requires `NEXT_PUBLIC_API_URL` build arg) → `runtime` (standalone, non-root, HEALTHCHECK).
+- Pre-commit: Prettier + ESLint hooks running the frontend's pinned versions; ESLint config extends `eslint-config-prettier`.
+- Fixes along the way: `@types/node` ^20 → ^22 (matches Node 22 runtime; Vitest peer); explicit Testing Library cleanup; `typecheck` runs `next typegen` first; refactored effect to satisfy React Compiler's `set-state-in-effect` rule instead of disabling it; added `public/robots.txt` so `public/` exists in clean clones.
+- Verified: 30 Vitest tests; lint (0 warnings); typecheck; Prettier; Docker build fails without the build arg; runtime image 231 MB, ~35 MB RAM, healthy, non-root; in Chrome against local backend + compose DB: "All systems go" → DB stopped → "database unavailable" + Retry → DB restarted → Retry → "All systems go"; backend stopped → "Can't reach the backend"; no console errors.
+- `npm audit`: 8 moderate advisories from one root cause, `minimatch` 10.2.6 DoS (GHSA-g3hv-75wg-m249) via `@typescript-eslint/typescript-estree` (lint-time only). `npm audit fix --force` would be breaking, so added a scoped npm `overrides` entry → `minimatch@^11.0.1` for that package only. Now 0 vulnerabilities; ESLint verified working. Remove the override once `typescript-eslint` ships the fix.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-12: F0.3 database setup
 - PR #2 (F0.2) merged.

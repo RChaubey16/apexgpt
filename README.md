@@ -46,6 +46,7 @@ Directories are added as their features land (see the plan).
 git clone https://github.com/RChaubey16/apexgpt.git
 cd apexgpt
 cp .env.example .env        # then fill in values
+(cd frontend && npm ci)     # frontend pre-commit hooks use its pinned tools
 pre-commit install
 ```
 
@@ -56,7 +57,7 @@ Running the whole app with `docker compose up` arrives in Phase 0 (F0.5).
 Local Postgres 18 + pgvector 0.8.1 (matches Neon's default):
 
 ```bash
-docker compose up -d db                  # bound to 127.0.0.1:5432 only
+docker compose up -d db                  # bound to 127.0.0.1:${POSTGRES_PORT} only
 cd backend && uv run alembic upgrade head
 ```
 
@@ -79,8 +80,20 @@ Docker image (production target):
 
 ```bash
 docker build -t apexgpt-backend backend/
-docker run -p 8000:8000 apexgpt-backend
+docker run -p 8000:8000 -e DATABASE_URL=postgresql://... apexgpt-backend
 ```
+
+### Frontend
+
+```bash
+cd frontend
+npm ci
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+npm run dev                              # http://localhost:3000
+npm test && npm run lint && npm run typecheck
+```
+
+`NEXT_PUBLIC_API_URL` is inlined at **build time**, so the Docker image takes it as a build arg. Details: [frontend/README.md](frontend/README.md).
 
 ## Development Workflow
 
