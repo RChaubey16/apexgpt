@@ -120,6 +120,21 @@ npm test && npm run lint && npm run typecheck
 - Every feature goes through a PR against `main`, reviewed before merge.
 - Lint and tests must pass before a feature is committed.
 
+### CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every PR to `main` and every push to `main`:
+
+| Job | What it checks |
+|---|---|
+| Lint (pre-commit) | All pre-commit hooks on all files: hygiene, ruff, black, prettier, eslint, actionlint |
+| Backend tests | `pytest` unit + integration tests against a Postgres 18 + pgvector service; fails if the integration tests are skipped |
+| Frontend typecheck + tests | `npm run typecheck`, `npm test` |
+| Docker runtime images | Builds the production images, starts them, waits for `HEALTHCHECK` to report healthy, checks they run as non-root |
+| Docker compose stack | `docker compose up --wait` with `.env.example`, then checks `/health`, `/health/ready` (DB + migrations), the frontend and CORS |
+| CI passed | Passes only if every job above passed; this is the single check to require in branch protection |
+
+To run the lint job locally: `pre-commit run --all-files`.
+
 Details: [docs/MVP-PLAN.md §5](docs/MVP-PLAN.md#5-development-workflow).
 
 ## Documentation
