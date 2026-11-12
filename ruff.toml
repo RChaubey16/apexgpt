@@ -1,0 +1,22 @@
+# Shared Ruff config for all Python packages (backend/, ingestion/, eval/).
+# Line length matches Black's default (88).
+line-length = 88
+target-version = "py312"
+
+[lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # isort
+  "B",   # flake8-bugbear
+  "UP",  # pyupgrade
+  "SIM", # flake8-simplify
+  "S",   # flake8-bandit (security)
+]
+# E501: line length is enforced by Black.
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+# Tests may use assert and hard-coded test values.
+"**/tests/**" = ["S101", "S105", "S106"]

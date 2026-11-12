@@ -1,0 +1,49 @@
+# --- Environment & secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Raw data downloads (Jolpica, Wikipedia, dumps) ---
+data/
+*.dump
+*.sql.gz
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+
+# --- Model caches (fastembed / ONNX) ---
+.cache/
+models_cache/
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+.pnpm-debug.log*
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Editors & OS ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.DS_Store
+Thumbs.db

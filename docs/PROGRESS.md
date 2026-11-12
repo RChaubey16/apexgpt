@@ -14,17 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Planning complete; Phase 0 not started |
-| **Current feature** | None |
-| **Current branch** | `main` |
-| **Open PR** | None |
+| **Current phase** | Phase 0: Local foundation |
+| **Current feature** | F0.1 `feature/repo-setup` (PR raised, awaiting review) |
+| **Current branch** | `feature/repo-setup` |
+| **Open PR** | [#1](https://github.com/RChaubey16/apexgpt/pull/1) (F0.1) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. Start **F0.1** `feature/repo-setup` from `main`.
+1. User reviews and merges the F0.1 PR.
+2. After merge: pull `main`, start **F0.2** `feature/backend-skeleton`.
 
 ---
 
@@ -33,7 +34,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | Phase | Status | Started | Completed |
 |---|---|---|---|
 | Planning | ✅ Done | 2026-11-12 | 2026-11-12 |
-| 0. Local foundation | ⬜ Not started | | |
+| 0. Local foundation | 🟡 In progress | 2026-11-12 | |
 | 1. Structured data | ⬜ Not started | | |
 | 2. Narrative corpus | ⬜ Not started | | |
 | 3. Retrieval + LLM | ⬜ Not started | | |
@@ -60,7 +61,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] Development workflow, completion checklist and feature breakdown added
 
 ### Phase 0: Local Foundation
-- [ ] F0.1 `feature/repo-setup`: monorepo tooling and pre-commit hooks
+- [ ] F0.1 `feature/repo-setup`: monorepo tooling and pre-commit hooks · 🔍 PR #1
 - [ ] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health`
 - [ ] F0.3 `feature/database-setup`: pgvector database with Alembic
 - [ ] F0.4 `feature/frontend-skeleton`: Next.js shell with health check
@@ -145,6 +146,12 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-12: F0.1 repo setup
+- Added `.gitignore`, `.editorconfig`, shared `ruff.toml` (incl. bandit security rules), `.pre-commit-config.yaml` (hygiene, ruff-check, black; versions pinned via autoupdate), `.env.example`, README.
+- ESLint/Prettier hooks moved to F0.4 (they need the frontend's pinned dependencies); plan updated.
+- Verified: `pre-commit run --all-files` passes; ruff and black confirmed working on a probe file.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-12: Planning
 - Drafted features and tiers; wrote `FEATURES.md`, `MVP-PLAN.md` and `DATA-STRATEGY.md`.
