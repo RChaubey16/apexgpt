@@ -50,7 +50,25 @@ cp .env.example .env        # then fill in values
 pre-commit install
 ```
 
-Running the whole app with `docker compose up` arrives in Phase 0 (F0.5).
+### Run everything with Docker Compose
+
+```bash
+docker compose up --build        # db + backend + frontend, with hot reload
+```
+
+| Service | URL (localhost only) | Notes |
+|---|---|---|
+| Frontend | http://localhost:3000 | `next dev`; edits in `frontend/src` reload |
+| Backend | http://localhost:8000 (`/docs`, `/health`, `/health/ready`) | Runs `alembic upgrade head` on start; edits in `backend/app` reload |
+| Database | `127.0.0.1:${POSTGRES_PORT}` | Postgres 18 + pgvector; data kept in the `apexgpt_pgdata` volume |
+
+- Ports come from `.env` (`FRONTEND_PORT`, `BACKEND_PORT`, `POSTGRES_PORT`). If you change `FRONTEND_PORT`, also update `CORS_ORIGINS`; if you change `BACKEND_PORT`, also update `NEXT_PUBLIC_API_URL`.
+- The backend container uses `COMPOSE_DATABASE_URL` (host `db`); `DATABASE_URL` is for running the backend on the host.
+- Each service has a memory/CPU limit that mirrors the VPS budget (`docker stats` to watch).
+- Run backend tests inside the stack: `docker compose exec backend pytest`.
+- `docker compose down` stops everything and keeps data; `down -v` also deletes the database volume.
+
+Or run services individually, as below.
 
 ### Database
 

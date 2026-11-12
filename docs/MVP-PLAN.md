@@ -257,7 +257,7 @@ Each feature has an ID, a branch name and the commit message to use. Features ru
 | F0.2 | `feature/backend-skeleton` | FastAPI app, `/health`, `pydantic-settings`, pytest setup, multi-stage Dockerfile | `feat: add FastAPI backend skeleton with health endpoint` |
 | F0.3 | `feature/database-setup` | Postgres + pgvector service, SQLAlchemy session, Alembic init, migration enabling `vector`, DB readiness check at `/health/ready` (`/health` stays DB-free liveness) | `feat: add pgvector database with Alembic migrations` |
 | F0.4 | `feature/frontend-skeleton` | Next.js (App Router, TS, Tailwind) shell calling `/health/ready`, Vitest + Testing Library, multi-stage Dockerfile (`NEXT_PUBLIC_API_URL` build arg), eslint + prettier pre-commit hooks | `feat: add Next.js frontend shell with backend health check` |
-| F0.5 | `feature/docker-compose-setup` | Full `docker-compose.yml` (db, backend, frontend), memory limits, healthchecks | `chore: add docker compose stack with memory limits` |
+| F0.5 | `feature/docker-compose-setup` | Full `docker-compose.yml` (db, backend, frontend) with hot reload, migrations on start, memory/CPU limits, healthcheck-ordered startup | `chore: add docker compose stack with memory limits` |
 | F0.6 | `feature/ci-pipeline` | GitHub Actions: lint + tests + Docker build | `chore: add CI workflow for lint, tests and docker builds` |
 
 ### Phase 1: Structured F1 Data
