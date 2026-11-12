@@ -253,10 +253,10 @@ Each feature has an ID, a branch name and the commit message to use. Features ru
 
 | ID | Branch | Scope | Commit message |
 |---|---|---|---|
-| F0.1 | `feature/repo-setup` | `.gitignore` (incl. `data/`), `.editorconfig`, pre-commit (ruff, black, eslint, prettier), `.env.example`, README | `chore: initialize monorepo with tooling and pre-commit hooks` |
+| F0.1 | `feature/repo-setup` | `.gitignore` (incl. `data/`), `.editorconfig`, shared `ruff.toml`, pre-commit (file hygiene, ruff, black), `.env.example`, README | `chore: initialize monorepo with tooling and pre-commit hooks` |
 | F0.2 | `feature/backend-skeleton` | FastAPI app, `/health`, `pydantic-settings`, pytest setup, multi-stage Dockerfile | `feat: add FastAPI backend skeleton with health endpoint` |
 | F0.3 | `feature/database-setup` | Postgres + pgvector service, SQLAlchemy session, Alembic init, migration enabling `vector`, DB check in `/health` | `feat: add pgvector database with Alembic migrations` |
-| F0.4 | `feature/frontend-skeleton` | Next.js (App Router, TS, Tailwind) shell calling `/health`, multi-stage Dockerfile | `feat: add Next.js frontend shell with backend health check` |
+| F0.4 | `feature/frontend-skeleton` | Next.js (App Router, TS, Tailwind) shell calling `/health`, multi-stage Dockerfile, eslint + prettier pre-commit hooks | `feat: add Next.js frontend shell with backend health check` |
 | F0.5 | `feature/docker-compose-setup` | Full `docker-compose.yml` (db, backend, frontend), memory limits, healthchecks | `chore: add docker compose stack with memory limits` |
 | F0.6 | `feature/ci-pipeline` | GitHub Actions: lint + tests + Docker build | `chore: add CI workflow for lint, tests and docker builds` |
 
