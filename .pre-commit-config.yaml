@@ -31,6 +31,13 @@ repos:
     hooks:
       - id: black
 
+  # GitHub Actions workflows (also runs shellcheck on `run:` blocks when it is
+  # installed; it is preinstalled on GitHub's Ubuntu runners).
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
   # Frontend: run from frontend/ with its own pinned tools. Paths are passed
   # relative to the repo root, so strip the "frontend/" prefix.
   - repo: local

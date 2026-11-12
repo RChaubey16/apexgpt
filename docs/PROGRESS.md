@@ -15,17 +15,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 0: Local foundation |
-| **Current feature** | F0.5 `feature/docker-compose-setup` (PR raised, awaiting review) |
-| **Current branch** | `feature/docker-compose-setup` |
-| **Open PR** | [#5](https://github.com/RChaubey16/apexgpt/pull/5) (F0.5) |
+| **Current feature** | F0.6 `feature/ci-pipeline` (PR raised, awaiting review) |
+| **Current branch** | `feature/ci-pipeline` |
+| **Open PR** | #6 (F0.6) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F0.5 PR.
-2. After merge: pull `main`, start **F0.6** `feature/ci-pipeline` (last Phase 0 feature).
+1. User reviews and merges the F0.6 PR.
+2. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
+3. After merge: Phase 0 is done. Pull `main`, start **Phase 1** with **F1.1** `feature/f1-schema`; first check whether Jolpica offers a bulk dump (needed for F1.2).
 
 ---
 
@@ -65,8 +66,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health` · PR #2 merged
 - [x] F0.3 `feature/database-setup`: pgvector database with Alembic · PR #3 merged
 - [x] F0.4 `feature/frontend-skeleton`: Next.js shell with health check · PR #4 merged
-- [ ] F0.5 `feature/docker-compose-setup`: full compose stack with memory limits · 🔍 PR #5
-- [ ] F0.6 `feature/ci-pipeline`: CI for lint, tests and Docker builds
+- [x] F0.5 `feature/docker-compose-setup`: full compose stack with memory limits · PR #5 merged
+- [ ] F0.6 `feature/ci-pipeline`: CI for lint, tests and Docker builds · 🔍 PR #6
 - [x] **Phase done check:** `docker compose up` works and the frontend shows a healthy backend (verified in F0.5)
 
 ### Phase 1: Structured F1 Data
@@ -145,12 +146,27 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-12 | Sync SQLAlchemy 2.1 + psycopg 3; prepared statements disabled | Simple with Alembic; low query volume; safe behind Neon's PgBouncer pooler |
 | 2026-11-12 | Frontend: Next.js 16.4 (App Router, TS, Tailwind 4), standalone output; browser calls backend directly | `NEXT_PUBLIC_API_URL` is inlined at build time, so it's a Docker build arg; backend CORS allows the frontend origin |
 | 2026-11-12 | Frontend tests: Vitest + Testing Library | Fast, works with React 19 and the `@/` alias |
+| 2026-11-12 | CI: one GitHub Actions workflow, parallel jobs, single `CI passed` gate; actions pinned to commit SHAs; CI Postgres uses trust auth (no password literal) | One required check for branch protection; supply-chain safety; avoids secret-scanner false positives like the F0.3 GitGuardian alert |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-12: F0.6 CI pipeline
+- PR #5 (F0.5) merged.
+- Added `.github/workflows/ci.yml` (PRs to `main`, pushes to `main`, manual dispatch; `contents: read`; superseded PR runs are cancelled). Jobs:
+  - **Lint:** `pre-commit run --all-files` (pinned pre-commit 4.7.0 via `uvx`, hook envs cached, frontend `npm ci` first for prettier/eslint).
+  - **Backend:** uv 0.11.2 (same as the Dockerfile), `pytest` with a `pgvector/pgvector:0.8.1-pg18` service so integration tests run; a guard step fails if they're collected as skipped.
+  - **Frontend:** `typecheck` + Vitest.
+  - **Docker runtime images:** buildx with GHA cache; backend + frontend production images started and must reach `healthy`; checked non-root. Backend started with an unreachable DB to prove liveness doesn't depend on the DB.
+  - **Compose:** `docker compose up --build --wait` from `.env.example`; curls `/health`, `/health/ready`, frontend `/api/health` and `/`, and the CORS header; logs dumped on failure; `down -v` always.
+  - **CI passed:** aggregate gate over all jobs.
+- Added actionlint to pre-commit (runs shellcheck on `run:` blocks in CI, where shellcheck is preinstalled).
+- README: CI section.
+- Verified locally: `pre-commit run --all-files` passes (incl. actionlint); integration-guard regex matches `5/38 tests collected` and rejects `no tests collected`. Full verification is the PR's own CI run.
+- PR #6 raised. First CI run all green (~3 min wall-clock): 38 backend tests passed with the integration guard showing `5/38 tests collected`; 30 Vitest tests; runtime images healthy and running as `app` (backend 214 MB, frontend 235 MB); compose stack returned `/health/ready` `{"database":"ok"}` and the correct CORS header; GitGuardian passed.
 
 ### 2026-11-12: F0.5 docker compose stack
 - PR #4 (F0.4) merged.

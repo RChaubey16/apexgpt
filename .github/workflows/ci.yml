@@ -1,0 +1,272 @@
+# CI: lint, tests and Docker builds for every PR to main and every push to main.
+#
+# Jobs run in parallel; `ci-ok` passes only when all of them pass, so branch
+# protection needs just that one required check.
+#
+# Third-party actions are pinned to full commit SHAs (the tag is in the comment).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+  UV_VERSION: "0.11.2" # keep in sync with backend/Dockerfile
+  PRE_COMMIT_VERSION: "4.7.0"
+
+jobs:
+  # All pre-commit hooks: file hygiene, ruff, black, prettier, eslint, actionlint.
+  lint:
+    name: Lint (pre-commit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The frontend hooks run the prettier/eslint versions pinned in the lockfile.
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Run pre-commit on all files
+        run: uvx "pre-commit@${PRE_COMMIT_VERSION}" run --all-files --show-diff-on-failure --color=always
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      # Same image as docker-compose.yml (matches Neon: PG 18 + pgvector 0.8.1).
+      # Throwaway CI database: trust auth, so no password is needed.
+      postgres:
+        image: pgvector/pgvector:0.8.1-pg18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: apexgpt_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d apexgpt_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres@localhost:5432/apexgpt_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Unit + integration tests (integration runs because TEST_DATABASE_URL is set).
+      - name: Run tests
+        run: uv run --frozen pytest
+
+      # Guard against the integration module silently skipping (e.g. a renamed env var).
+      - name: Check integration tests ran
+        run: |
+          # Prints e.g. "5/38 tests collected (33 deselected)" or "no tests collected".
+          uv run --frozen pytest -m integration --co -q | tee "$RUNNER_TEMP/collected.txt"
+          if ! grep -qE '^[1-9][0-9]*/[0-9]+ tests? collected' "$RUNNER_TEMP/collected.txt"; then
+            echo "::error::No integration tests were collected"
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend typecheck + tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+  # Production (runtime) images: build, start, and wait for the HEALTHCHECK.
+  docker-images:
+    name: Docker runtime images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build backend image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          target: runtime
+          tags: apexgpt-backend:ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          target: runtime
+          tags: apexgpt-frontend:ci
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:8000
+          load: true
+          push: false
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+      # /health is DB-free liveness, so the backend needs no database here;
+      # port 1 refuses connections, proving startup does not depend on the DB.
+      - name: Start containers and wait for healthy
+        run: |
+          docker run -d --name backend \
+            -e DATABASE_URL=postgresql://ci:ci@127.0.0.1:1/ci \
+            -e ENVIRONMENT=production \
+            apexgpt-backend:ci
+          docker run -d --name frontend apexgpt-frontend:ci
+
+          wait_healthy() {
+            for _ in $(seq 1 30); do
+              status=$(docker inspect -f '{{.State.Health.Status}}' "$1")
+              [ "$status" = healthy ] && { echo "$1: healthy"; return 0; }
+              [ "$(docker inspect -f '{{.State.Running}}' "$1")" = true ] || break
+              sleep 2
+            done
+            echo "::error::$1 did not become healthy (status: ${status:-unknown})"
+            docker logs "$1"
+            return 1
+          }
+          wait_healthy backend
+          wait_healthy frontend
+
+      - name: Check containers run as non-root
+        run: |
+          for c in backend frontend; do
+            user=$(docker exec "$c" id -un)
+            echo "$c runs as $user"
+            [ "$user" != root ] || { echo "::error::$c runs as root"; exit 1; }
+          done
+
+      - name: Show image sizes
+        run: docker image ls 'apexgpt-*'
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f backend frontend || true
+
+  # Full local stack (dev targets) as a developer runs it: docker compose up.
+  compose:
+    name: Docker compose stack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create .env from the example
+        run: cp .env.example .env
+
+      - name: Start the stack
+        run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: Smoke test
+        run: |
+          set -x
+          curl -fsS http://localhost:8000/health
+          # Readiness hits the DB, so this proves migrations ran and the DB is reachable.
+          curl -fsS http://localhost:8000/health/ready
+          curl -fsS http://localhost:3000/api/health
+          # The page itself renders.
+          curl -fsS -o /dev/null http://localhost:3000/
+          # CORS allows the frontend origin.
+          curl -fsS -D - -o /dev/null -H "Origin: http://localhost:3000" \
+            http://localhost:8000/health | grep -i '^access-control-allow-origin: http://localhost:3000'
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  ci-ok:
+    name: CI passed
+    if: always()
+    needs: [lint, backend, frontend, docker-images, compose]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check all jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for r in $RESULTS; do
+            [ "$r" = success ] || { echo "::error::A required job did not succeed"; exit 1; }
+          done
