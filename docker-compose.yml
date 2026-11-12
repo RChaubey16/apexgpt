@@ -1,0 +1,34 @@
+# Local development stack. Production uses Neon for the database (F7.x).
+# Backend and frontend services are added in F0.5.
+#
+#   cp .env.example .env
+#   docker compose up -d db
+
+name: apexgpt
+
+services:
+  db:
+    # Matches Neon's default: Postgres 18 with pgvector 0.8.1 (halfvec needs >= 0.7).
+    image: pgvector/pgvector:0.8.1-pg18
+    # Values are passed through by name from .env (never written here).
+    # Only these three reach the DB container, not the rest of .env.
+    # If POSTGRES_PASSWORD is unset, the image refuses to initialise.
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+    ports:
+      # Bound to localhost only: never expose the dev database to the network.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/<major>/docker.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -51,14 +51,29 @@ pre-commit install
 
 Running the whole app with `docker compose up` arrives in Phase 0 (F0.5).
 
+### Database
+
+Local Postgres 18 + pgvector 0.8.1 (matches Neon's default):
+
+```bash
+docker compose up -d db                  # bound to 127.0.0.1:5432 only
+cd backend && uv run alembic upgrade head
+```
+
 ### Backend
 
 ```bash
 cd backend
 uv sync                                  # install dependencies (incl. dev)
-uv run uvicorn app.main:app --reload     # http://localhost:8000/health, docs at /docs
-uv run pytest                            # run tests
+uv run uvicorn app.main:create_app --factory --reload   # http://localhost:8000/health, docs at /docs
+uv run pytest                            # unit tests (no database needed)
+
+# Integration tests: real DB. They migrate up/down, so never use a DB with real data.
+TEST_DATABASE_URL=postgresql://apexgpt:change-me@localhost:5432/apexgpt \
+  uv run pytest -m integration
 ```
+
+Health endpoints: `/health` is liveness only and never touches the DB, so the 30s Docker healthcheck doesn't keep Neon awake. `/health/ready` checks the DB and returns 503 if it's unreachable.
 
 Docker image (production target):
 

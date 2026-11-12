@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 0: Local foundation |
-| **Current feature** | F0.2 `feature/backend-skeleton` (PR raised, awaiting review) |
-| **Current branch** | `feature/backend-skeleton` |
-| **Open PR** | [#2](https://github.com/RChaubey16/apexgpt/pull/2) (F0.2) |
+| **Current feature** | F0.3 `feature/database-setup` (PR raised, awaiting review) |
+| **Current branch** | `feature/database-setup` |
+| **Open PR** | [#3](https://github.com/RChaubey16/apexgpt/pull/3) (F0.3) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F0.2 PR.
-2. After merge: pull `main`, start **F0.3** `feature/database-setup`.
+1. User reviews and merges the F0.3 PR.
+2. After merge: pull `main`, start **F0.4** `feature/frontend-skeleton`.
 
 ---
 
@@ -62,8 +62,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 0: Local Foundation
 - [x] F0.1 `feature/repo-setup`: monorepo tooling and pre-commit hooks · PR #1 merged
-- [ ] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health` · 🔍 PR #2
-- [ ] F0.3 `feature/database-setup`: pgvector database with Alembic
+- [x] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health` · PR #2 merged
+- [ ] F0.3 `feature/database-setup`: pgvector database with Alembic · 🔍 PR #3
 - [ ] F0.4 `feature/frontend-skeleton`: Next.js shell with health check
 - [ ] F0.5 `feature/docker-compose-setup`: full compose stack with memory limits
 - [ ] F0.6 `feature/ci-pipeline`: CI for lint, tests and Docker builds
@@ -140,12 +140,28 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-12 | Notable driver = champion, race winner, podium finisher, or 30+ starts | Full bios only where users are likely to ask |
 | 2026-11-12 | Database: Neon free tier (after considering self-hosted and Supabase) | Saves VPS RAM; 1 GB/project; 100 free projects for future apps; auto-wake with no keep-alive |
 | 2026-11-12 | Git flow: `main` + `feature/*` only (no `develop`), one feature at a time, PR per feature against `main`, user reviews and merges before the next feature starts; Conventional Commits; no Claude co-author | Rules in `CLAUDE.md` |
+| 2026-11-12 | Local DB pinned to Postgres 18 + pgvector 0.8.1 | Matches Neon's default for new projects (PG 18, pgvector 0.8.1) |
+| 2026-11-12 | Split health: `/health` (liveness, no DB) vs `/health/ready` (DB check) | A 30s Docker healthcheck hitting the DB would keep Neon awake 24/7 (~180 CU-h/month vs 100 free) |
+| 2026-11-12 | Sync SQLAlchemy 2.1 + psycopg 3; prepared statements disabled | Simple with Alembic; low query volume; safe behind Neon's PgBouncer pooler |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-12: F0.3 database setup
+- PR #2 (F0.2) merged.
+- Confirmed Neon's default: Postgres 18 + pgvector 0.8.1. Local `db` service pinned to `pgvector/pgvector:0.8.1-pg18`, bound to `127.0.0.1` only, `pg_isready` healthcheck, volume at `/var/lib/postgresql` (PG 18 layout).
+- Backend: SQLAlchemy 2.1 (sync) + psycopg 3 + Alembic. Engine on `app.state` (lazy connect, `pool_pre_ping`, small pool, prepared statements off for PgBouncer). `DATABASE_URL` required, validated, normalised to `postgresql+psycopg`, held as `SecretStr`. `hide_input_in_errors` stops secrets appearing in validation errors (a test caught the leak).
+- Health split: `/health` liveness (never touches DB) vs `/health/ready` (DB check, 503 when down). App now built via `uvicorn --factory`.
+- Alembic: `alembic.ini`, `migrations/env.py` (URL from Settings), migration `0001` enables `vector`. Migrations ship in the runtime image.
+- Tests: 38 passing (33 unit + 5 integration against real PG 18: pgvector ≥ 0.7 + `halfvec` distance, idempotent upgrade, downgrade, server version 18, `/health/ready`).
+- Verified in Docker: in-image `alembic upgrade head`; `/health/ready` 200 → 503 when DB stopped, `/health` stays 200 and container stays healthy; logs show only the error class; ~70 MB RAM.
+- **Local env issue (resolved):** `docker compose up` first failed ("all predefined address pools have been fully subnetted") due to unused Docker networks from other projects; the user cleared some. Port 5432 is used by another local Postgres, so the local `.env` uses `POSTGRES_PORT=55432`.
+- Verified via `docker compose up -d db`: healthy, bound to `127.0.0.1:55432`; `alembic upgrade head` using `.env`; all 38 tests pass; local backend `/health/ready` returns 200; data (pgvector 0.8.1, revision `0001`) persists across `docker compose down`/`up` in volume `apexgpt_pgdata`.
+- PR raised against `main`.
+- **GitGuardian check failed** ("Generic Password" in `docker-compose.yml`): a false positive on `POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?...}`, an interpolation placeholder with no real value. Restructured the `db` env to pass-through names (`- POSTGRES_PASSWORD`), so no `KEY: value` password line exists. Verified: `docker compose config` resolves values from `.env`; without them the image refuses to initialise. Only the three `POSTGRES_*` vars reach the DB container (not the whole `.env`). The GitGuardian dashboard incident needs to be marked as a false positive.
 
 ### 2026-11-12: F0.2 backend skeleton
 - PR #1 (F0.1) merged.
@@ -178,5 +194,4 @@ Newest first.
 ## Known Issues / Open Questions
 
 - Confirm whether Jolpica offers a bulk data dump (otherwise use a rate-limited API crawl). To check at the start of Phase 1 (F1.2).
-- Confirm Neon's Postgres major version before pinning the local `db` image. To check in F0.3.
 - Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1.

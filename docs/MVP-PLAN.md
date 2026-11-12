@@ -63,7 +63,7 @@ Implications:
 | Constraint | Mitigation |
 |---|---|
 | 1 GB storage per project (writes that add data fail beyond it; reads continue) | Lean data strategy (~110–150 MB target) plus an ingestion size guard (warns at 700 MB, refuses at 900 MB). See [DATA-STRATEGY.md](./DATA-STRATEGY.md). |
-| Suspends after 5 min idle; ~0.5–1 s cold start on the next query | Frontend calls `/health` on page load to wake the DB before the user sends a question; measure first-query latency in Phase 6 |
+| Suspends after 5 min idle; ~0.5–1 s cold start on the next query | Frontend calls `/health/ready` on page load to wake the DB before the user sends a question; measure first-query latency in Phase 6. The Docker healthcheck uses DB-free `/health` so it never keeps Neon awake |
 | 100 compute-hours/month per project | Compute only runs while awake, which is ample for a personal project; track usage in the Neon console |
 | Network round trip from VPS to Neon (~20–80 ms) | Acceptable next to LLM latency; use Neon's pooled connection string; pick the region closest to the VPS |
 | Free-tier backup/restore window is limited | Scheduled weekly `pg_dump` to off-site storage |
@@ -86,7 +86,7 @@ Implications:
 apexgpt/
 ├── backend/                 # FastAPI app
 │   ├── app/
-│   │   ├── api/             # routes: /chat, /feedback, /health
+│   │   ├── api/             # routes: /chat, /feedback, /health, /health/ready
 │   │   ├── core/            # config, logging, rate limiting, in-memory cache
 │   │   ├── db/              # SQLAlchemy models, session, Alembic migrations
 │   │   ├── llm/             # LiteLLM client, prompts, provider fallback
@@ -120,7 +120,7 @@ apexgpt/
 - Docker Compose services: `db` (Postgres + pgvector ≥ 0.7 for `halfvec`, same major version as Neon), `backend`, `frontend`.
 - FastAPI app with `/health`, config via `pydantic-settings` (single `DATABASE_URL` that switches between local and Neon).
 - Alembic initialised. The first migration enables the `vector` extension.
-- Next.js shell with a placeholder chat page calling `/health`.
+- Next.js shell with a placeholder chat page calling `/health/ready`.
 - Multi-stage, production-ready Dockerfiles from the start.
 - Container memory limits matching the VPS budget.
 - GitHub Actions running lint and tests.
@@ -255,8 +255,8 @@ Each feature has an ID, a branch name and the commit message to use. Features ru
 |---|---|---|---|
 | F0.1 | `feature/repo-setup` | `.gitignore` (incl. `data/`), `.editorconfig`, shared `ruff.toml`, pre-commit (file hygiene, ruff, black), `.env.example`, README | `chore: initialize monorepo with tooling and pre-commit hooks` |
 | F0.2 | `feature/backend-skeleton` | FastAPI app, `/health`, `pydantic-settings`, pytest setup, multi-stage Dockerfile | `feat: add FastAPI backend skeleton with health endpoint` |
-| F0.3 | `feature/database-setup` | Postgres + pgvector service, SQLAlchemy session, Alembic init, migration enabling `vector`, DB check in `/health` | `feat: add pgvector database with Alembic migrations` |
-| F0.4 | `feature/frontend-skeleton` | Next.js (App Router, TS, Tailwind) shell calling `/health`, multi-stage Dockerfile, eslint + prettier pre-commit hooks | `feat: add Next.js frontend shell with backend health check` |
+| F0.3 | `feature/database-setup` | Postgres + pgvector service, SQLAlchemy session, Alembic init, migration enabling `vector`, DB readiness check at `/health/ready` (`/health` stays DB-free liveness) | `feat: add pgvector database with Alembic migrations` |
+| F0.4 | `feature/frontend-skeleton` | Next.js (App Router, TS, Tailwind) shell calling `/health/ready`, multi-stage Dockerfile, eslint + prettier pre-commit hooks | `feat: add Next.js frontend shell with backend health check` |
 | F0.5 | `feature/docker-compose-setup` | Full `docker-compose.yml` (db, backend, frontend), memory limits, healthchecks | `chore: add docker compose stack with memory limits` |
 | F0.6 | `feature/ci-pipeline` | GitHub Actions: lint + tests + Docker build | `chore: add CI workflow for lint, tests and docker builds` |
 
@@ -308,7 +308,7 @@ Each feature has an ID, a branch name and the commit message to use. Features ru
 
 | ID | Branch | Scope | Commit message |
 |---|---|---|---|
-| F5.1 | `feature/chat-ui` | Chat layout, SSE streaming client, `/health` on page load (wakes Neon) | `feat: add streaming chat interface` |
+| F5.1 | `feature/chat-ui` | Chat layout, SSE streaming client, `/health/ready` on page load (wakes Neon) | `feat: add streaming chat interface` |
 | F5.2 | `feature/answer-rendering` | Markdown, stats tables, citation chips | `feat: add markdown, table and citation rendering` |
 | F5.3 | `feature/starter-questions` | Starter question cards on empty chat | `feat: add starter question cards` |
 | F5.4 | `feature/chat-history` | `localStorage` conversations (new, rename, delete) | `feat: add local conversation history` |
