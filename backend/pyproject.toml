@@ -1,0 +1,23 @@
+[project]
+name = "apexgpt-backend"
+version = "0.1.0"
+description = "ApexGPT FastAPI backend: F1 hybrid RAG API"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi>=0.162.5",
+    "pydantic-settings>=2.16.2",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "pytest>=9.2.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"

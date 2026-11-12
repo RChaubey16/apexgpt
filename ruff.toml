@@ -2,6 +2,8 @@
 # Line length matches Black's default (88).
 line-length = 88
 target-version = "py312"
+# Package roots, so imports like `app.*` are sorted as first-party.
+src = ["backend", "ingestion", "eval"]
 
 [lint]
 select = [

@@ -49,7 +49,23 @@ cp .env.example .env        # then fill in values
 pre-commit install
 ```
 
-Running the app locally with `docker compose up` arrives in Phase 0 (F0.5).
+Running the whole app with `docker compose up` arrives in Phase 0 (F0.5).
+
+### Backend
+
+```bash
+cd backend
+uv sync                                  # install dependencies (incl. dev)
+uv run uvicorn app.main:app --reload     # http://localhost:8000/health, docs at /docs
+uv run pytest                            # run tests
+```
+
+Docker image (production target):
+
+```bash
+docker build -t apexgpt-backend backend/
+docker run -p 8000:8000 apexgpt-backend
+```
 
 ## Development Workflow
 
