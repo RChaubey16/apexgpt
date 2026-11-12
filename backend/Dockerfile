@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PATH="/app/.venv/bin:$PATH"
 COPY . .
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # ---------- Runtime: slim image, non-root, no build tools ----------
 FROM python:3.12-slim AS runtime
@@ -40,11 +40,17 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 COPY app ./app
+# Migrations ship with the image so they can be run in place:
+#   docker run --rm -e DATABASE_URL=... <image> alembic upgrade head
+COPY alembic.ini ./
+COPY migrations ./migrations
 
 USER app
 
 EXPOSE 8000
 
+# Liveness only: /health never touches the database, so this 30s poll does not
+# keep Neon awake. Readiness (with DB check) is /health/ready.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
 
@@ -54,4 +60,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 ENV FORWARDED_ALLOW_IPS=127.0.0.1
 
 # Single worker: keeps memory within the VPS budget (embedding models load per worker).
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
