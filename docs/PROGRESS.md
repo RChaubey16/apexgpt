@@ -166,6 +166,7 @@ Newest first.
 - Added actionlint to pre-commit (runs shellcheck on `run:` blocks in CI, where shellcheck is preinstalled).
 - README: CI section.
 - Verified locally: `pre-commit run --all-files` passes (incl. actionlint); integration-guard regex matches `5/38 tests collected` and rejects `no tests collected`. Full verification is the PR's own CI run.
+- PR #6 raised. First CI run all green (~3 min wall-clock): 38 backend tests passed with the integration guard showing `5/38 tests collected`; 30 Vitest tests; runtime images healthy and running as `app` (backend 214 MB, frontend 235 MB); compose stack returned `/health/ready` `{"database":"ok"}` and the correct CORS header; GitGuardian passed.
 
 ### 2026-11-12: F0.5 docker compose stack
 - PR #4 (F0.4) merged.
