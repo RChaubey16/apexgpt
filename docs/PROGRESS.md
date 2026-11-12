@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 0: Local foundation |
-| **Current feature** | F0.1 `feature/repo-setup` (PR raised, awaiting review) |
-| **Current branch** | `feature/repo-setup` |
-| **Open PR** | [#1](https://github.com/RChaubey16/apexgpt/pull/1) (F0.1) |
+| **Current feature** | F0.2 `feature/backend-skeleton` (PR raised, awaiting review) |
+| **Current branch** | `feature/backend-skeleton` |
+| **Open PR** | [#2](https://github.com/RChaubey16/apexgpt/pull/2) (F0.2) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F0.1 PR.
-2. After merge: pull `main`, start **F0.2** `feature/backend-skeleton`.
+1. User reviews and merges the F0.2 PR.
+2. After merge: pull `main`, start **F0.3** `feature/database-setup`.
 
 ---
 
@@ -61,8 +61,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] Development workflow, completion checklist and feature breakdown added
 
 ### Phase 0: Local Foundation
-- [ ] F0.1 `feature/repo-setup`: monorepo tooling and pre-commit hooks · 🔍 PR #1
-- [ ] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health`
+- [x] F0.1 `feature/repo-setup`: monorepo tooling and pre-commit hooks · PR #1 merged
+- [ ] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health` · 🔍 PR #2
 - [ ] F0.3 `feature/database-setup`: pgvector database with Alembic
 - [ ] F0.4 `feature/frontend-skeleton`: Next.js shell with health check
 - [ ] F0.5 `feature/docker-compose-setup`: full compose stack with memory limits
@@ -147,6 +147,17 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 Newest first.
 
+### 2026-11-12: F0.2 backend skeleton
+- PR #1 (F0.1) merged.
+- Added `backend/`: uv project (Python 3.12, lockfile), FastAPI app factory, `/health`, validated `pydantic-settings` config (environment, log level, CORS origins; `*` rejected), global 500 handler that hides internals, `/docs` disabled in production, CORS limited to GET/POST.
+- Multi-stage Dockerfile: `builder` → `dev` (reload, test deps) → `runtime` (default; slim, non-root `app` user, HEALTHCHECK, single uvicorn worker).
+- Tests: 16 pytest tests (health, config validation, error handling, docs toggle, CORS).
+- Verified: tests pass; runtime image 161 MB, ~49 MB RAM, healthcheck healthy, invalid config fails fast at startup.
+- Switched test client dependency `httpx` → `httpx2` (Starlette deprecation). Security review flagged it as a possible typosquat; verified legitimate (imported by Starlette's own testclient; published by Pydantic, github.com/pydantic/httpx2; dev-only).
+- Security review fix: removed `--forwarded-allow-ips "*"`; proxy headers now trusted only from `FORWARDED_ALLOW_IPS` (default `127.0.0.1`; set to the Traefik network in F7.1). Verified spoofed `X-Forwarded-For` is ignored by default.
+- Added `src` to `ruff.toml` so `app.*` imports sort as first-party.
+- PR raised against `main`; awaiting review.
+
 ### 2026-11-12: F0.1 repo setup
 - Added `.gitignore`, `.editorconfig`, shared `ruff.toml` (incl. bandit security rules), `.pre-commit-config.yaml` (hygiene, ruff-check, black; versions pinned via autoupdate), `.env.example`, README.
 - ESLint/Prettier hooks moved to F0.4 (they need the frontend's pinned dependencies); plan updated.
@@ -168,3 +179,4 @@ Newest first.
 
 - Confirm whether Jolpica offers a bulk data dump (otherwise use a rate-limited API crawl). To check at the start of Phase 1 (F1.2).
 - Confirm Neon's Postgres major version before pinning the local `db` image. To check in F0.3.
+- Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1.
