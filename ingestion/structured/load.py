@@ -14,6 +14,9 @@ inserted or updated, never deleted: later tables (aliases, lineage) refer to
 them, and an unreferenced entity is harmless. Rows outside the loaded season
 range are never touched.
 
+Aliases and constructor lineage (structured/aliases.py) are synced last, in
+the same transaction, when seeds are passed.
+
 The schema must already exist (backend migrations: `alembic upgrade head`).
 """
 
@@ -24,6 +27,8 @@ from dataclasses import dataclass
 import psycopg
 from psycopg import sql
 
+from structured.aliases import Seeds, sync_seeds
+from structured.report import TableReport
 from structured.transform import F1Data, Record
 
 logger = logging.getLogger(__name__)
@@ -148,13 +153,6 @@ FACT_TABLES = (
 )
 
 
-@dataclass
-class TableReport:
-    inserted: int = 0
-    updated: int = 0
-    deleted: int = 0
-
-
 def _staging(table: str) -> sql.Identifier:
     return sql.Identifier(f"stg_{table}")
 
@@ -262,9 +260,16 @@ def _with_status_ids(
 
 
 def load(
-    conn: psycopg.Connection, data: F1Data, first_season: int, last_season: int
+    conn: psycopg.Connection,
+    data: F1Data,
+    first_season: int,
+    last_season: int,
+    seeds: Seeds | None = None,
 ) -> dict[str, TableReport]:
-    """Sync the database to `data` for seasons [first_season, last_season], atomically."""
+    """Sync the database to `data` for seasons [first_season, last_season], atomically.
+
+    With `seeds`, aliases and lineage are synced too, in the same transaction.
+    """
     reports: dict[str, TableReport] = {}
     with conn.transaction(), conn.cursor() as cur:
         status_report, status_ids = _sync_statuses(cur, data.statuses)
@@ -294,6 +299,8 @@ def load(
             report = _upsert(cur, spec)
             report.deleted = _delete_stale_facts(cur, spec, first_season, last_season)
             reports[spec.name] = report
+        if seeds is not None:
+            reports.update(sync_seeds(cur, seeds))
 
     for name, r in reports.items():
         logger.info(

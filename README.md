@@ -89,13 +89,14 @@ cd ingestion
 uv sync
 uv run python -m structured              # download (cached in data/jolpica/), verify SHA-256, load
 uv run python -m structured --dry-run    # transform only and print row counts; no DB needed
-uv run python -m structured --help       # --dump <zip>, --first-season, --last-season
+uv run python -m structured --help       # --dump <zip>, --first-season, --last-season, --no-seeds
 uv run pytest                            # unit tests; integration tests need TEST_DATABASE_URL
 ```
 
 - Uses `DATABASE_URL` from `.env`. Takes ~10 s; the result is ~13 MB.
 - The load is one transaction: re-running is safe (unchanged rows aren't touched) and a failure leaves the database as it was. Races in the loaded season range that disappear from the dump are deleted; other seasons are never touched.
 - Bad source data (missing columns, unparseable values, broken references) stops the load with a message naming the table, row and column.
+- **Aliases and team lineage** are synced in the same transaction. Drivers' full names/surnames and constructors' names are generated; nicknames ("Schumi", "Checo", "Silver Arrows") and team successions (Tyrrell → BAR → Honda → Brawn → Mercedes) are curated in [`ingestion/structured/seeds/`](ingestion/structured/seeds/). Seeds use driver/constructor `ref` slugs. Edit a CSV and re-run the loader to apply it; lineage rows are checked against the race data (the successor raced in that season, the predecessor in that season or the one before).
 
 ### Backend
 

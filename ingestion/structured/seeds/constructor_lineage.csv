@@ -1,0 +1,34 @@
+predecessor,successor,season,note
+tyrrell,bar,1999,British American Tobacco bought Tyrrell
+bar,honda,2006,Honda bought out British American Tobacco
+honda,brawn,2009,Ross Brawn's management buyout after Honda withdrew
+brawn,mercedes,2010,Mercedes bought Brawn GP
+toleman,benetton,1986,Benetton bought Toleman
+benetton,renault,2002,Renault (owner since 2000) renamed the team
+renault,lotus_f1,2012,Genii Capital renamed the team Lotus
+lotus_f1,renault,2016,Renault bought the team back
+renault,alpine,2021,Renault rebranded the team as Alpine
+jordan,mf1,2006,Midland bought Jordan
+mf1,spyker_mf1,2006,Spyker bought Midland during the season
+spyker_mf1,spyker,2007,Renamed Spyker
+spyker,force_india,2008,Vijay Mallya and Michiel Mol bought Spyker
+force_india,racing_point,2019,A consortium led by Lawrence Stroll bought Force India
+racing_point,aston_martin,2021,Renamed Aston Martin
+minardi,toro_rosso,2006,Red Bull bought Minardi
+toro_rosso,alphatauri,2020,Renamed AlphaTauri
+alphatauri,rb,2024,Renamed RB (Visa Cash App RB)
+stewart,jaguar,2000,Ford renamed Stewart Grand Prix as Jaguar
+jaguar,red_bull,2005,Red Bull bought Jaguar Racing from Ford
+sauber,bmw_sauber,2006,BMW bought Sauber
+bmw_sauber,sauber,2010,Peter Sauber bought the team back from BMW
+sauber,alfa,2019,Renamed Alfa Romeo Racing under a partnership with Alfa Romeo
+alfa,sauber,2024,Alfa Romeo partnership ended; raced as Kick Sauber
+ligier,prost,1997,Alain Prost bought Ligier
+arrows,footwork,1991,Footwork bought Arrows
+footwork,arrows,1997,Tom Walkinshaw bought the team and renamed it Arrows
+march,leyton,1990,Leyton House took over the March team
+leyton,march,1992,The team reverted to the March name
+osella,fondmetal,1991,Fondmetal bought Osella
+lotus_racing,caterham,2012,Renamed Caterham
+virgin,marussia,2012,Marussia took over Virgin Racing
+marussia,manor,2015,Manor bought the team out of administration

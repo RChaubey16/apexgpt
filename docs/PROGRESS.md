@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 1: Structured data |
-| **Current feature** | F1.2 `feature/jolpica-loader` (PR raised, awaiting review) |
-| **Current branch** | `feature/jolpica-loader` |
-| **Open PR** | #9 (F1.2) |
+| **Current feature** | F1.3 `feature/entity-aliases` (PR raised, awaiting review) |
+| **Current branch** | `feature/entity-aliases` |
+| **Open PR** | #10 (F1.3) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F1.2 PR.
-2. After merge: pull `main`, start **F1.3** `feature/entity-aliases`.
+1. User reviews and merges the F1.3 PR.
+2. After merge: pull `main`, start **F1.4** `feature/stats-views` (poles = `grid = 1`; see DATA-STRATEGY).
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -72,8 +72,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 1: Structured F1 Data
 - [x] F1.1 `feature/f1-schema`: structured F1 schema · PR #8 merged
-- [ ] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025 · 🔍 PR #9
-- [ ] F1.3 `feature/entity-aliases`: alias and lineage tables
+- [x] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025 · PR #9 merged
+- [ ] F1.3 `feature/entity-aliases`: alias and lineage tables · 🔍 PR #10
 - [ ] F1.4 `feature/stats-views`: stats SQL views
 - [ ] F1.5 `feature/readonly-db-role`: read-only role for LLM queries
 - [ ] F1.6 `feature/structured-data-checks`: sanity checks
@@ -151,6 +151,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-13 | Loader semantics follow Jolpica's own Ergast-compatible API (jolpica_api/ergastapi) | Our numbers match what that API reports (quali position = last session, standings = per-round rows, status = detail text) |
 | 2026-11-13 | Loader = one-transaction sync: COPY to staging, delete stale races, upsert changed rows, delete stale facts; entities never deleted; scoped to the season range | Idempotent and atomic; safe to re-run; later alias tables can reference entities safely |
 | 2026-11-13 | `ingestion/` is its own uv project (psycopg + pydantic-settings, stdlib urllib for downloads); schema owned by backend migrations | Matches the planned layout; no backend import coupling; minimal deps |
+| 2026-11-13 | Aliases: normalised text, many-to-many, kinds name/surname/nickname; names generated from data, nicknames + lineage curated as CSV seeds keyed by `ref`; synced in the loader's transaction | One lookup table for F3.4; ambiguity kept explicit; seeds survive ID changes; editing a CSV + re-running applies it |
 | 2026-11-13 | Poles = `results.grid = 1` (qualifying only exists from 1994) | Matches official pole counts across all eras |
 | 2026-11-12 | CI: one GitHub Actions workflow, parallel jobs, single `CI passed` gate; actions pinned to commit SHAs; CI Postgres uses trust auth (no password literal) | One required check for branch protection; supply-chain safety; avoids secret-scanner false positives like the F0.3 GitGuardian alert |
 
@@ -159,6 +160,16 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-13: F1.3 entity aliases and constructor lineage
+- PR #9 (F1.2) merged.
+- Migration `0003` + models: `driver_aliases`, `constructor_aliases` (PK alias + entity id, `kind` name/surname/nickname, format check `^[a-z0-9]+( [a-z0-9]+)*$`, cascade on entity delete) and `constructor_lineage` (predecessor, successor, first season under the successor, note; season in the key so teams can return to an old identity).
+- `ingestion/structured/aliases.py`: `normalise_alias` (NFKD + transliteration of ø/æ/ß/ł/…; non-alphanumerics → single spaces), seed reading/validation, and a set-diff sync (insert/update/delete) run at the end of the load transaction. Generated: every driver's full name + surname; every constructor's name + ref. Curated seeds (`structured/seeds/*.csv`, keyed by `ref`): 67 driver nicknames, 26 constructor nicknames, 33 lineage edges. Lineage is validated against race data (successor raced in the season; predecessor in that season or the one before). All 33 edges passed on real data.
+- New CLI flag `--no-seeds`; seed problems (unknown refs, lineage not matching data) fail the whole load and roll it back.
+- Real data: 1,701 driver aliases, 245 constructor aliases, 33 lineage edges; re-run is a no-op. Checked: "checo" → Pérez, "kimi" → Räikkönen + Antonelli, "schumacher" → Michael/Ralf/Mick, "silver arrows" → Mercedes, "lotus" → three Lotus teams; recursive query from Mercedes gives Tyrrell → BAR → Honda → Brawn → Mercedes.
+- Tests: backend 143 (new tables in the drift/FK-index/compact-type checks; 14 more bad-row cases; multi-mapping, team return, alias cascade). Ingestion 143 (normalisation incl. DB-format check, real seed files valid, malformed seeds, sync of generated + curated rows, no-op re-sync, seed edits synced, unknown ref rolls back the whole load, lineage-vs-data checks, CLI `--no-seeds`).
+- Dev DB migrated to `0003` and loaded with the real seeds.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-13: F1.2 Jolpica loader
 - PR #8 (F1.1) merged.

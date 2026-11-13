@@ -24,8 +24,11 @@ from app.db.base import Base
 from app.db.models import (
     Circuit,
     Constructor,
+    ConstructorAlias,
+    ConstructorLineage,
     ConstructorStanding,
     Driver,
+    DriverAlias,
     DriverStanding,
     PitStop,
     Qualifying,
@@ -58,6 +61,9 @@ F1_TABLES = {
     "driver_standings",
     "constructor_standings",
     "pit_stops",
+    "driver_aliases",
+    "constructor_aliases",
+    "constructor_lineage",
 }
 
 
@@ -290,6 +296,53 @@ def test_unclassified_result_has_null_position(
     session.flush()
 
 
+def test_an_alias_can_map_to_several_drivers(
+    session: Session, base_rows: dict[str, int]
+) -> None:
+    session.add_all(
+        [
+            DriverAlias(alias="ayrton senna", driver_id=1, kind="name"),
+            DriverAlias(alias="the professor", driver_id=2, kind="nickname"),
+            DriverAlias(alias="champion", driver_id=1, kind="nickname"),
+            DriverAlias(alias="champion", driver_id=2, kind="nickname"),
+        ]
+    )
+    session.flush()
+
+    ids = session.scalars(
+        select(DriverAlias.driver_id).where(DriverAlias.alias == "champion")
+    ).all()
+    assert sorted(ids) == [1, 2]
+
+
+def test_lineage_allows_a_team_to_return(
+    session: Session, base_rows: dict[str, int]
+) -> None:
+    """Sauber -> BMW Sauber (2006) -> Sauber (2010): same pair, different seasons."""
+    session.add(Constructor(constructor_id=2, ref="bmw_sauber", name="BMW Sauber"))
+    session.flush()
+    session.add_all(
+        [
+            ConstructorLineage(predecessor_id=1, successor_id=2, season=2006),
+            ConstructorLineage(
+                predecessor_id=2, successor_id=1, season=2010, note="BMW sold the team"
+            ),
+        ]
+    )
+    session.flush()
+
+
+def test_deleting_a_driver_removes_their_aliases(
+    session: Session, base_rows: dict[str, int]
+) -> None:
+    session.add(DriverAlias(alias="the professor", driver_id=2, kind="nickname"))
+    session.flush()
+
+    session.execute(text("DELETE FROM drivers WHERE driver_id = 2"))
+
+    assert session.scalar(select(func.count()).select_from(DriverAlias)) == 0
+
+
 def test_status_ids_are_generated(session: Session, base_rows: dict[str, int]) -> None:
     session.add_all([Status(status="Engine"), Status(status="+1 Lap")])
     session.flush()
@@ -416,6 +469,42 @@ BAD_ENTITIES = {
     "duplicate pit stop": lambda: [
         PitStop(race_id=1, driver_id=1, stop=1, lap=1, duration_ms=1),
         PitStop(race_id=1, driver_id=1, stop=1, lap=2, duration_ms=1),
+    ],
+    "alias with uppercase": lambda: DriverAlias(
+        alias="Senna", driver_id=1, kind="surname"
+    ),
+    "alias with accents": lambda: DriverAlias(
+        alias="pérez", driver_id=1, kind="surname"
+    ),
+    "alias with punctuation": lambda: DriverAlias(
+        alias="o'ward", driver_id=1, kind="name"
+    ),
+    "alias with double space": lambda: DriverAlias(
+        alias="a  b", driver_id=1, kind="name"
+    ),
+    "alias with outer space": lambda: DriverAlias(
+        alias=" senna", driver_id=1, kind="name"
+    ),
+    "empty alias": lambda: DriverAlias(alias="", driver_id=1, kind="name"),
+    "unknown driver alias kind": lambda: DriverAlias(
+        alias="x", driver_id=1, kind="code"
+    ),
+    "constructor alias kind surname": lambda: ConstructorAlias(
+        alias="x", constructor_id=1, kind="surname"
+    ),
+    "alias for unknown driver": lambda: DriverAlias(
+        alias="x", driver_id=999, kind="name"
+    ),
+    "duplicate alias for same driver": lambda: [
+        DriverAlias(alias="senna", driver_id=1, kind="surname"),
+        DriverAlias(alias="senna", driver_id=1, kind="nickname"),
+    ],
+    "team succeeds itself": lambda: ConstructorLineage(
+        predecessor_id=1, successor_id=1, season=2000
+    ),
+    "lineage before 1950": lambda: [
+        Constructor(constructor_id=2, ref="x", name="X"),
+        ConstructorLineage(predecessor_id=1, successor_id=2, season=1949),
     ],
 }
 

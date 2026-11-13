@@ -27,6 +27,9 @@ F1_TABLES = {
     "driver_standings",
     "constructor_standings",
     "pit_stops",
+    "driver_aliases",
+    "constructor_aliases",
+    "constructor_lineage",
 }
 
 # Columns that hold small bounded numbers: must be smallint (DATA-STRATEGY §1).
