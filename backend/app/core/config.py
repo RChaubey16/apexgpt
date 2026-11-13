@@ -60,10 +60,22 @@ class Settings(BaseSettings):
     database_url: SecretStr
     # Seconds to wait for a connection. Generous enough for a Neon cold start.
     database_connect_timeout: int = 10
+    # Optional until the SQL tool (F3.5): the read-only role the LLM's queries
+    # run as (apexgpt_llm_reader). Blank means unset.
+    readonly_database_url: SecretStr | None = None
 
     @field_validator("database_url")
     @classmethod
     def _validate_database_url(cls, value: SecretStr) -> SecretStr:
+        return SecretStr(normalise_database_url(value.get_secret_value()))
+
+    @field_validator("readonly_database_url")
+    @classmethod
+    def _validate_readonly_database_url(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        if value is None or not value.get_secret_value().strip():
+            return None
         return SecretStr(normalise_database_url(value.get_secret_value()))
 
     @field_validator("database_connect_timeout")

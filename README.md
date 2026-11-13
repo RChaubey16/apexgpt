@@ -109,6 +109,14 @@ Migration `0004` adds four read-only views that the LLM's SQL tool will query (F
 | `v_season_summary` | season: champion, runner-up, title margin, constructors' champion, distinct winners |
 | `v_head_to_head_teammates` | season × team × driver × teammate (both directions): qualifying, finishing, wins, points |
 
+The LLM's queries run as **`apexgpt_llm_reader`** (migration `0005`): it can only `SELECT` these four views (no table access, no writes or DDL), with a 5 s statement timeout, read-only transactions and at most 5 connections. Migrations create it without a password; set one in `READONLY_DATABASE_URL` (`.env`), then enable login:
+
+```bash
+cd backend && uv run python -m app.db.readonly_role   # sets the password, enables LOGIN, checks a view is readable
+```
+
+Re-run it to rotate the password.
+
 Poles use `grid = 1` (qualifying data starts in 1994), fastest laps are only recorded from 2004, and starts are approximate (see `docs/DATA-STRATEGY.md`).
 
 ### Backend
