@@ -98,6 +98,19 @@ uv run pytest                            # unit tests; integration tests need TE
 - Bad source data (missing columns, unparseable values, broken references) stops the load with a message naming the table, row and column.
 - **Aliases and team lineage** are synced in the same transaction. Drivers' full names/surnames and constructors' names are generated; nicknames ("Schumi", "Checo", "Silver Arrows") and team successions (Tyrrell → BAR → Honda → Brawn → Mercedes) are curated in [`ingestion/structured/seeds/`](ingestion/structured/seeds/). Seeds use driver/constructor `ref` slugs. Edit a CSV and re-run the loader to apply it; lineage rows are checked against the race data (the successor raced in that season, the predecessor in that season or the one before).
 
+### Stats views
+
+Migration `0004` adds four read-only views that the LLM's SQL tool will query (F3.5). Each has `COMMENT ON` text explaining its columns and the data's limits (`\d+ v_driver_career` in psql):
+
+| View | One row per |
+|---|---|
+| `v_race_winners` | race win (season, race, circuit, driver, team, race time, Wikipedia URL) |
+| `v_driver_career` | driver: entries, starts, wins, podiums, poles, fastest laps (2004+), DNFs, titles, points, teams |
+| `v_season_summary` | season: champion, runner-up, title margin, constructors' champion, distinct winners |
+| `v_head_to_head_teammates` | season × team × driver × teammate (both directions): qualifying, finishing, wins, points |
+
+Poles use `grid = 1` (qualifying data starts in 1994), fastest laps are only recorded from 2004, and starts are approximate (see `docs/DATA-STRATEGY.md`).
+
 ### Backend
 
 ```bash
