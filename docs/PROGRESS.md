@@ -14,19 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 0: Local foundation |
-| **Current feature** | F0.6 `feature/ci-pipeline` (PR raised, awaiting review) |
-| **Current branch** | `feature/ci-pipeline` |
-| **Open PR** | #6 (F0.6) |
+| **Current phase** | Phase 0 done; Phase 1 (Structured data) not started |
+| **Current feature** | None (next: F1.1 `feature/f1-schema`) |
+| **Current branch** | `main` |
+| **Open PR** | None |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F0.6 PR.
-2. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
-3. After merge: Phase 0 is done. Pull `main`, start **Phase 1** with **F1.1** `feature/f1-schema`; first check whether Jolpica offers a bulk dump (needed for F1.2).
+1. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
+2. When the user says to start Phase 1: pull `main`, start **F1.1** `feature/f1-schema`. Early in Phase 1, check whether Jolpica offers a bulk dump (needed for F1.2).
 
 ---
 
@@ -35,7 +34,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | Phase | Status | Started | Completed |
 |---|---|---|---|
 | Planning | ✅ Done | 2026-11-12 | 2026-11-12 |
-| 0. Local foundation | 🟡 In progress | 2026-11-12 | |
+| 0. Local foundation | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 1. Structured data | ⬜ Not started | | |
 | 2. Narrative corpus | ⬜ Not started | | |
 | 3. Retrieval + LLM | ⬜ Not started | | |
@@ -61,13 +60,13 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] `CLAUDE.md` rules added
 - [x] Development workflow, completion checklist and feature breakdown added
 
-### Phase 0: Local Foundation
+### Phase 0: Local Foundation ✅
 - [x] F0.1 `feature/repo-setup`: monorepo tooling and pre-commit hooks · PR #1 merged
 - [x] F0.2 `feature/backend-skeleton`: FastAPI skeleton with `/health` · PR #2 merged
 - [x] F0.3 `feature/database-setup`: pgvector database with Alembic · PR #3 merged
 - [x] F0.4 `feature/frontend-skeleton`: Next.js shell with health check · PR #4 merged
 - [x] F0.5 `feature/docker-compose-setup`: full compose stack with memory limits · PR #5 merged
-- [ ] F0.6 `feature/ci-pipeline`: CI for lint, tests and Docker builds · 🔍 PR #6
+- [x] F0.6 `feature/ci-pipeline`: CI for lint, tests and Docker builds · PR #6 merged
 - [x] **Phase done check:** `docker compose up` works and the frontend shows a healthy backend (verified in F0.5)
 
 ### Phase 1: Structured F1 Data
@@ -153,6 +152,11 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-12: Phase 0 closed
+- PR #6 (F0.6) merged. All Phase 0 features (F0.1–F0.6) merged and the phase done check passed, so **Phase 0 is complete**.
+- Phase 0 delivers: monorepo tooling + pre-commit, FastAPI backend (liveness/readiness health), Postgres 18 + pgvector with Alembic, Next.js frontend shell, a compose stack with memory limits, and GitHub Actions CI (lint, tests, Docker builds, single `CI passed` gate).
+- Phase 1 not started yet; waiting for the user's go-ahead.
 
 ### 2026-11-12: F0.6 CI pipeline
 - PR #5 (F0.5) merged.
