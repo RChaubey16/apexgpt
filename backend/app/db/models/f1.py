@@ -338,3 +338,78 @@ class PitStop(Base):
     local_time: Mapped[dt.time | None] = mapped_column(Time)
     # Time in the pit lane (entry to exit), not stationary time.
     duration_ms: Mapped[int] = mapped_column(Integer)
+
+
+# --- Entity resolution and team history (F1.3) ---
+
+# Aliases are stored normalised: lowercase ASCII letters/digits, single spaces,
+# accents stripped ("Pérez" -> "perez"). Lookups must normalise the same way
+# (see ingestion/structured/aliases.py: normalise_alias).
+_ALIAS_FORMAT = "alias ~ '^[a-z0-9]+( [a-z0-9]+)*$'"
+
+
+class DriverAlias(Base):
+    """Names a driver is known by. One alias can map to several drivers
+    (e.g. "schumacher" -> Michael, Ralf, Mick); resolution picks among them."""
+
+    __tablename__ = "driver_aliases"
+    __table_args__ = (
+        CheckConstraint(_ALIAS_FORMAT, name="alias_format"),
+        CheckConstraint("kind IN ('name', 'surname', 'nickname')", name="kind_valid"),
+        Index(None, "driver_id"),
+    )
+
+    alias: Mapped[str] = mapped_column(Text, primary_key=True)
+    driver_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("drivers.driver_id", ondelete="CASCADE"), primary_key=True
+    )
+    # name / surname: generated from the data; nickname: curated seed list.
+    kind: Mapped[str] = mapped_column(Text)
+
+
+class ConstructorAlias(Base):
+    """Names a constructor is known by (e.g. "silver arrows" -> Mercedes)."""
+
+    __tablename__ = "constructor_aliases"
+    __table_args__ = (
+        CheckConstraint(_ALIAS_FORMAT, name="alias_format"),
+        CheckConstraint("kind IN ('name', 'nickname')", name="kind_valid"),
+        Index(None, "constructor_id"),
+    )
+
+    alias: Mapped[str] = mapped_column(Text, primary_key=True)
+    constructor_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("constructors.constructor_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    kind: Mapped[str] = mapped_column(Text)
+
+
+class ConstructorLineage(Base):
+    """Team identity changes: the predecessor's entry continued as the successor
+    from `season` (e.g. Brawn -> Mercedes, 2010). Chains are followed by joining
+    successor_id to predecessor_id. A ref can reappear (Sauber -> BMW Sauber ->
+    Sauber), so the season is part of the key."""
+
+    __tablename__ = "constructor_lineage"
+    __table_args__ = (
+        CheckConstraint("predecessor_id <> successor_id", name="distinct_teams"),
+        CheckConstraint("season BETWEEN 1950 AND 2100", name="season_range"),
+        Index(None, "successor_id"),
+    )
+
+    predecessor_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("constructors.constructor_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    successor_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("constructors.constructor_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    # First season raced under the successor's identity.
+    season: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    # Short explanation, e.g. "Mercedes bought Brawn GP".
+    note: Mapped[str | None] = mapped_column(Text)

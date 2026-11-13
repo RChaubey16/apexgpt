@@ -43,6 +43,9 @@ F1_TABLES = (
     "driver_standings",
     "constructor_standings",
     "pit_stops",
+    "driver_aliases",
+    "constructor_aliases",
+    "constructor_lineage",
 )
 
 
@@ -88,7 +91,10 @@ def test_first_load_inserts_everything(conn: psycopg.Connection) -> None:
 
     reports = _load(conn, data)
 
-    assert _counts(conn) == data.counts()
+    counts = _counts(conn)
+    assert {t: counts[t] for t in data.counts()} == data.counts()
+    # Without seeds, aliases and lineage stay empty.
+    assert counts["driver_aliases"] == counts["constructor_lineage"] == 0
     assert all(r.inserted == data.counts()[name] for name, r in reports.items())
 
 
@@ -203,5 +209,5 @@ def test_cli_end_to_end(
     monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
     dump = write_zip(tmp_path / "dump.zip")
 
-    assert cli.run(["--dump", str(dump)]) == 0
+    assert cli.run(["--dump", str(dump), "--no-seeds"]) == 0
     assert _counts(conn)["results"] == 5

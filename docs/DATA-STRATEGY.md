@@ -31,6 +31,9 @@
 - **Qualifying data exists only from 1994** (as in Ergast). Pole positions across all eras therefore come from `results.grid = 1`, which matches the official counts (Senna 65, Hamilton 104); `qualifying.position = 1` is only valid from 1994. The stats views (F1.4) must use the grid definition.
 - A fastest-lap rank of 0 in the source means "no timed lap" and is stored as NULL.
 
+- **Aliases** are stored normalised: lowercase ASCII letters/digits with single spaces, accents stripped ("Pérez" → "perez"); a check constraint enforces it, and lookups must use the same `normalise_alias` function. One alias may map to several entities ("schumacher", "kimi"). Three-letter driver codes are deliberately not aliases (PER, SAI, GAS match ordinary words).
+- **Constructor lineage** edges carry the first season under the new identity, so a team can return to an earlier identity (Sauber → BMW Sauber → Sauber → Alfa Romeo → Sauber). One Jolpica constructor can span several eras (`alfa` = 1950s Alfa Romeo and 2019–23 Alfa Romeo Racing; `renault` = three stints).
+
 **Source:** the Jolpica-F1 CSV database dump (free tier, delayed 14 days, non-commercial use). It covers 1950 to the current season in Jolpica's own session-based schema, so the loader (F1.2) transforms it rather than copying it.
 
 **Estimated size:** ~15–25 MB including indexes.

@@ -3,8 +3,11 @@
 from app.db.models.f1 import (
     Circuit,
     Constructor,
+    ConstructorAlias,
+    ConstructorLineage,
     ConstructorStanding,
     Driver,
+    DriverAlias,
     DriverStanding,
     PitStop,
     Qualifying,
@@ -18,8 +21,11 @@ from app.db.models.f1 import (
 __all__ = [
     "Circuit",
     "Constructor",
+    "ConstructorAlias",
+    "ConstructorLineage",
     "ConstructorStanding",
     "Driver",
+    "DriverAlias",
     "DriverStanding",
     "PitStop",
     "Qualifying",

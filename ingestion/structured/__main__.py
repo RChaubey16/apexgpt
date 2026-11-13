@@ -5,6 +5,10 @@
     uv run python -m structured --dry-run           # transform only, print row counts
     uv run python -m structured --dump path/to.zip  # use a local dump file
     uv run python -m structured --first-season 2024 --last-season 2025
+    uv run python -m structured --no-seeds          # skip aliases + lineage
+
+Aliases and constructor lineage come from structured/seeds/*.csv and are
+synced in the same transaction (they need the full history loaded).
 
 Needs DATABASE_URL (read from the environment or the repo's .env) and an
 up-to-date schema (`cd backend && uv run alembic upgrade head`).
@@ -18,6 +22,7 @@ from pathlib import Path
 import psycopg
 from pydantic import ValidationError
 
+from structured.aliases import read_seeds
 from structured.config import Settings
 from structured.download import download_dump, fetch_dump_info, sha256_of
 from structured.dump import DumpReader
@@ -43,6 +48,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="transform and report counts; don't touch the DB",
+    )
+    parser.add_argument(
+        "--no-seeds",
+        action="store_true",
+        help="don't sync aliases and constructor lineage (structured/seeds/)",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
@@ -88,6 +98,8 @@ def run(argv: list[str] | None = None) -> int:
 
         with DumpReader(dump_path) as reader:
             data = transform(reader, args.first_season, args.last_season)
+        # Read (and validate) seed files even on a dry run.
+        seeds = None if args.no_seeds else read_seeds()
         if data.skipped_races:
             logger.info(
                 "Skipped %d races without results (not run yet)", data.skipped_races
@@ -104,7 +116,7 @@ def run(argv: list[str] | None = None) -> int:
         with connect(
             database_url.get_secret_value(), settings.database_connect_timeout
         ) as conn:
-            load(conn, data, args.first_season, args.last_season)
+            load(conn, data, args.first_season, args.last_season, seeds)
     except IngestionError as exc:
         logger.error("%s", exc)
         return 1

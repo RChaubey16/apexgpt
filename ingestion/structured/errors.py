@@ -11,3 +11,7 @@ class DownloadError(IngestionError):
 
 class DumpError(IngestionError):
     """The dump is missing a file/column or holds a value we cannot load."""
+
+
+class SeedError(IngestionError):
+    """A curated seed file (aliases, lineage) is malformed or doesn't match the data."""
