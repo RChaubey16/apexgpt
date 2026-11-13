@@ -14,18 +14,19 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 0 done; Phase 1 (Structured data) not started |
-| **Current feature** | None (next: F1.1 `feature/f1-schema`) |
-| **Current branch** | `main` |
-| **Open PR** | None |
+| **Current phase** | Phase 1: Structured data |
+| **Current feature** | F1.1 `feature/f1-schema` (PR raised, awaiting review) |
+| **Current branch** | `feature/f1-schema` |
+| **Open PR** | #8 (F1.1) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
-2. When the user says to start Phase 1: pull `main`, start **F1.1** `feature/f1-schema`. Early in Phase 1, check whether Jolpica offers a bulk dump (needed for F1.2).
+1. User reviews and merges the F1.1 PR.
+2. After merge: pull `main`, start **F1.2** `feature/jolpica-loader` (dump-based; see the F1.1 session log for the dump's format).
+3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
 
@@ -35,7 +36,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 |---|---|---|---|
 | Planning | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 0. Local foundation | ✅ Done | 2026-11-12 | 2026-11-12 |
-| 1. Structured data | ⬜ Not started | | |
+| 1. Structured data | 🟡 In progress | 2026-11-13 | |
 | 2. Narrative corpus | ⬜ Not started | | |
 | 3. Retrieval + LLM | ⬜ Not started | | |
 | 4. Chat API | ⬜ Not started | | |
@@ -70,7 +71,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check:** `docker compose up` works and the frontend shows a healthy backend (verified in F0.5)
 
 ### Phase 1: Structured F1 Data
-- [ ] F1.1 `feature/f1-schema`: structured F1 schema
+- [ ] F1.1 `feature/f1-schema`: structured F1 schema · 🔍 PR #8
 - [ ] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025
 - [ ] F1.3 `feature/entity-aliases`: alias and lineage tables
 - [ ] F1.4 `feature/stats-views`: stats SQL views
@@ -145,6 +146,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-12 | Sync SQLAlchemy 2.1 + psycopg 3; prepared statements disabled | Simple with Alembic; low query volume; safe behind Neon's PgBouncer pooler |
 | 2026-11-12 | Frontend: Next.js 16.4 (App Router, TS, Tailwind 4), standalone output; browser calls backend directly | `NEXT_PUBLIC_API_URL` is inlined at build time, so it's a Docker build arg; backend CORS allows the frontend origin |
 | 2026-11-12 | Frontend tests: Vitest + Testing Library | Fast, works with React 19 and the `@/` alias |
+| 2026-11-13 | F1 data source: Jolpica CSV dump (free, 14-day delay, non-commercial), not an API crawl | One ~15 MB download covers 1950–present; the API's 500 req/hour limit would make a crawl take hours |
+| 2026-11-13 | F1 schema: Ergast-style flat tables; source IDs as primary keys (except `status`, `qualifying`); times as integer ms; `position` NULL when unclassified; results one row per car entry | Simple SQL for the LLM; idempotent reloads; handles 1950s shared drives |
 | 2026-11-12 | CI: one GitHub Actions workflow, parallel jobs, single `CI passed` gate; actions pinned to commit SHAs; CI Postgres uses trust auth (no password literal) | One required check for branch protection; supply-chain safety; avoids secret-scanner false positives like the F0.3 GitGuardian alert |
 
 ---
@@ -152,6 +155,16 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-13: F1.1 structured F1 schema
+- PR #7 (Phase 0 docs) merged; Phase 1 started.
+- **Resolved open question:** Jolpica publishes CSV/SQL database dumps (`https://api.jolpi.ca/data/dumps/download/`). Free tier: delayed 14 days, non-commercial use, no auth. Downloaded the delayed CSV dump (14.7 MB zip, SHA-256 matched the listing): 18 CSVs in Jolpica's own session-based schema (`round`, `session`, `sessionentry`, `roundentry`, `teamdriver`, `driverchampionship`, …), covering 1950–2026. F1.2 will load from it instead of crawling.
+- Dump facts that shaped the schema: race session entries can repeat a driver (shared drives, 83 cases) and share a position (105 cases); every entry has a position, with `is_classified` marking unclassified ones; status is free text (139 distinct values); points include halves (shared drives); qualifying is split into `QB` (pre-2006 single session) and `Q1/Q2/Q3`; standings are per session (sprint + race); fastest lap times only exist in the lap table (the loader will derive them).
+- Added ORM models (`backend/app/db/models/f1.py`) and migration `0002`: `seasons`, `circuits`, `drivers`, `constructors`, `status`, `races`, `results`, `sprint_results`, `qualifying`, `driver_standings`, `constructor_standings`, `pit_stops`. Compact types, check constraints as boundary validation (ranges, positivity, code length), FK indexes, `ON DELETE CASCADE` from races. `lap_times` deliberately absent.
+- Alembic `env.py` now imports `app.db.models` so autogenerate sees the tables.
+- Tests: 119 passing. New unit tests check compact types, no `*_text` columns, Wikipedia URLs and that every FK is indexed; this caught a missing `qualifying.constructor_id` index (and an initial test bug that made the check vacuous). New integration tests: migration matches models (`compare_metadata`; confirmed it fails on a changed column type), round trip, half points, shared drives, cascade delete, downgrade to 0001, and 29 bad-row cases rejected.
+- Verified: the compose backend ran `0001 -> 0002` on start; 12 tables; `/health/ready` ok.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-12: Phase 0 closed
 - PR #6 (F0.6) merged. All Phase 0 features (F0.1–F0.6) merged and the phase done check passed, so **Phase 0 is complete**.
@@ -237,5 +250,4 @@ Newest first.
 
 ## Known Issues / Open Questions
 
-- Confirm whether Jolpica offers a bulk data dump (otherwise use a rate-limited API crawl). To check at the start of Phase 1 (F1.2).
 - Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1.

@@ -1,4 +1,4 @@
-"""Declarative base shared by all ORM models (models arrive in Phase 1)."""
+"""Declarative base shared by all ORM models (models live in app.db.models)."""
 
 from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase

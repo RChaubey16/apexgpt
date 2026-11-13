@@ -131,7 +131,7 @@ apexgpt/
 
 - Schema (compact types, no redundant columns): `seasons`, `circuits`, `drivers`, `constructors`, `races`, `results`, `sprint_results`, `qualifying`, `driver_standings`, `constructor_standings`, `pit_stops`, `status`.
 - **`lap_times` is deferred** to the Live Season phase (see [DATA-STRATEGY.md](./DATA-STRATEGY.md)).
-- Loader: Jolpica bulk dump if available, otherwise a polite, rate-limited API crawl with local caching into `data/`.
+- Loader: Jolpica-F1 CSV database dump (free tier: one ~15 MB download, delayed 14 days, non-commercial use), cached in `data/` and transformed into the schema. No API crawl needed.
 - **Alias tables** for entity resolution ("Schumi" → Michael Schumacher, "Checo" → Sergio Pérez).
 - **Constructor lineage table** (Tyrrell → BAR → Honda → Brawn → Mercedes, etc.).
 - LLM-friendly SQL views: `v_driver_career`, `v_race_winners`, `v_season_summary`, `v_head_to_head_teammates`.
@@ -265,7 +265,7 @@ Each feature has an ID, a branch name and the commit message to use. Features ru
 | ID | Branch | Scope | Commit message |
 |---|---|---|---|
 | F1.1 | `feature/f1-schema` | Tables for seasons, circuits, drivers, constructors, races, results, sprint results, qualifying, standings, pit stops, status (compact types) | `feat: add structured F1 data schema` |
-| F1.2 | `feature/jolpica-loader` | Bulk dump or rate-limited crawl, cache in `data/`, idempotent load for 1950–2025 | `feat: add Jolpica loader for 1950-2025 F1 data` |
+| F1.2 | `feature/jolpica-loader` | Download the Jolpica CSV dump (verify SHA-256), cache in `data/`, transform Jolpica's session-based tables into our schema, idempotent load for 1950–2025 | `feat: add Jolpica loader for 1950-2025 F1 data` |
 | F1.3 | `feature/entity-aliases` | Driver/constructor alias tables, constructor lineage table, seed data | `feat: add entity alias and constructor lineage tables` |
 | F1.4 | `feature/stats-views` | `v_driver_career`, `v_race_winners`, `v_season_summary`, `v_head_to_head_teammates` | `feat: add LLM-friendly stats SQL views` |
 | F1.5 | `feature/readonly-db-role` | Read-only role limited to views, statement timeout | `security: add read-only database role for LLM queries` |
