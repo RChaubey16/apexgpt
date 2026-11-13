@@ -14,19 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 1: Structured data |
-| **Current feature** | F1.6 `feature/structured-data-checks` (PR raised, awaiting review) |
-| **Current branch** | `feature/structured-data-checks` |
-| **Open PR** | #13 (F1.6) |
+| **Current phase** | Phase 1 done; Phase 2 (Narrative corpus) not started |
+| **Current feature** | None (next: F2.1 `feature/wiki-fetcher`) |
+| **Current branch** | `main` |
+| **Open PR** | None |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
-| **Last updated** | 2026-11-12 |
+| **Last updated** | 2026-11-13 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F1.6 PR. That completes **Phase 1** (its done check passed: 30/30 checks on real data, 11.5 MB).
-2. After merge: mark Phase 1 done, then pull `main` and start **Phase 2** with **F2.1** `feature/wiki-fetcher`.
-3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
+1. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
+2. When the user says to start Phase 2: pull `main`, start **F2.1** `feature/wiki-fetcher`.
 
 ---
 
@@ -36,7 +35,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 |---|---|---|---|
 | Planning | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 0. Local foundation | ✅ Done | 2026-11-12 | 2026-11-12 |
-| 1. Structured data | 🟡 In progress | 2026-11-13 | |
+| 1. Structured data | ✅ Done | 2026-11-13 | 2026-11-13 |
 | 2. Narrative corpus | ⬜ Not started | | |
 | 3. Retrieval + LLM | ⬜ Not started | | |
 | 4. Chat API | ⬜ Not started | | |
@@ -70,14 +69,14 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F0.6 `feature/ci-pipeline`: CI for lint, tests and Docker builds · PR #6 merged
 - [x] **Phase done check:** `docker compose up` works and the frontend shows a healthy backend (verified in F0.5)
 
-### Phase 1: Structured F1 Data
+### Phase 1: Structured F1 Data ✅
 - [x] F1.1 `feature/f1-schema`: structured F1 schema · PR #8 merged
 - [x] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025 · PR #9 merged
 - [x] F1.3 `feature/entity-aliases`: alias and lineage tables · PR #10 merged
 - [x] F1.4 `feature/stats-views`: stats SQL views · PR #11 merged
 - [x] F1.5 `feature/readonly-db-role`: read-only role for LLM queries · PR #12 merged
-- [ ] F1.6 `feature/structured-data-checks`: sanity checks · 🔍 PR #13
-- [x] **Phase done check:** sanity checks pass; structured data < ~25 MB (verified in F1.6: 30/30 pass, 11.5 MB)
+- [x] F1.6 `feature/structured-data-checks`: sanity checks · PR #13 merged
+- [x] **Phase done check:** sanity checks pass; structured data < ~25 MB (verified in F1.6: 30/30 pass on real data locally and in CI, 11.5 MB)
 
 ### Phase 2: Narrative Corpus
 - [ ] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache
@@ -163,6 +162,12 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-13: Phase 1 closed
+- PR #13 (F1.6) merged. All Phase 1 features (F1.1–F1.6) merged and the phase done check passed, so **Phase 1 is complete**.
+- Phase 1 delivers: the structured F1 schema (12 tables, 1950–2025), a Jolpica dump loader (verified download, one-transaction idempotent sync), entity aliases + constructor lineage (generated names + curated seeds), four LLM-facing stats views with column docs, a read-only `apexgpt_llm_reader` role limited to those views, and 30 sanity checks run before every load commit and weekly in CI against the real dump. Structured data: 11.5 MB.
+- Carried into later phases (see Known Issues): the F3.5 SQL tool must validate queries (role defaults are only a backstop); F7.2 must confirm the role setup on Neon.
+- Phase 2 not started yet; waiting for the user's go-ahead.
 
 ### 2026-11-13: F1.6 structured data checks
 - PR #12 (F1.5) merged.
