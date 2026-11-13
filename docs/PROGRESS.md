@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 1: Structured data |
-| **Current feature** | F1.1 `feature/f1-schema` (PR raised, awaiting review) |
-| **Current branch** | `feature/f1-schema` |
-| **Open PR** | #8 (F1.1) |
+| **Current feature** | F1.2 `feature/jolpica-loader` (PR raised, awaiting review) |
+| **Current branch** | `feature/jolpica-loader` |
+| **Open PR** | #9 (F1.2) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F1.1 PR.
-2. After merge: pull `main`, start **F1.2** `feature/jolpica-loader` (dump-based; see the F1.1 session log for the dump's format).
+1. User reviews and merges the F1.2 PR.
+2. After merge: pull `main`, start **F1.3** `feature/entity-aliases`.
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -71,8 +71,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check:** `docker compose up` works and the frontend shows a healthy backend (verified in F0.5)
 
 ### Phase 1: Structured F1 Data
-- [ ] F1.1 `feature/f1-schema`: structured F1 schema · 🔍 PR #8
-- [ ] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025
+- [x] F1.1 `feature/f1-schema`: structured F1 schema · PR #8 merged
+- [ ] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025 · 🔍 PR #9
 - [ ] F1.3 `feature/entity-aliases`: alias and lineage tables
 - [ ] F1.4 `feature/stats-views`: stats SQL views
 - [ ] F1.5 `feature/readonly-db-role`: read-only role for LLM queries
@@ -148,6 +148,10 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-12 | Frontend tests: Vitest + Testing Library | Fast, works with React 19 and the `@/` alias |
 | 2026-11-13 | F1 data source: Jolpica CSV dump (free, 14-day delay, non-commercial), not an API crawl | One ~15 MB download covers 1950–present; the API's 500 req/hour limit would make a crawl take hours |
 | 2026-11-13 | F1 schema: Ergast-style flat tables; source IDs as primary keys (except `status`, `qualifying`); times as integer ms; `position` NULL when unclassified; results one row per car entry | Simple SQL for the LLM; idempotent reloads; handles 1950s shared drives |
+| 2026-11-13 | Loader semantics follow Jolpica's own Ergast-compatible API (jolpica_api/ergastapi) | Our numbers match what that API reports (quali position = last session, standings = per-round rows, status = detail text) |
+| 2026-11-13 | Loader = one-transaction sync: COPY to staging, delete stale races, upsert changed rows, delete stale facts; entities never deleted; scoped to the season range | Idempotent and atomic; safe to re-run; later alias tables can reference entities safely |
+| 2026-11-13 | `ingestion/` is its own uv project (psycopg + pydantic-settings, stdlib urllib for downloads); schema owned by backend migrations | Matches the planned layout; no backend import coupling; minimal deps |
+| 2026-11-13 | Poles = `results.grid = 1` (qualifying only exists from 1994) | Matches official pole counts across all eras |
 | 2026-11-12 | CI: one GitHub Actions workflow, parallel jobs, single `CI passed` gate; actions pinned to commit SHAs; CI Postgres uses trust auth (no password literal) | One required check for branch protection; supply-chain safety; avoids secret-scanner false positives like the F0.3 GitGuardian alert |
 
 ---
@@ -155,6 +159,22 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-13: F1.2 Jolpica loader
+- PR #8 (F1.1) merged.
+- New `ingestion/` uv project (Python 3.12; psycopg, pydantic-settings). `python -m structured`: download → verify → transform → load.
+  - **Download:** reads the dump index, takes the free delayed CSV dump, streams it with SHA-256 + size checks, caches it as `data/jolpica/jolpica-csv-<hash>.zip`. https only; retries 429/5xx/network errors (honours `Retry-After`, capped at 60s); generic User-Agent; logs hosts only (the redirect is a signed S3 URL).
+  - **Reader:** reads CSVs straight from the zip by column name; required columns are checked per table; member-size guard.
+  - **Transform:** semantics copied from Jolpica's Ergast-compatible API code. Only races with results in the season range (skips future rounds); entities limited to referenced rows. Every bad value raises an error naming the table, row and column. Float artefacts in points (`1.1400000000000001`) round to 2 dp; real precision loss fails.
+  - **Load:** one transaction, COPY into temp staging tables, `ON CONFLICT DO UPDATE ... WHERE IS DISTINCT FROM` (only changed rows touched), stale races/facts deleted within the season range, entities never deleted. Reports inserted/updated/deleted per table.
+- The DB check constraints caught a real quirk on the first load: Jolpica uses `fastest_lap_rank = 0` for "no timed lap" (237 entries); now stored as NULL.
+- Real data, 1950–2025: 76 seasons, 77 circuits, 817 drivers, 203 constructors, 136 statuses, 1,149 races, 25,873 results, 480 sprint results, 10,973 qualifying, 34,620 driver + 13,481 constructor standings, 12,192 pit stops. **12.7 MB** (budget ~25 MB). Full run ~9 s incl. download; a re-run changes nothing.
+- Spot checks pass: Hamilton 105 wins, 1950 = 7 races, 2021 champion Verstappen (395.5 v 387.5), Schumacher 1997 excluded (no position), McLaren constructors' champion 2024 + 2025, Gasly's 1:14.279 fastest lap at Monaco 2019. **Found:** qualifying only exists from 1994 (Senna shows 3 quali P1s); `grid = 1` gives the official pole counts (Senna 65, Hamilton 104). Recorded for F1.4.
+- Tests: 98 ingestion tests (fixture dump covering shared drives, two-session qualifying, cancelled/future/out-of-range rounds, exclusions, rank 0, float points; download retries, hash/size checks, cache; CLI; config secrecy) incl. 9 integration tests on real Postgres (first load, no-op reload, updates only touch changed rows, stale deletes + cascade, season scoping, full rollback on failure, status id stability, CLI end-to-end). Confirmed the sync test fails if stale-row deletion is disabled.
+- CI: new **Ingestion tests** job (own Postgres service, schema via backend migrations, integration guard); added to the `CI passed` gate.
+- Loaded the real data into the local dev DB.
+- Not done (out of F1.2 scope): `ingestion/Dockerfile` (the plan's layout lists one; ingestion runs on the dev machine, so it can come later if needed).
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-13: F1.1 structured F1 schema
 - PR #7 (Phase 0 docs) merged; Phase 1 started.

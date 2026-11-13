@@ -28,6 +28,9 @@
 - Times (race time, fastest lap, qualifying laps, pit stop duration) are stored once, as integer milliseconds (`*_ms`).
 - `results.position` is the classified finishing position and is NULL for unclassified cars; `position_order` is the full classification order. Results are one row per car entry, not per (race, driver): 1950s shared drives mean a driver can appear twice in one race, and co-drivers share a position and split points.
 
+- **Qualifying data exists only from 1994** (as in Ergast). Pole positions across all eras therefore come from `results.grid = 1`, which matches the official counts (Senna 65, Hamilton 104); `qualifying.position = 1` is only valid from 1994. The stats views (F1.4) must use the grid definition.
+- A fastest-lap rank of 0 in the source means "no timed lap" and is stored as NULL.
+
 **Source:** the Jolpica-F1 CSV database dump (free tier, delayed 14 days, non-commercial use). It covers 1950 to the current season in Jolpica's own session-based schema, so the loader (F1.2) transforms it rather than copying it.
 
 **Estimated size:** ~15–25 MB including indexes.
