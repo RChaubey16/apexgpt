@@ -79,6 +79,24 @@ docker compose up -d db                  # bound to 127.0.0.1:${POSTGRES_PORT} o
 cd backend && uv run alembic upgrade head
 ```
 
+### Load F1 data (1950–2025)
+
+The structured data (results, qualifying, standings, pit stops, …) comes from the [Jolpica-F1](https://github.com/jolpica/jolpica-f1) CSV database dump: free, delayed 14 days, for non-commercial use.
+
+```bash
+cd backend && uv run alembic upgrade head && cd ..   # schema first
+cd ingestion
+uv sync
+uv run python -m structured              # download (cached in data/jolpica/), verify SHA-256, load
+uv run python -m structured --dry-run    # transform only and print row counts; no DB needed
+uv run python -m structured --help       # --dump <zip>, --first-season, --last-season
+uv run pytest                            # unit tests; integration tests need TEST_DATABASE_URL
+```
+
+- Uses `DATABASE_URL` from `.env`. Takes ~10 s; the result is ~13 MB.
+- The load is one transaction: re-running is safe (unchanged rows aren't touched) and a failure leaves the database as it was. Races in the loaded season range that disappear from the dump are deleted; other seasons are never touched.
+- Bad source data (missing columns, unparseable values, broken references) stops the load with a message naming the table, row and column.
+
 ### Backend
 
 ```bash
@@ -128,6 +146,7 @@ npm test && npm run lint && npm run typecheck
 |---|---|
 | Lint (pre-commit) | All pre-commit hooks on all files: hygiene, ruff, black, prettier, eslint, actionlint |
 | Backend tests | `pytest` unit + integration tests against a Postgres 18 + pgvector service; fails if the integration tests are skipped |
+| Ingestion tests | Same for `ingestion/` (the schema comes from the backend's migrations) |
 | Frontend typecheck + tests | `npm run typecheck`, `npm test` |
 | Docker runtime images | Builds the production images, starts them, waits for `HEALTHCHECK` to report healthy, checks they run as non-root |
 | Docker compose stack | `docker compose up --wait` with `.env.example`, then checks `/health`, `/health/ready` (DB + migrations), the frontend and CORS |
