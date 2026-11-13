@@ -176,6 +176,15 @@ def test_migration_matches_models(engine: Engine) -> None:
     assert diff == []
 
 
+def test_upgrade_creates_the_stats_views(engine: Engine) -> None:
+    assert set(inspect(engine).get_view_names()) == {
+        "v_race_winners",
+        "v_driver_career",
+        "v_season_summary",
+        "v_head_to_head_teammates",
+    }
+
+
 def test_upgrade_creates_all_tables_and_no_lap_times(engine: Engine) -> None:
     tables = set(inspect(engine).get_table_names())
 
@@ -188,6 +197,7 @@ def test_downgrade_to_0001_drops_f1_tables_but_keeps_pgvector(engine: Engine) ->
     try:
         tables = set(inspect(engine).get_table_names())
         assert not (F1_TABLES & tables)
+        assert not inspect(engine).get_view_names()
         with engine.connect() as conn:
             assert conn.execute(
                 text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")

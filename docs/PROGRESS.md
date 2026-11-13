@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 1: Structured data |
-| **Current feature** | F1.3 `feature/entity-aliases` (PR raised, awaiting review) |
-| **Current branch** | `feature/entity-aliases` |
-| **Open PR** | #10 (F1.3) |
+| **Current feature** | F1.4 `feature/stats-views` (PR raised, awaiting review) |
+| **Current branch** | `feature/stats-views` |
+| **Open PR** | #11 (F1.4) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F1.3 PR.
-2. After merge: pull `main`, start **F1.4** `feature/stats-views` (poles = `grid = 1`; see DATA-STRATEGY).
+1. User reviews and merges the F1.4 PR.
+2. After merge: pull `main`, start **F1.5** `feature/readonly-db-role` (grant SELECT on the four views only).
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -73,8 +73,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 1: Structured F1 Data
 - [x] F1.1 `feature/f1-schema`: structured F1 schema · PR #8 merged
 - [x] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025 · PR #9 merged
-- [ ] F1.3 `feature/entity-aliases`: alias and lineage tables · 🔍 PR #10
-- [ ] F1.4 `feature/stats-views`: stats SQL views
+- [x] F1.3 `feature/entity-aliases`: alias and lineage tables · PR #10 merged
+- [ ] F1.4 `feature/stats-views`: stats SQL views · 🔍 PR #11
 - [ ] F1.5 `feature/readonly-db-role`: read-only role for LLM queries
 - [ ] F1.6 `feature/structured-data-checks`: sanity checks
 - [ ] **Phase done check:** sanity checks pass; structured data < ~25 MB
@@ -152,6 +152,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-13 | Loader = one-transaction sync: COPY to staging, delete stale races, upsert changed rows, delete stale facts; entities never deleted; scoped to the season range | Idempotent and atomic; safe to re-run; later alias tables can reference entities safely |
 | 2026-11-13 | `ingestion/` is its own uv project (psycopg + pydantic-settings, stdlib urllib for downloads); schema owned by backend migrations | Matches the planned layout; no backend import coupling; minimal deps |
 | 2026-11-13 | Aliases: normalised text, many-to-many, kinds name/surname/nickname; names generated from data, nicknames + lineage curated as CSV seeds keyed by `ref`; synced in the loader's transaction | One lookup table for F3.4; ambiguity kept explicit; seeds survive ID changes; editing a CSV + re-running applies it |
+| 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
 | 2026-11-13 | Poles = `results.grid = 1` (qualifying only exists from 1994) | Matches official pole counts across all eras |
 | 2026-11-12 | CI: one GitHub Actions workflow, parallel jobs, single `CI passed` gate; actions pinned to commit SHAs; CI Postgres uses trust auth (no password literal) | One required check for branch protection; supply-chain safety; avoids secret-scanner false positives like the F0.3 GitGuardian alert |
 
@@ -160,6 +161,15 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-13: F1.4 stats views
+- PR #10 (F1.3) merged.
+- Migration `0004`: `v_race_winners`, `v_driver_career`, `v_season_summary`, `v_head_to_head_teammates`, each with `COMMENT ON VIEW`/`COLUMN` text (meanings + data caveats) for the F3.5 SQL tool. Static SQL (no string building). Downgrade drops them.
+- Data findings that set the definitions: did-not-qualify entries aren't in the source; non-starts appear as "Withdrew"/"Did not start"/pre-race injuries, but formation-lap failures look like lap-1 retirements, so `race_starts` is approximate (exact `race_entries` alongside). Fastest-lap ranks only exist for 2004+ (plus 21 races in the 1950s) → `fastest_laps_since_2004`.
+- Real-data checks (all match official figures unless noted): Hamilton 380 starts / 105 wins / 202 podiums / 104 poles / 7 titles; Schumacher 91 / 155 / 68 poles / 7 / 1,566 pts (starts 308 v official 306, documented); Senna 41 / 80 / 65 poles / 614 pts; Prost 51 / 106 / 33 / 798.5; Verstappen 71 wins, 4 titles; 2025 Norris by 2 over Verstappen; 2021 Verstappen by 8; 1997 runner-up Frentzen (Schumacher excluded); 1958 Hawthorn by 1, Vanwall constructors'; Senna v Prost 1988: qualifying 14-2, wins 8-7. Fangio's points 279.14 v official 277.64 (source's 1950s fractional points). Queries take < 60 ms.
+- Tests: backend 158 (new hand-built dataset: shared 1950s win counted once, poles from grid, 1955 fastest lap excluded, withdrawal not a start or DNF, title only from final standings, season with no standings still listed, no constructors' champion without standings, teammate H2H both directions with qualifying-over-grid rule, documented views/caveat columns; schema tests now check views exist and are dropped on downgrade). Ingestion 143 still pass.
+- Dev DB migrated to `0004`.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-13: F1.3 entity aliases and constructor lineage
 - PR #9 (F1.2) merged.
