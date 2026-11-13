@@ -100,6 +100,22 @@ uv run pytest                            # unit tests; integration tests need TE
 - **Sanity checks** ([`ingestion/structured/checks.py`](ingestion/structured/checks.py)) run inside the load transaction, before commit: known facts (Hamilton 105 wins, 2021 champion, 1950 = 7 races, …), integrity rules (every race has a winner, every season a champion, …) and the 25 MB size budget. If one fails, the load is rolled back, so a bad dump never replaces good data. Checks only run when all the seasons they cover are loaded.
 - **Aliases and team lineage** are synced in the same transaction. Drivers' full names/surnames and constructors' names are generated; nicknames ("Schumi", "Checo", "Silver Arrows") and team successions (Tyrrell → BAR → Honda → Brawn → Mercedes) are curated in [`ingestion/structured/seeds/`](ingestion/structured/seeds/). Seeds use driver/constructor `ref` slugs. Edit a CSV and re-run the loader to apply it; lineage rows are checked against the race data (the successor raced in that season, the predecessor in that season or the one before).
 
+### Fetch Wikipedia articles
+
+The narrative corpus (Phase 2) starts from Wikipedia articles fetched through the MediaWiki API and cached in `data/wikipedia/` (git-ignored). Set `WIKI_USER_AGENT` in `.env` first: Wikimedia asks for a client name and contact details.
+
+```bash
+cd ingestion
+uv run python -m narrative --title "1989 Japanese Grand Prix" --title "Ayrton Senna"
+uv run python -m narrative --titles-file titles.txt             # one title per line, # comments
+uv run python -m narrative --titles-file titles.txt --refresh   # refetch only changed revisions
+```
+
+- Requests are serial and throttled (`WIKI_MIN_INTERVAL_SECONDS`, default 1 s), send `maxlag=5`, and retry 429/5xx/lag with backoff.
+- Redirects and title normalisation are followed ("Schumi" → Michael Schumacher). Pages that don't exist are reported, not treated as errors.
+- Each cached article keeps its resolved title, revision id and URL (needed for CC BY-SA attribution). `--refresh` checks revisions 50 titles per request.
+- Which articles to fetch is decided in F2.2; cleaning happens in F2.3.
+
 ### Stats views
 
 Migration `0004` adds four read-only views that the LLM's SQL tool will query (F3.5). Each has `COMMENT ON` text explaining its columns and the data's limits (`\d+ v_driver_career` in psql):
