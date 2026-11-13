@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 1: Structured data |
-| **Current feature** | F1.4 `feature/stats-views` (PR raised, awaiting review) |
-| **Current branch** | `feature/stats-views` |
-| **Open PR** | #11 (F1.4) |
+| **Current feature** | F1.5 `feature/readonly-db-role` (PR raised, awaiting review) |
+| **Current branch** | `feature/readonly-db-role` |
+| **Open PR** | #12 (F1.5) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F1.4 PR.
-2. After merge: pull `main`, start **F1.5** `feature/readonly-db-role` (grant SELECT on the four views only).
+1. User reviews and merges the F1.5 PR.
+2. After merge: pull `main`, start **F1.6** `feature/structured-data-checks` (last Phase 1 feature).
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -74,8 +74,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F1.1 `feature/f1-schema`: structured F1 schema · PR #8 merged
 - [x] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025 · PR #9 merged
 - [x] F1.3 `feature/entity-aliases`: alias and lineage tables · PR #10 merged
-- [ ] F1.4 `feature/stats-views`: stats SQL views · 🔍 PR #11
-- [ ] F1.5 `feature/readonly-db-role`: read-only role for LLM queries
+- [x] F1.4 `feature/stats-views`: stats SQL views · PR #11 merged
+- [ ] F1.5 `feature/readonly-db-role`: read-only role for LLM queries · 🔍 PR #12
 - [ ] F1.6 `feature/structured-data-checks`: sanity checks
 - [ ] **Phase done check:** sanity checks pass; structured data < ~25 MB
 
@@ -152,6 +152,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-13 | Loader = one-transaction sync: COPY to staging, delete stale races, upsert changed rows, delete stale facts; entities never deleted; scoped to the season range | Idempotent and atomic; safe to re-run; later alias tables can reference entities safely |
 | 2026-11-13 | `ingestion/` is its own uv project (psycopg + pydantic-settings, stdlib urllib for downloads); schema owned by backend migrations | Matches the planned layout; no backend import coupling; minimal deps |
 | 2026-11-13 | Aliases: normalised text, many-to-many, kinds name/surname/nickname; names generated from data, nicknames + lineage curated as CSV seeds keyed by `ref`; synced in the loader's transaction | One lookup table for F3.4; ambiguity kept explicit; seeds survive ID changes; editing a CSV + re-running applies it |
+| 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
 | 2026-11-13 | Poles = `results.grid = 1` (qualifying only exists from 1994) | Matches official pole counts across all eras |
 | 2026-11-12 | CI: one GitHub Actions workflow, parallel jobs, single `CI passed` gate; actions pinned to commit SHAs; CI Postgres uses trust auth (no password literal) | One required check for branch protection; supply-chain safety; avoids secret-scanner false positives like the F0.3 GitGuardian alert |
@@ -161,6 +162,16 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-13: F1.5 read-only role for LLM queries
+- PR #11 (F1.4) merged.
+- Migration `0005`: role `apexgpt_llm_reader` (NOLOGIN, no superuser/createdb/createrole/inherit, connection limit 5), role defaults `statement_timeout=5s`, `lock_timeout=1s`, `idle_in_transaction_session_timeout=10s`, `default_transaction_read_only=on`; `USAGE` on `public` + `SELECT` on the four views only (views read tables with the owner's rights, so no table grants). Idempotent across databases on one server (roles are cluster-wide); downgrade revokes and drops the role only if no other DB still uses it.
+- `python -m app.db.readonly_role`: validates READONLY_DATABASE_URL (user must be the role, password ≥ 16 chars, Neon needs 60+ bits), sets the password as a quoted literal + LOGIN via the admin URL, then connects as the role and reads a view. Never prints URLs/passwords; DB errors show the class only. New optional setting `READONLY_DATABASE_URL` (blank = unset, normalised, secret).
+- Probed on the dev DB as the role: views readable; tables and alias tables `InsufficientPrivilege`; INSERT/CREATE refused; `pg_sleep(6)` cancelled at 5.0s.
+- **Found and fixed:** `migrations/env.py` called `fileConfig()` with the default `disable_existing_loggers=True`, which silenced all app loggers whenever migrations ran in-process (surfaced by a caplog test). Now `False`.
+- Tests: backend 190 (unit: credential validation, settings secrecy, error output; integration: role attributes/settings, grants are exactly the v_* views (fails if a new view isn't granted), every view readable, tables refused, writes/DDL refused even after `SET default_transaction_read_only = off`, no self-grant, login path on a throwaway role incl. a password with quotes/semicolons, missing role). Tests never change the real role's password. Ingestion 143 pass.
+- Local: `.env` now has READONLY_DATABASE_URL with a random password; login enabled on the dev DB.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-13: F1.4 stats views
 - PR #10 (F1.3) merged.
@@ -292,3 +303,5 @@ Newest first.
 ## Known Issues / Open Questions
 
 - Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1.
+- F3.5 SQL tool: the role's timeout/read-only defaults can be changed by the session (`SET`, `set_config()`), so the tool must only run validated single SELECTs on the v_* views (reject SET/set_config/multiple statements) and should also set its own `SET LOCAL statement_timeout`. Add `COMPOSE_READONLY_DATABASE_URL` for the backend container then.
+- F7.2 (Neon): confirm the migration's `CREATE ROLE` works as the Neon owner role and run `python -m app.db.readonly_role` against Neon.
