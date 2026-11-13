@@ -14,8 +14,8 @@ inserted or updated, never deleted: later tables (aliases, lineage) refer to
 them, and an unreferenced entity is harmless. Rows outside the loaded season
 range are never touched.
 
-Aliases and constructor lineage (structured/aliases.py) are synced last, in
-the same transaction, when seeds are passed.
+Aliases and constructor lineage (structured/aliases.py) are synced next, and
+the sanity checks (structured/checks.py) run last, before commit, when passed.
 
 The schema must already exist (backend migrations: `alembic upgrade head`).
 """
@@ -28,6 +28,7 @@ import psycopg
 from psycopg import sql
 
 from structured.aliases import Seeds, sync_seeds
+from structured.checks import Check, DataCheckError, run_checks
 from structured.report import TableReport
 from structured.transform import F1Data, Record
 
@@ -265,10 +266,13 @@ def load(
     first_season: int,
     last_season: int,
     seeds: Seeds | None = None,
+    checks: Sequence[Check] | None = None,
 ) -> dict[str, TableReport]:
     """Sync the database to `data` for seasons [first_season, last_season], atomically.
 
     With `seeds`, aliases and lineage are synced too, in the same transaction.
+    With `checks`, the sanity checks run last, before commit: any failure raises
+    DataCheckError and rolls everything back.
     """
     reports: dict[str, TableReport] = {}
     with conn.transaction(), conn.cursor() as cur:
@@ -301,6 +305,13 @@ def load(
             reports[spec.name] = report
         if seeds is not None:
             reports.update(sync_seeds(cur, seeds))
+        if checks is not None:
+            results = run_checks(cur, checks, seeds_synced=seeds is not None)
+            for result in results:
+                logger.info("%s", result.describe())
+            failures = [r for r in results if not r.passed and not r.skipped]
+            if failures:
+                raise DataCheckError(failures)
 
     for name, r in reports.items():
         logger.info(

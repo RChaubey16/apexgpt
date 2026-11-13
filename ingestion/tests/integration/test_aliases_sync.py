@@ -176,5 +176,5 @@ def test_cli_reports_seed_problems_and_supports_no_seeds(
     assert "--no-seeds" in caplog.text
     assert conn.execute("SELECT count(*) FROM results").fetchone() == (0,)
 
-    assert cli.run(["--dump", str(dump), "--no-seeds"]) == 0
+    assert cli.run(["--dump", str(dump), "--no-seeds", "--no-checks"]) == 0
     assert conn.execute("SELECT count(*) FROM driver_aliases").fetchone() == (0,)

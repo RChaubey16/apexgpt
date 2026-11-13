@@ -1,0 +1,107 @@
+# Data checks: load the REAL Jolpica dump into a fresh database and run the
+# structured-data sanity checks (Hamilton 105 wins, 2021 champion, size budget, ...).
+#
+# Separate from ci.yml on purpose: it depends on an external service (Jolpica),
+# so an outage there must not block unrelated PRs. It runs on PRs and pushes
+# that touch ingestion or the schema, weekly (new dumps), and on demand.
+# The dump (~15 MB) is cached between runs; the loader re-downloads only when
+# the published dump's SHA-256 changes.
+
+name: Data checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "ingestion/**"
+      - "backend/migrations/**"
+      - "backend/app/db/**"
+      - ".github/workflows/data-checks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ingestion/**"
+      - "backend/migrations/**"
+      - "backend/app/db/**"
+      - ".github/workflows/data-checks.yml"
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-checks-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.11.2" # keep in sync with backend/Dockerfile
+
+jobs:
+  real-data:
+    name: Load real data + sanity checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.1-pg18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: apexgpt_data
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d apexgpt_data"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres@localhost:5432/apexgpt_data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: |
+            ingestion/uv.lock
+            backend/uv.lock
+
+      - name: Cache key for this week's dump
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: data/jolpica
+          key: jolpica-dump-${{ steps.week.outputs.week }}
+          restore-keys: jolpica-dump-
+
+      - name: Create the schema
+        working-directory: backend
+        run: uv run --frozen alembic upgrade head
+
+      # The loader runs every sanity check inside its transaction and exits
+      # non-zero (committing nothing) if one fails.
+      - name: Load 1950-2025 (download if needed, verify, transform, check)
+        working-directory: ingestion
+        run: uv run --frozen python -m structured
+
+      - name: Run the checks standalone (read-only)
+        working-directory: ingestion
+        run: uv run --frozen python -m structured.checks
+
+      - name: A second load must change nothing
+        working-directory: ingestion
+        run: |
+          uv run --frozen python -m structured 2>&1 | tee "$RUNNER_TEMP/reload.log"
+          if grep ' inserted ' "$RUNNER_TEMP/reload.log" | grep -v '+0 inserted  ~0 updated  -0 deleted'; then
+            echo "::error::Reloading the same dump changed rows (not idempotent)"
+            exit 1
+          fi

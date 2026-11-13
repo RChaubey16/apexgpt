@@ -209,5 +209,5 @@ def test_cli_end_to_end(
     monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
     dump = write_zip(tmp_path / "dump.zip")
 
-    assert cli.run(["--dump", str(dump), "--no-seeds"]) == 0
+    assert cli.run(["--dump", str(dump), "--no-seeds", "--no-checks"]) == 0
     assert _counts(conn)["results"] == 5
