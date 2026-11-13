@@ -25,6 +25,10 @@
 - Drop redundant columns (e.g. text duplicates of numeric fields such as `position_text`).
 - Use compact types: `smallint` for positions/grid/laps/rounds, `int` for IDs, `numeric(6,2)` or `real` for points.
 - Keep each entity's Wikipedia URL (used for citations).
+- Times (race time, fastest lap, qualifying laps, pit stop duration) are stored once, as integer milliseconds (`*_ms`).
+- `results.position` is the classified finishing position and is NULL for unclassified cars; `position_order` is the full classification order. Results are one row per car entry, not per (race, driver): 1950s shared drives mean a driver can appear twice in one race, and co-drivers share a position and split points.
+
+**Source:** the Jolpica-F1 CSV database dump (free tier, delayed 14 days, non-commercial use). It covers 1950 to the current season in Jolpica's own session-based schema, so the loader (F1.2) transforms it rather than copying it.
 
 **Estimated size:** ~15–25 MB including indexes.
 
