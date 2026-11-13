@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 1: Structured data |
-| **Current feature** | F1.5 `feature/readonly-db-role` (PR raised, awaiting review) |
-| **Current branch** | `feature/readonly-db-role` |
-| **Open PR** | #12 (F1.5) |
+| **Current feature** | F1.6 `feature/structured-data-checks` (PR raised, awaiting review) |
+| **Current branch** | `feature/structured-data-checks` |
+| **Open PR** | #13 (F1.6) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-12 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F1.5 PR.
-2. After merge: pull `main`, start **F1.6** `feature/structured-data-checks` (last Phase 1 feature).
+1. User reviews and merges the F1.6 PR. That completes **Phase 1** (its done check passed: 30/30 checks on real data, 11.5 MB).
+2. After merge: mark Phase 1 done, then pull `main` and start **Phase 2** with **F2.1** `feature/wiki-fetcher`.
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -75,9 +75,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F1.2 `feature/jolpica-loader`: Jolpica loader 1950–2025 · PR #9 merged
 - [x] F1.3 `feature/entity-aliases`: alias and lineage tables · PR #10 merged
 - [x] F1.4 `feature/stats-views`: stats SQL views · PR #11 merged
-- [ ] F1.5 `feature/readonly-db-role`: read-only role for LLM queries · 🔍 PR #12
-- [ ] F1.6 `feature/structured-data-checks`: sanity checks
-- [ ] **Phase done check:** sanity checks pass; structured data < ~25 MB
+- [x] F1.5 `feature/readonly-db-role`: read-only role for LLM queries · PR #12 merged
+- [ ] F1.6 `feature/structured-data-checks`: sanity checks · 🔍 PR #13
+- [x] **Phase done check:** sanity checks pass; structured data < ~25 MB (verified in F1.6: 30/30 pass, 11.5 MB)
 
 ### Phase 2: Narrative Corpus
 - [ ] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache
@@ -152,6 +152,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-13 | Loader = one-transaction sync: COPY to staging, delete stale races, upsert changed rows, delete stale facts; entities never deleted; scoped to the season range | Idempotent and atomic; safe to re-run; later alias tables can reference entities safely |
 | 2026-11-13 | `ingestion/` is its own uv project (psycopg + pydantic-settings, stdlib urllib for downloads); schema owned by backend migrations | Matches the planned layout; no backend import coupling; minimal deps |
 | 2026-11-13 | Aliases: normalised text, many-to-many, kinds name/surname/nickname; names generated from data, nicknames + lineage curated as CSV seeds keyed by `ref`; synced in the loader's transaction | One lookup table for F3.4; ambiguity kept explicit; seeds survive ID changes; editing a CSV + re-running applies it |
+| 2026-11-13 | Sanity checks run inside the load transaction (failure = rollback) and standalone; real-data checks in a separate weekly/path-filtered workflow, outside the `CI passed` gate | A bad dump can't replace good data; real data is verified in CI without making unrelated PRs depend on Jolpica's uptime |
 | 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
 | 2026-11-13 | Poles = `results.grid = 1` (qualifying only exists from 1994) | Matches official pole counts across all eras |
@@ -162,6 +163,21 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-13: F1.6 structured data checks
+- PR #12 (F1.5) merged.
+- `ingestion/structured/checks.py`: 30 checks (SQL → one value vs expected; `=`, `<`, `>=`):
+  - **Facts:** the plan's three (Hamilton 105 wins, 2021 champion Verstappen, 1950 = 7 races) plus careers (Hamilton titles/poles/podiums, Schumacher wins/titles/1,566 pts, Senna 65 poles/41 wins, Prost 51, Fangio 5 titles), seasons (1950 Farina, 2008 margin 1, 2021 395.5 pts, 2025 Norris, Vanwall first constructors' champion, 2024 McLaren, 1,149 races, 24 in 2025), Senna v Prost 1988 qualifying 14-2.
+  - **Integrity:** every race has results, a winner and driver standings; rounds run 1..n; every season has a champion; every season from 1958 a constructors' champion; every driver has an alias.
+  - **Size:** F1 tables < 25 MB.
+- A check runs only when every season it covers is loaded (partial loads skip old facts); alias checks skip with `--no-seeds`.
+- The loader runs them **inside its transaction before commit**: a failure raises `DataCheckError` and rolls back everything. New `--no-checks` flag. Standalone read-only runner: `python -m structured.checks`.
+- Real data on the dev DB: **30/30 pass; 11.5 MB**. An injected wrong expectation (106 wins) stopped the load with exit 1.
+- New workflow `data-checks.yml`: fresh Postgres → migrations → real load (checks in-transaction) → standalone checks → second load must change nothing. Runs on PRs/pushes touching ingestion/schema, weekly (Mon 06:00 UTC), on demand; dump cached by ISO week; not part of the `CI passed` gate.
+- Fixed while testing: the standalone runner used `run_checks`' default argument (bound when defined); it now passes `CHECKS` explicitly.
+- Tests: ingestion 192 (applicability, describe/error text, the real check list's definitions, size check covers all tables, every real check's SQL runs against the schema with the right type, integrity checks pass on consistent data, pass → commit, fail → full rollback, checks see uncommitted data, loader CLI fails/rolls back then succeeds with `--no-checks`, standalone CLI). Backend 190 unchanged.
+- **Phase 1 done check passed** (pending this PR's merge).
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-13: F1.5 read-only role for LLM queries
 - PR #11 (F1.4) merged.

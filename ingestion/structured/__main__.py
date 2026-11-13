@@ -6,6 +6,7 @@
     uv run python -m structured --dump path/to.zip  # use a local dump file
     uv run python -m structured --first-season 2024 --last-season 2025
     uv run python -m structured --no-seeds          # skip aliases + lineage
+    uv run python -m structured --no-checks         # skip the pre-commit sanity checks
 
 Aliases and constructor lineage come from structured/seeds/*.csv and are
 synced in the same transaction (they need the full history loaded).
@@ -23,6 +24,7 @@ import psycopg
 from pydantic import ValidationError
 
 from structured.aliases import read_seeds
+from structured.checks import CHECKS
 from structured.config import Settings
 from structured.download import download_dump, fetch_dump_info, sha256_of
 from structured.dump import DumpReader
@@ -53,6 +55,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--no-seeds",
         action="store_true",
         help="don't sync aliases and constructor lineage (structured/seeds/)",
+    )
+    parser.add_argument(
+        "--no-checks",
+        action="store_true",
+        help="don't run the sanity checks before committing (structured/checks.py)",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
@@ -116,7 +123,14 @@ def run(argv: list[str] | None = None) -> int:
         with connect(
             database_url.get_secret_value(), settings.database_connect_timeout
         ) as conn:
-            load(conn, data, args.first_season, args.last_season, seeds)
+            load(
+                conn,
+                data,
+                args.first_season,
+                args.last_season,
+                seeds,
+                checks=None if args.no_checks else CHECKS,
+            )
     except IngestionError as exc:
         logger.error("%s", exc)
         return 1
