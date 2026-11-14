@@ -100,21 +100,45 @@ uv run pytest                            # unit tests; integration tests need TE
 - **Sanity checks** ([`ingestion/structured/checks.py`](ingestion/structured/checks.py)) run inside the load transaction, before commit: known facts (Hamilton 105 wins, 2021 champion, 1950 = 7 races, …), integrity rules (every race has a winner, every season a champion, …) and the 25 MB size budget. If one fails, the load is rolled back, so a bad dump never replaces good data. Checks only run when all the seasons they cover are loaded.
 - **Aliases and team lineage** are synced in the same transaction. Drivers' full names/surnames and constructors' names are generated; nicknames ("Schumi", "Checo", "Silver Arrows") and team successions (Tyrrell → BAR → Honda → Brawn → Mercedes) are curated in [`ingestion/structured/seeds/`](ingestion/structured/seeds/). Seeds use driver/constructor `ref` slugs. Edit a CSV and re-run the loader to apply it; lineage rows are checked against the race data (the successor raced in that season, the predecessor in that season or the one before).
 
-### Fetch Wikipedia articles
+### Choose and fetch Wikipedia articles
 
-The narrative corpus (Phase 2) starts from Wikipedia articles fetched through the MediaWiki API and cached in `data/wikipedia/` (git-ignored). Set `WIKI_USER_AGENT` in `.env` first: Wikimedia asks for a client name and contact details.
+The narrative corpus (Phase 2) starts from Wikipedia articles fetched through the MediaWiki API and cached in `data/wikipedia/` (git-ignored). Set `WIKI_USER_AGENT` in `.env` first: Wikimedia asks for a client name and contact details. The structured data must be loaded (the selection is computed from it).
 
 ```bash
 cd ingestion
-uv run python -m narrative --title "1989 Japanese Grand Prix" --title "Ayrton Senna"
+uv run python -m narrative.select --no-resolve   # offline: build the selection, print counts
+uv run python -m narrative.select                # resolve on Wikipedia (~50 requests), write data/narrative/selection.json
+uv run python -m narrative --selection           # fetch every selected article (~2,400 requests, ~40 min; resumable)
+uv run python -m narrative --selection --refresh # later: refetch only articles whose revision changed
+
+uv run python -m narrative --title "1989 Japanese Grand Prix" --title "Ayrton Senna"   # ad hoc
 uv run python -m narrative --titles-file titles.txt             # one title per line, # comments
-uv run python -m narrative --titles-file titles.txt --refresh   # refetch only changed revisions
 ```
+
+**Selection** ([`ingestion/narrative/selection.py`](ingestion/narrative/selection.py)) follows `docs/DATA-STRATEGY.md` §2b. Titles come from each entity's Wikipedia URL in the structured data, never guessed:
+
+| Articles | Depth |
+|---|---|
+| Season articles | full |
+| Grand Prix race reports | `race`: lead + background + race report |
+| Notable drivers (champion, race winner, podium, or 30+ starts) | full |
+| Other drivers | `lead`: intro only |
+| Major constructors (constructors' champion, race winner, or 5+ seasons) | full |
+| Minor constructors | `lead` |
+| Circuits | `circuit`: lead + history |
+| Curated topics ([`narrative/topics.yaml`](ingestion/narrative/topics.yaml)) | full |
+
+- Constructor rows sharing an article (Cooper-Climax, Cooper-Maserati → Cooper Car Company) become one entry; the major rule is applied over all of them.
+- A topic naming an already-selected article (a race report, a driver) upgrades it to full text and tags it with the topic group.
+- Resolving drops missing and disambiguation pages and merges titles that redirect to the same page. A topic that's missing, a disambiguation page or a duplicate fails the run (it's a mistake in `topics.yaml`). Unknown refs in `topics.yaml` fail even with `--no-resolve`.
+- Each manifest entry keeps the metadata its chunks will carry: kinds, depth, `season`, `race_id`, `circuit_id`, `driver_ids`, `constructor_ids`, `topic`, plus a URL `anchor` hint (e.g. `Las Vegas Grand Prix#Circuit`).
+
+**Fetching:**
 
 - Requests are serial and throttled (`WIKI_MIN_INTERVAL_SECONDS`, default 1 s), send `maxlag=5`, and retry 429/5xx/lag with backoff.
 - Redirects and title normalisation are followed ("Schumi" → Michael Schumacher). Pages that don't exist are reported, not treated as errors.
-- Each cached article keeps its resolved title, revision id and URL (needed for CC BY-SA attribution). `--refresh` checks revisions 50 titles per request.
-- Which articles to fetch is decided in F2.2; cleaning happens in F2.3.
+- Each cached article keeps its resolved title, revision id and URL (needed for CC BY-SA attribution). Cached articles are never refetched unless `--refresh` finds a newer revision (checked 50 titles per request).
+- Cleaning happens in F2.3.
 
 ### Stats views
 

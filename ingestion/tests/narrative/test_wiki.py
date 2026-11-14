@@ -224,6 +224,19 @@ def test_current_revisions_resolves_normalisation_redirects_and_missing(
     }
 
 
+def test_current_revisions_flag_disambiguation_pages(
+    fake: FakeWiki, clock: FakeClock
+) -> None:
+    fake.add("Schumacher", 3, 303, disambiguation=True)
+
+    revisions = _client(fake, clock).current_revisions(["Schumacher", "Ayrton Senna"])
+
+    assert revisions["Schumacher"] == PageRef("Schumacher", 3, 303, disambiguation=True)
+    assert revisions["Ayrton Senna"].disambiguation is False
+    assert fake.calls[0]["prop"] == "revisions|pageprops"
+    assert fake.calls[0]["ppprop"] == "disambiguation"
+
+
 def test_lowercase_titles_resolve_after_normalisation(
     fake: FakeWiki, clock: FakeClock
 ) -> None:

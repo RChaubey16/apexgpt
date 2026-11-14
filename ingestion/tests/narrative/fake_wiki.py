@@ -23,6 +23,7 @@ class Page:
     pageid: int
     revid: int
     html: str = "<p>text</p>"
+    disambiguation: bool = False
 
 
 @dataclass
@@ -37,9 +38,14 @@ class FakeWiki:
     user_agents: list[str] = field(default_factory=list)
 
     def add(
-        self, title: str, pageid: int, revid: int, html: str = "<p>text</p>"
+        self,
+        title: str,
+        pageid: int,
+        revid: int,
+        html: str = "<p>text</p>",
+        disambiguation: bool = False,
     ) -> None:
-        self.pages[title] = Page(title, pageid, revid, html)
+        self.pages[title] = Page(title, pageid, revid, html, disambiguation)
 
     def __call__(self, request: urllib.request.Request, timeout: float) -> Response:
         assert timeout > 0
@@ -81,6 +87,8 @@ class FakeWiki:
                     "title": page.title,
                     "revisions": [{"revid": page.revid, "parentid": 1}],
                 }
+                if page.disambiguation:
+                    pages[title]["pageprops"] = {"disambiguation": ""}
         query: dict[str, Any] = {"pages": list(pages.values())}
         if normalized:
             query["normalized"] = normalized

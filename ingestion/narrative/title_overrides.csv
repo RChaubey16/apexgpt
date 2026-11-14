@@ -1,0 +1,34 @@
+# Article titles for entities whose Wikipedia URL in the structured data has
+# gone stale (it now lands on a disambiguation page). Keyed by `ref`.
+# Titles come from the links on those disambiguation pages (2026-11-14).
+# Not covered (no clear article): drivers arnold, gibson, lees; constructors
+# trevis, hall, turner (all intro-only).
+kind,ref,title
+driver,owen,Arthur Owen (racing driver)
+driver,naylor,Brian Naylor (racing driver)
+driver,green,Cecil Green (racing driver)
+driver,piper,David Piper (racing driver)
+driver,mccoy,Ernie McCoy (racing driver)
+driver,picard,François Picard (racing driver)
+driver,constantine,George Constantine (racing driver)
+driver,eaton,George Eaton (racing driver)
+driver,georges_berger,Georges Berger (racing driver)
+driver,lucas,Jean Lucas (racing driver)
+driver,iglesias,Jesús Iglesias (racing driver)
+driver,davies,Jimmy Davies (racing driver)
+driver,bailey,Julian Bailey (racing driver)
+driver,belmondo,Paul Belmondo (racing driver)
+driver,england,Paul England (racing driver)
+driver,goldsmith,Paul Goldsmith (racing driver)
+driver,ray_crawford,Ray Crawford (racing driver)
+driver,reed,Ray Reed (racing driver)
+driver,brooks,Tony Brooks (racing driver)
+driver,crook,Tony Crook (racing driver)
+driver,trevor_taylor,Trevor Taylor (racing driver)
+constructor,epperly,Quin Epperly
+constructor,gilby,Gilby Engineering
+constructor,jaguar,Jaguar Racing (Formula One)
+constructor,lotus_racing,Team Lotus (2010–2011)
+constructor,surtees,Surtees Racing Organisation
+constructor,tecno,Tecno (motorsport)
+constructor,toyota,Toyota in Formula One

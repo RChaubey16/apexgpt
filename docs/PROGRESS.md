@@ -15,18 +15,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 2: Narrative corpus |
-| **Current feature** | F2.1 `feature/wiki-fetcher` (PR raised, awaiting review) |
-| **Current branch** | `feature/wiki-fetcher` |
-| **Open PR** | #15 (F2.1) |
+| **Current feature** | F2.2 `feature/article-selection` (PR raised, awaiting review) |
+| **Current branch** | `feature/article-selection` |
+| **Open PR** | #16 (F2.2) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
-| **Last updated** | 2026-11-13 |
+| **Last updated** | 2026-11-14 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F2.1 PR.
-2. User sets `WIKI_USER_AGENT` in `.env` with their own contact details (needed before the full fetch in F2.2).
-3. After merge: pull `main`, start **F2.2** `feature/article-selection`.
+1. User reviews and merges the F2.2 PR.
+2. User sets `WIKI_USER_AGENT` in `.env` with their own contact details, then runs the full fetch: `cd ingestion && uv run python -m narrative.select && uv run python -m narrative --selection` (~2,350 requests, ~40 min, resumable). Generic agents get rate-limited. F2.3 needs the fetched HTML.
+3. After merge: pull `main`, start **F2.3** `feature/article-cleaner`.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -81,8 +81,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check:** sanity checks pass; structured data < ~25 MB (verified in F1.6: 30/30 pass on real data locally and in CI, 11.5 MB)
 
 ### Phase 2: Narrative Corpus
-- [ ] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache · 🔍 PR #15
-- [ ] F2.2 `feature/article-selection`: selection rules + `topics.yaml`
+- [x] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache · PR #15 merged
+- [ ] F2.2 `feature/article-selection`: selection rules + `topics.yaml` · 🔍 PR #16
 - [ ] F2.3 `feature/article-cleaner`: Wikipedia cleaner
 - [ ] F2.4 `feature/chunker`: section-based chunker with metadata
 - [ ] F2.5 `feature/embedding-pipeline`: fastembed pipeline + `chunks` table
@@ -155,6 +155,10 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-13 | Aliases: normalised text, many-to-many, kinds name/surname/nickname; names generated from data, nicknames + lineage curated as CSV seeds keyed by `ref`; synced in the loader's transaction | One lookup table for F3.4; ambiguity kept explicit; seeds survive ID changes; editing a CSV + re-running applies it |
 | 2026-11-13 | Wikipedia fetch: `action=parse` HTML (cleaned later in F2.3) + batched `action=query` revision checks; serial, throttled, `maxlag=5`; JSON-per-article cache keyed by requested title; `WIKI_USER_AGENT` required (user supplies contact details) | Rendered HTML keeps the structure the cleaner needs (tables, infoboxes, citations are marked up); cheap incremental refresh; follows Wikimedia API etiquette without sending personal details by default |
 | 2026-11-13 | Shared `ingestion/common/http.py` (`open_url`) for both fetchers | One implementation of https-only, retries and Retry-After |
+| 2026-11-14 | Article selection: titles from each entity's `wikipedia_url` (never guessed); depth as a policy (`full`/`race`/`circuit`/`lead`), sections chosen by the cleaner (F2.3); notable/major rules use the stats views; major constructor applied per article over all constructor rows sharing it; topics upgrade already-selected articles to full | Matches DATA-STRATEGY §2b; selection stays independent of article layout; Cooper-Climax/Cooper-Maserati etc. are one team |
+| 2026-11-14 | Selection resolved on Wikipedia before writing a manifest (`data/narrative/selection.json`): missing + disambiguation pages dropped, redirects merged by page id; curated titles (topics, overrides) must resolve or the run fails | One cache entry per page (no duplicate chunks); curation mistakes fail loudly, source-data gaps don't |
+| 2026-11-14 | `narrative/title_overrides.csv` (kind, ref, title) for stale source URLs; validated like the structured seeds | 34 source URLs now hit disambiguation/missing pages (incl. Tony Brooks, Jaguar, Toyota, Surtees); refs survive ID changes |
+| 2026-11-14 | Topic metadata: one group per topic (`rivalry`, `safety`, `controversy`, `iconic_race`, `regulations`, `car`, `concept`, `people`, `history`) + optional driver/constructor/circuit refs and one season | Becomes the chunk's `topic` + id filters (F2.4); refs checked against the data, also in the weekly real-data workflow |
 | 2026-11-13 | Sanity checks run inside the load transaction (failure = rollback) and standalone; real-data checks in a separate weekly/path-filtered workflow, outside the `CI passed` gate | A bad dump can't replace good data; real data is verified in CI without making unrelated PRs depend on Jolpica's uptime |
 | 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
@@ -166,6 +170,22 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-14: F2.2 article selection
+- Fresh clone set up on the dev machine: Docker Desktop started, `uv` + `pre-commit` installed (pre-commit on Python 3.12; system Python 3.9 is too old for the black hook), deps + hooks installed, compose stack healthy, real data loaded (30/30 checks), read-only role enabled; all suites passed. PR #15 (F2.1) merged.
+- New in `ingestion/narrative/`:
+  - `selection.py`: rules as pure functions over entity rows. Seasons full; races `race`; circuits `circuit`; drivers full if champion / winner / podium / 30+ starts, else `lead`; constructors full if constructors' champion / winner / 5+ seasons over every row sharing the article, else `lead`; topics full (upgrading already-selected articles). URL → title: http/https en.wikipedia only, percent/Unicode decoded, fragment kept as `anchor`, non-article namespaces (e.g. a `Talk:` page for Thomas Monarch) skipped. Entries for the same article merge (ids unioned, deepest depth, conflicting single values dropped). `resolve_selection`: one batched query per 50 titles; missing/disambiguation dropped, redirects merged by page id; curated titles must resolve (topics also exactly once).
+  - `entities.py`: reads seasons/races/circuits/drivers/constructors + refs; career numbers from `v_driver_career`, constructors' titles from `v_season_summary`.
+  - `topics.py` + `topics.yaml`: 140 curated topics in 9 groups (rivalries, safety, controversies, iconic races, regulations, cars, concepts, people, history) with optional driver/constructor/circuit refs and a season. Validated: groups, fields, refs format, season 1950–2025, duplicate titles, safe YAML only.
+  - `overrides.py` + `title_overrides.csv`: 28 curated titles for stale source URLs, keyed by kind + ref (unknown ref, or an override equal to the URL's own title, fails).
+  - `manifest.py`: `data/narrative/selection.json` (versioned, atomic write, only resolved/unique articles; validated on read).
+  - CLI `python -m narrative.select` (`--no-resolve` offline, `--topics`, `--overrides`, `--output`); every dropped title is logged. `python -m narrative --selection [MANIFEST]` fetches the selection.
+- `wiki.py`: revision queries also request `pageprops=disambiguation`; `PageRef.disambiguation`.
+- Live resolve (generic test User-Agent, no personal details; Wikimedia rate-limited it with 429 + Retry-After, which the client honoured): **2,349 articles**: full 558, race 1,085, circuit 77, lead 629 (seasons 76, races 1,149 of which 64 upgraded to full by topics, drivers 813, constructors 163, circuits 77, topics 140). 48 requests.
+- **Found and fixed:** 34 source URLs no longer reach an article: 32 are now disambiguation pages (incl. notable Tony Brooks, Trevor Taylor, Jimmy Davies, Paul Goldsmith and major Jaguar, Toyota, Surtees, Epperly) and 2 are missing. Titles found from the links on those disambiguation pages and checked in one batched query → `title_overrides.csv`. 6 minor intro-only entities have no clear article and stay dropped (drivers Chuck Arnold, Dick Gibson, Geoff Lees; constructors Trevis, Hall, Turner). Also caught by the topic checks: 7 wrong titles in my first `topics.yaml` draft (dropped 6, fixed 1).
+- CI: `data-checks.yml` now runs `python -m narrative.select --no-resolve` on the real data (topics + overrides refs must exist).
+- Tests: ingestion 369 (URL parsing incl. namespaces/hosts/encoding, depth merge table, entry merge, notable/major rules incl. seasons over shared articles without double counting, topics upgrade + metadata, unknown refs, overrides apply/curate/redundant/unknown, resolve redirects/merge/missing/disambiguation/curated failures/one batched request, topics + overrides file validation incl. the real files, manifest round trip/atomic/refusals, both CLIs end to end with a fake MediaWiki, secrets never logged; integration: entity rows + selection from a real DB). Mutation-checked two rules. Backend 190, frontend 30 unchanged.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-13: F2.1 Wikipedia fetcher
 - PR #14 (Phase 1 docs) merged; Phase 2 started.
