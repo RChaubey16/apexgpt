@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 2: Narrative corpus |
-| **Current feature** | F2.3 `feature/article-cleaner` (PR raised, awaiting review) |
-| **Current branch** | `feature/article-cleaner` |
-| **Open PR** | #17 (F2.3) |
+| **Current feature** | F2.4 `feature/chunker` (PR raised, awaiting review) |
+| **Current branch** | `feature/chunker` |
+| **Open PR** | #18 (F2.4) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-14 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F2.3 PR.
-2. After merge: pull `main`, start **F2.4** `feature/chunker` (reads `data/narrative/articles.jsonl`).
+1. User reviews and merges the F2.4 PR.
+2. After merge: pull `main`, start **F2.5** `feature/embedding-pipeline` (reads `data/narrative/chunks.jsonl`; embed `ChunkRecord.embedding_text`).
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -82,8 +82,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 2: Narrative Corpus
 - [x] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache · PR #15 merged
 - [x] F2.2 `feature/article-selection`: selection rules + `topics.yaml` · PR #16 merged
-- [ ] F2.3 `feature/article-cleaner`: Wikipedia cleaner · 🔍 PR #17
-- [ ] F2.4 `feature/chunker`: section-based chunker with metadata
+- [x] F2.3 `feature/article-cleaner`: Wikipedia cleaner · PR #17 merged
+- [ ] F2.4 `feature/chunker`: section-based chunker with metadata · 🔍 PR #18
 - [ ] F2.5 `feature/embedding-pipeline`: fastembed pipeline + `chunks` table
 - [ ] F2.6 `feature/size-guard`: DB size guard
 - [ ] **Phase done check:** "Senna Prost Suzuka collision" returns the 1989/1990 Japanese GP chunks; ~12–15k chunks, < ~120 MB
@@ -163,6 +163,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-14 | `circuit` depth also keeps layout/track description and fatal-accident sections | Answers "what's the track like" and crash questions; small (77 articles) |
 | 2026-11-14 | Cleaned corpus in `data/narrative/articles.jsonl` (selection metadata + page/revision/URL + sections); a run with any missing/stale/unusable article writes nothing | The chunker needs one input; a partial corpus never replaces a complete one |
 | 2026-11-14 | Corpus is ~3.7M tokens (≈8k chunks at ~450 tokens), below the planned 12–15k chunks | Stripping is more aggressive than estimated; leaves room under the size budget. Chunk size/overlap decided in F2.4 |
+| 2026-11-14 | Chunks: target ~450 / max 500 estimated tokens including the `title > section` heading (not 400–600); ~50-token sentence overlap within a section; lead alone; small subsections of one top-level section packed | bge-small-en-v1.5 truncates input after 512 tokens. Sizes estimated at 1.4 tokens/word (bge tokenizer on this corpus: mean 1.28, p99 1.39) so the chunker needs no model download; 3 of 14,571 chunks are 2–17 tokens over in reality, F2.5 can check exactly |
+| 2026-11-14 | Chunks inherit article-level metadata only (no per-chunk name tagging) | Mention tagging is ambiguous ("Hill", "Brabham"); question-side entity resolution is F3.4 |
 | 2026-11-13 | Sanity checks run inside the load transaction (failure = rollback) and standalone; real-data checks in a separate weekly/path-filtered workflow, outside the `CI passed` gate | A bad dump can't replace good data; real data is verified in CI without making unrelated PRs depend on Jolpica's uptime |
 | 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
@@ -174,6 +176,16 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-14: F2.4 chunker
+- PR #17 (F2.3) merged.
+- Measured first: bge-small-en-v1.5 tokenizer (fetched to the scratchpad only, not a dependency) on the cleaned corpus → 1.28 tokens/word on average, 1.39 at p99 of 350-word windows. The plan's 400–600 tokens would be truncated by the model's 512-token input → target ~450 / max 500 estimated (1.4 tokens/word), heading included.
+- New `ingestion/narrative/chunker.py`: lead alone; runs of sections under one top-level heading packed up to the target (subsection heading lines inside the text; chunk labelled with the shared heading path); longer sections split into near-equal parts at paragraphs → sentences (abbreviation/initial-aware splitter) → word windows; sentence overlap ≤ 50 tokens between parts of one section, never repeating a whole paragraph, none across sections; a short leftover is absorbed into the previous part; every chunk checked ≤ max.
+- New `chunks.py` (`ChunkRecord`: pageid + index, section, text, tokens, source_url/revid, all article metadata; `heading`, `embedding_text`) and CLI `python -m narrative.chunk` (`--show TITLE`). Shared atomic JSONL read/write moved to `jsonl.py` (`articles.py` uses it too).
+- Iterations from real output: balanced splits still left short tails (e.g. a 98-token "Report" part) → absorb the rest when it fits; sentences of a split paragraph were rejoined as separate paragraphs → keep each piece's joiner; no overlap after a sentence-sized piece → only skip the first sentence of whole paragraphs.
+- **Result:** 14,571 chunks (full 8,054, race 5,401, lead 643, circuit 473), estimated tokens median 307 / p90 432 / max 499; real tokens median 280, p99 453, 3 chunks over 512 (max 529). 1,070 chunks under 100 tokens (mostly intro-only articles and one-line sections left after table removal). 17.3 MB of text; ~1 s.
+- Tests: ingestion 461 (sentence splitter cases, packing/labels/headings, lead isolation, balanced split + overlap, coverage in order, no cross-section overlap, long paragraph/list/word-window splits, no short leftover, heading counted in size, custom sizes, bad sizes/headings; CLI end to end with metadata, `--show`, missing file, failure writes nothing, bad lines). Mutation-checked 5 rules (overlap, leftover absorption, top-level grouping, sentence joiners, whole-paragraph overlap); the leftover test initially didn't catch its mutation → rewritten so it does. Backend 190, frontend 30 unchanged.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-14: F2.3 article cleaner
 - Full fetch done first (user's `WIKI_USER_AGENT`, repo URL as contact): **2,349 fetched, 0 missing, 0 errors** in 63 min; every cached page matches the manifest's page id; 426 MB in `data/wikipedia/`. PR #16 (F2.2) merged.

@@ -112,6 +112,8 @@ uv run python -m narrative --selection           # fetch every selected article 
 uv run python -m narrative --selection --refresh # later: refetch only articles whose revision changed
 uv run python -m narrative.clean                 # clean all of them -> data/narrative/articles.jsonl (~2 min, offline)
 uv run python -m narrative.clean --show "1990 Japanese Grand Prix"   # inspect one cleaned article
+uv run python -m narrative.chunk                 # split into chunks -> data/narrative/chunks.jsonl (seconds, offline)
+uv run python -m narrative.chunk --show "1990 Japanese Grand Prix"   # inspect one article's chunks
 
 uv run python -m narrative --title "1989 Japanese Grand Prix" --title "Ayrton Senna"   # ad hoc
 uv run python -m narrative --titles-file titles.txt             # one title per line, # comments
@@ -148,6 +150,14 @@ uv run python -m narrative --titles-file titles.txt             # one title per 
 - Then applies the article's depth: `full` keeps every section; `race` keeps everything but practice/qualifying/sprint/entry-list sections (so "Background", "Race", "Aftermath", "Diffuser ban and controversy" all stay); `circuit` keeps history, layout and fatal-accident sections (+ the URL's `#anchor` section); `lead` keeps the intro.
 - Output: `data/narrative/articles.jsonl`, one article per line with the selection metadata, page/revision/URL (for attribution) and its sections as heading paths + paragraphs. Never replaced by a partial run: missing or stale cached articles fail it. Stubs (< 20 words) and any leftover markup are reported.
 - Full corpus: 426 MB HTML → 17.7 MB clean text, ~2.8M words (~3.7M tokens).
+
+**Chunking** ([`ingestion/narrative/chunker.py`](ingestion/narrative/chunker.py)) follows `docs/DATA-STRATEGY.md` §2c:
+
+- Splits on section boundaries: the lead is its own chunk, and a chunk never mixes two top-level sections. Small subsections of one top-level section are packed together, each under its own heading line.
+- A longer section is split into near-equal parts at paragraphs (then sentences, then words, only if one is too long); consecutive parts of a section overlap by the last sentence or two (≤ ~50 tokens), never across sections.
+- Sized for the embedding model (bge-small, 512-token input): target ~450 / max 500 estimated tokens *including* the `title > section` heading the chunk is embedded with. Estimates use 1.4 tokens per word (measured with the bge-small tokenizer on this corpus: mean 1.28, p99 1.39).
+- Output: `data/narrative/chunks.jsonl`, one chunk per line: `pageid` + `index` (unique), `section` heading path, `text`, estimated `tokens`, `source_url`/`revid` (attribution) and the article's `season`, `race_id`, `circuit_id`, `driver_ids`, `constructor_ids`, `topic`, `depth`, `kinds` for filtering.
+- Full corpus: **14,571 chunks**, median ~307 estimated tokens (~280 real), 17.3 MB of text.
 
 ### Stats views
 

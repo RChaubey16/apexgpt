@@ -6,18 +6,13 @@ race_id, circuit_id, driver_ids, constructor_ids, topic), the source page
 Written atomically, so an interrupted run keeps the previous file.
 """
 
-import json
-import os
-import tempfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
-from narrative.errors import SelectionError
+from narrative.jsonl import read_jsonl, write_jsonl
 from narrative.selection import Depth, Kind
-
-MAX_LINE_BYTES = 5_000_000
 
 
 def articles_path(data_dir: Path) -> Path:
@@ -54,35 +49,8 @@ class ArticleRecord(BaseModel):
 
 
 def write_articles(path: Path, records: Iterable[ArticleRecord]) -> int:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-", suffix=".jsonl")
-    count = 0
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            for record in records:
-                f.write(record.model_dump_json(exclude_defaults=True))
-                f.write("\n")
-                count += 1
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
-    return count
+    return write_jsonl(path, records)
 
 
 def read_articles(path: Path) -> Iterator[ArticleRecord]:
-    if not path.is_file():
-        raise SelectionError(
-            f"no cleaned articles at {path}; run `python -m narrative.clean` first"
-        )
-    with path.open(encoding="utf-8") as f:
-        for number, line in enumerate(f, start=1):
-            if len(line) > MAX_LINE_BYTES:
-                raise SelectionError(f"{path.name} line {number} is unexpectedly large")
-            try:
-                yield ArticleRecord.model_validate(json.loads(line))
-            except (ValueError, ValidationError):
-                raise SelectionError(
-                    f"{path.name} line {number} is unreadable; "
-                    "run `python -m narrative.clean` again"
-                ) from None
+    return read_jsonl(path, ArticleRecord, "python -m narrative.clean")
