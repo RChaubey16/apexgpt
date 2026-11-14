@@ -15,19 +15,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 2: Narrative corpus |
-| **Current feature** | F2.2 `feature/article-selection` (PR raised, awaiting review) |
-| **Current branch** | `feature/article-selection` |
-| **Open PR** | #16 (F2.2) |
+| **Current feature** | F2.3 `feature/article-cleaner` (PR raised, awaiting review) |
+| **Current branch** | `feature/article-cleaner` |
+| **Open PR** | #17 (F2.3) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-14 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F2.2 PR.
-2. User sets `WIKI_USER_AGENT` in `.env` with their own contact details, then runs the full fetch: `cd ingestion && uv run python -m narrative.select && uv run python -m narrative --selection` (~2,350 requests, ~40 min, resumable). Generic agents get rate-limited. F2.3 needs the fetched HTML.
-3. After merge: pull `main`, start **F2.3** `feature/article-cleaner`.
-4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
+1. User reviews and merges the F2.3 PR.
+2. After merge: pull `main`, start **F2.4** `feature/chunker` (reads `data/narrative/articles.jsonl`).
+3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
 
@@ -82,8 +81,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 2: Narrative Corpus
 - [x] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache · PR #15 merged
-- [ ] F2.2 `feature/article-selection`: selection rules + `topics.yaml` · 🔍 PR #16
-- [ ] F2.3 `feature/article-cleaner`: Wikipedia cleaner
+- [x] F2.2 `feature/article-selection`: selection rules + `topics.yaml` · PR #16 merged
+- [ ] F2.3 `feature/article-cleaner`: Wikipedia cleaner · 🔍 PR #17
 - [ ] F2.4 `feature/chunker`: section-based chunker with metadata
 - [ ] F2.5 `feature/embedding-pipeline`: fastembed pipeline + `chunks` table
 - [ ] F2.6 `feature/size-guard`: DB size guard
@@ -159,6 +158,11 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-14 | Selection resolved on Wikipedia before writing a manifest (`data/narrative/selection.json`): missing + disambiguation pages dropped, redirects merged by page id; curated titles (topics, overrides) must resolve or the run fails | One cache entry per page (no duplicate chunks); curation mistakes fail loudly, source-data gaps don't |
 | 2026-11-14 | `narrative/title_overrides.csv` (kind, ref, title) for stale source URLs; validated like the structured seeds | 34 source URLs now hit disambiguation/missing pages (incl. Tony Brooks, Jaguar, Toyota, Surtees); refs survive ID changes |
 | 2026-11-14 | Topic metadata: one group per topic (`rivalry`, `safety`, `controversy`, `iconic_race`, `regulations`, `car`, `concept`, `people`, `history`) + optional driver/constructor/circuit refs and one season | Becomes the chunk's `topic` + id filters (F2.4); refs checked against the data, also in the weekly real-data workflow |
+| 2026-11-14 | Cleaner: lxml (6.1.3); walk the parser output in order tracking the heading path; drop all tables + page furniture by tag/class, boilerplate sections by name/pattern, table notes by pattern | Fast (2,349 articles in ~95 s); heading paths give the chunker section boundaries and labels |
+| 2026-11-14 | `race` depth = everything except session/entry-list sections (denylist), not a list of narrative headings | Real articles name narrative sections many ways ("Report", "Race", "Aftermath", "Diffuser ban and controversy", "Death of … and inquiries"); an allowlist lost them |
+| 2026-11-14 | `circuit` depth also keeps layout/track description and fatal-accident sections | Answers "what's the track like" and crash questions; small (77 articles) |
+| 2026-11-14 | Cleaned corpus in `data/narrative/articles.jsonl` (selection metadata + page/revision/URL + sections); a run with any missing/stale/unusable article writes nothing | The chunker needs one input; a partial corpus never replaces a complete one |
+| 2026-11-14 | Corpus is ~3.7M tokens (≈8k chunks at ~450 tokens), below the planned 12–15k chunks | Stripping is more aggressive than estimated; leaves room under the size budget. Chunk size/overlap decided in F2.4 |
 | 2026-11-13 | Sanity checks run inside the load transaction (failure = rollback) and standalone; real-data checks in a separate weekly/path-filtered workflow, outside the `CI passed` gate | A bad dump can't replace good data; real data is verified in CI without making unrelated PRs depend on Jolpica's uptime |
 | 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
@@ -170,6 +174,16 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-14: F2.3 article cleaner
+- Full fetch done first (user's `WIKI_USER_AGENT`, repo URL as contact): **2,349 fetched, 0 missing, 0 errors** in 63 min; every cached page matches the manifest's page id; 426 MB in `data/wikipedia/`. PR #16 (F2.2) merged.
+- Surveyed the real HTML before writing rules: top-level element/class counts across the corpus, h2 headings per depth, citation `sup` classes, what race/circuit sections hold.
+- New `ingestion/narrative/cleaner.py` (lxml 6.1.3): removes tables, figures/images, styles/scripts, comments, coordinates (`geo*`), and by class: navbox, hatnote, infobox, ambox, side-box, metadata, noprint, references/reflist, reference + Inline-Template sups, flagicons, thumbs, pullquotes, … (text after a removed inline element is kept). Walks the output in order with a heading path (skipped levels handled, wrapper divs entered); paragraphs, lists ("- item"), definition lists and quotes become text blocks; text normalised (NFC, nbsp, zero-width chars, leftover markers, Wayback notes, spacing). Boilerplate sections by name + patterns (`^complete`, `results$`, `records?$`, `standings$`, `references`, works lists); table notes dropped. Depth policy: full / race (session denylist) / circuit (history + track + fatalities + URL anchor) / lead.
+- New `articles.py` (`articles.jsonl` model, atomic write, validated read) and CLI `python -m narrative.clean` (`--show TITLE` prints one). Reports per-depth words, stubs < 20 words (39, all real one-line stubs) and leftover markup (none on the real corpus).
+- Iterations from real output: race allowlist → denylist (it was dropping "Diffuser ban and controversy", "Death of Graham Beveridge and inquiries", "Reaction", "Track invasion"); coordinates and BOM characters in race leads; "Books"/"Publications"/"General and cited references"/"List of works" sections; parse as a fragment so bare-block HTML isn't lost (real output byte-identical after the change).
+- **Result:** 2,349 articles, 2,816,320 words (~3.7M tokens), 17.7 MB: race 1.06M words, full 1.60M, circuit 96k, lead 63k.
+- Tests: ingestion 448 (synthetic MediaWiki-shaped HTML: furniture + boilerplate removal, each depth, race session/narrative headings, circuit anchor, heading paths, lists/dl/quotes/wrappers, inline-removal tails, nested tables in read blocks, text normalisation, boilerplate matcher, error cases; articles file round trip/atomic/bad lines; CLI end to end, missing/stale/empty articles fail without replacing the file, `--show`, leftover-markup report). Mutation-checked: disabling table removal was initially **not** caught (the walker never reads top-level tables) → added a nested-table test that catches it. Backend 190, frontend 30 unchanged.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-14: F2.2 article selection
 - Fresh clone set up on the dev machine: Docker Desktop started, `uv` + `pre-commit` installed (pre-commit on Python 3.12; system Python 3.9 is too old for the black hook), deps + hooks installed, compose stack healthy, real data loaded (30/30 checks), read-only role enabled; all suites passed. PR #15 (F2.1) merged.
