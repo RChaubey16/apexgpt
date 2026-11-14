@@ -12,7 +12,8 @@ Only two calls are used:
 
 - `current_revisions(titles)`: page id + latest revision id per title,
   following normalisation ("ayrton senna" -> "Ayrton Senna") and redirects
-  ("Schumi" -> "Michael Schumacher"); missing pages map to None.
+  ("Schumi" -> "Michael Schumacher"); missing pages map to None, and
+  disambiguation pages are flagged.
 - `parse(title)`: the rendered article HTML (action=parse) plus its revision id.
   Cleaning (tables, infoboxes, citations, ...) is the cleaner's job (F2.3).
 """
@@ -69,6 +70,8 @@ class PageRef:
     title: str
     pageid: int
     revid: int
+    # A disambiguation page ("John Smith (disambiguation)"-style list of links).
+    disambiguation: bool = False
 
 
 @dataclass(frozen=True)
@@ -97,6 +100,8 @@ class _QueryPage(BaseModel):
     missing: bool = False
     invalid: bool = False
     revisions: list[_Revision] = []
+    # Only requested property: {"disambiguation": ""} on disambiguation pages.
+    pageprops: dict[str, str] = {}
 
 
 class _Mapping(BaseModel):
@@ -181,8 +186,9 @@ class WikiClient:
             data = self._get(
                 {
                     "action": "query",
-                    "prop": "revisions",
+                    "prop": "revisions|pageprops",
                     "rvprop": "ids",
+                    "ppprop": "disambiguation",
                     "redirects": "1",
                     "titles": "|".join(batch),
                 }
@@ -254,6 +260,9 @@ def _resolve(batch: Sequence[str], query: _Query) -> dict[str, PageRef | None]:
             resolved[requested] = None
         else:
             resolved[requested] = PageRef(
-                page.title, page.pageid, page.revisions[0].revid
+                page.title,
+                page.pageid,
+                page.revisions[0].revid,
+                disambiguation="disambiguation" in page.pageprops,
             )
     return resolved

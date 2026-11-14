@@ -4,9 +4,13 @@
     uv run python -m narrative --title "1989 Japanese Grand Prix" --title "Ayrton Senna"
     uv run python -m narrative --titles-file titles.txt        # one title per line, # comments
     uv run python -m narrative --titles-file titles.txt --refresh   # refetch changed revisions
+    uv run python -m narrative --selection             # every article in the selection
+    uv run python -m narrative --selection path/to/selection.json --refresh
 
 Needs WIKI_USER_AGENT (Wikimedia asks for contact details); see .env.example.
-Article selection (which titles to fetch) arrives in F2.2.
+The selection (data/narrative/selection.json) comes from `python -m narrative.select`.
+A full fetch is ~2,400 requests at one per second (~40 minutes); re-runs only
+fetch what isn't cached yet.
 """
 
 import argparse
@@ -19,10 +23,14 @@ from pydantic import ValidationError
 from narrative.cache import ArticleCache
 from narrative.config import WikiSettings
 from narrative.fetch import fetch_articles
+from narrative.manifest import manifest_path, read_manifest
 from narrative.wiki import WikiClient, validate_title
 from structured.errors import IngestionError
 
 logger = logging.getLogger("narrative")
+
+# --selection without a path: use the default manifest under DATA_DIR.
+_DEFAULT_SELECTION = Path("\0default")
 
 
 def _read_titles(path: Path) -> list[str]:
@@ -44,6 +52,15 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--titles-file", type=Path, help="file with one title per line")
     parser.add_argument(
+        "--selection",
+        nargs="?",
+        const=_DEFAULT_SELECTION,
+        type=Path,
+        metavar="MANIFEST",
+        help="fetch every article in the selection "
+        "(default: <DATA_DIR>/narrative/selection.json)",
+    )
+    parser.add_argument(
         "--refresh",
         action="store_true",
         help="check revisions and refetch changed articles",
@@ -55,8 +72,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     titles = list(args.title)
     if args.titles_file is not None:
         titles += _read_titles(args.titles_file)
-    if not titles:
-        parser.error("give at least one --title or a --titles-file")
+    if not titles and args.selection is None:
+        parser.error("give at least one --title, a --titles-file or --selection")
     try:
         args.titles = [validate_title(t) for t in titles]
     except ValueError as exc:
@@ -88,7 +105,17 @@ def run(argv: list[str] | None = None) -> int:
     client = WikiClient(settings.wiki_user_agent, settings.wiki_min_interval_seconds)
     cache = ArticleCache(settings.data_dir / "wikipedia")
     try:
-        report = fetch_articles(args.titles, client, cache, refresh=args.refresh)
+        titles = list(args.titles)
+        if args.selection is not None:
+            path = (
+                manifest_path(settings.data_dir)
+                if args.selection == _DEFAULT_SELECTION
+                else args.selection
+            )
+            manifest = read_manifest(path)
+            titles += [a.title for a in manifest.articles]
+            logger.info("%d articles in %s", len(manifest.articles), path.name)
+        report = fetch_articles(titles, client, cache, refresh=args.refresh)
     except IngestionError as exc:
         logger.error("%s", exc)
         return 1

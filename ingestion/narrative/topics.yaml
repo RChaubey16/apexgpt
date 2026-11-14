@@ -1,0 +1,268 @@
+# Curated topic articles for the narrative corpus (docs/DATA-STRATEGY.md §2b).
+#
+# Each group maps to a list of English Wikipedia article titles. Every topic is
+# fetched in full. A topic that is already selected from the structured data
+# (a race report, a driver, a team) is upgraded to the full article and tagged
+# with the group, e.g. the 1989 Japanese Grand Prix or Roland Ratzenberger.
+#
+# Optional metadata, carried onto the article's chunks for search filters:
+#   drivers: [refs]   constructors: [refs]   season: 1976   circuit: ref
+# Refs are the structured data's `ref` slugs (drivers.ref, constructors.ref,
+# circuits.ref); unknown refs fail the selection. Titles that aren't on
+# Wikipedia, are disambiguation pages, or duplicate another topic fail
+# `python -m narrative.select`.
+
+rivalry:
+  - title: Prost–Senna rivalry
+    drivers: [prost, senna]
+    constructors: [mclaren]
+  - title: Hamilton–Rosberg rivalry
+    drivers: [hamilton, rosberg]
+    constructors: [mercedes]
+  - title: Hunt–Lauda rivalry
+    drivers: [hunt, lauda]
+    season: 1976
+
+safety:
+  - title: Death of Ayrton Senna
+    drivers: [senna]
+    season: 1994
+    circuit: imola
+  - title: 1994 San Marino Grand Prix
+    drivers: [senna, ratzenberger]
+  - title: Roland Ratzenberger
+    drivers: [ratzenberger]
+  - title: Jules Bianchi
+    drivers: [jules_bianchi]
+  - title: 2014 Japanese Grand Prix
+    drivers: [jules_bianchi]
+  - title: 1976 German Grand Prix
+    drivers: [lauda]
+  - title: 1982 Belgian Grand Prix
+    drivers: [gilles_villeneuve]
+  - title: 1982 Canadian Grand Prix
+    drivers: [paletti]
+  - title: 1961 Italian Grand Prix
+    drivers: [trips]
+  - title: 1970 Italian Grand Prix
+    drivers: [rindt]
+  - title: 1973 Dutch Grand Prix
+    drivers: [williamson]
+  - title: 1977 South African Grand Prix
+    drivers: [pryce]
+  - title: 1978 Italian Grand Prix
+    drivers: [peterson]
+  - title: 1975 Spanish Grand Prix
+  - title: 1960 Belgian Grand Prix
+  - title: 1989 San Marino Grand Prix
+    drivers: [berger]
+  - title: 1998 Belgian Grand Prix
+  - title: 2020 Bahrain Grand Prix
+    drivers: [grosjean]
+  - title: 2009 Hungarian Grand Prix
+    drivers: [massa]
+  - title: 2007 Canadian Grand Prix
+    drivers: [kubica]
+  - title: 2021 British Grand Prix
+    drivers: [hamilton, max_verstappen]
+  - title: Halo (safety device)
+  - title: HANS device
+  - title: Sid Watkins
+  - title: Grand Prix Drivers' Association
+  - title: Elio de Angelis
+    drivers: [angelis]
+  - title: François Cevert
+    drivers: [cevert]
+
+controversy:
+  - title: 2007 Formula One espionage controversy
+    constructors: [mclaren, ferrari]
+    season: 2007
+  - title: 2008 Singapore Grand Prix crash controversy
+    drivers: [piquet_jr, alonso]
+    constructors: [renault]
+    season: 2008
+  - title: 2008 Singapore Grand Prix
+  - title: 2005 United States Grand Prix
+  - title: 2021 Abu Dhabi Grand Prix
+    drivers: [hamilton, max_verstappen]
+  - title: 2002 Austrian Grand Prix
+    drivers: [michael_schumacher, barrichello]
+  - title: 1997 European Grand Prix
+    drivers: [michael_schumacher, villeneuve]
+  - title: 1994 Australian Grand Prix
+    drivers: [michael_schumacher, damon_hill]
+  - title: 2010 German Grand Prix
+    drivers: [alonso, massa]
+  - title: 2006 Monaco Grand Prix
+    drivers: [michael_schumacher]
+  - title: 2013 Malaysian Grand Prix
+    drivers: [vettel, webber]
+  - title: 2016 Spanish Grand Prix
+    drivers: [hamilton, rosberg, max_verstappen]
+  - title: 1982 San Marino Grand Prix
+    drivers: [gilles_villeneuve, pironi]
+  - title: Team orders
+  - title: FISA–FOCA war
+  - title: Concorde Agreement
+
+iconic_race:
+  - title: 1950 British Grand Prix
+  - title: 1951 British Grand Prix
+  - title: 1957 German Grand Prix
+    drivers: [fangio]
+  - title: 1958 Moroccan Grand Prix
+    drivers: [hawthorn, moss]
+  - title: 1959 United States Grand Prix
+    drivers: [jack_brabham]
+  - title: 1964 Mexican Grand Prix
+  - title: 1967 Italian Grand Prix
+    drivers: [clark]
+  - title: 1968 German Grand Prix
+    drivers: [stewart]
+  - title: 1971 Italian Grand Prix
+  - title: 1976 Japanese Grand Prix
+    drivers: [hunt, lauda]
+  - title: 1979 French Grand Prix
+    drivers: [gilles_villeneuve, arnoux]
+  - title: 1981 Spanish Grand Prix
+    drivers: [gilles_villeneuve]
+  - title: 1984 Monaco Grand Prix
+    drivers: [senna, prost]
+  - title: 1986 Australian Grand Prix
+    drivers: [prost, mansell, piquet]
+  - title: 1988 Japanese Grand Prix
+    drivers: [senna, prost]
+  - title: 1989 Japanese Grand Prix
+    drivers: [senna, prost]
+  - title: 1990 Japanese Grand Prix
+    drivers: [senna, prost]
+  - title: 1993 European Grand Prix
+    drivers: [senna]
+  - title: 1996 Spanish Grand Prix
+    drivers: [michael_schumacher]
+  - title: 2000 Japanese Grand Prix
+    drivers: [michael_schumacher, hakkinen]
+  - title: 2003 Brazilian Grand Prix
+  - title: 2005 Japanese Grand Prix
+    drivers: [raikkonen]
+  - title: 2007 Brazilian Grand Prix
+    drivers: [raikkonen, hamilton, alonso]
+  - title: 2008 Brazilian Grand Prix
+    drivers: [hamilton, massa]
+  - title: 2010 Abu Dhabi Grand Prix
+    drivers: [vettel, alonso]
+  - title: 2011 Canadian Grand Prix
+    drivers: [button]
+  - title: 2012 Brazilian Grand Prix
+    drivers: [vettel, alonso]
+  - title: 2016 Abu Dhabi Grand Prix
+    drivers: [rosberg, hamilton]
+  - title: 2020 Italian Grand Prix
+    drivers: [gasly]
+  - title: 2020 Sakhir Grand Prix
+    drivers: [russell, perez]
+  - title: 2021 Belgian Grand Prix
+  - title: 2021 Italian Grand Prix
+    drivers: [hamilton, max_verstappen]
+  - title: 2021 Saudi Arabian Grand Prix
+    drivers: [hamilton, max_verstappen]
+  - title: 2022 Japanese Grand Prix
+    drivers: [max_verstappen]
+  - title: 2025 Abu Dhabi Grand Prix
+    drivers: [norris, max_verstappen, piastri]
+
+regulations:
+  - title: Formula One regulations
+  - title: Formula One engines
+  - title: Formula One car
+  - title: Formula One tyres
+  - title: Ground effect (cars)
+  - title: Kinetic energy recovery system
+  - title: Drag reduction system
+  - title: Active suspension
+  - title: Traction control system
+  - title: Formula One sprint
+  - title: FIA Super Licence
+  - title: Downforce
+
+car:
+  - title: Lotus 25
+    constructors: [team_lotus]
+  - title: Lotus 49
+    constructors: [team_lotus]
+  - title: Lotus 72
+    constructors: [team_lotus]
+  - title: Lotus 79
+    constructors: [team_lotus]
+  - title: Tyrrell P34
+    constructors: [tyrrell]
+  - title: Brabham BT46
+    constructors: [brabham]
+  - title: McLaren MP4/4
+    constructors: [mclaren]
+    season: 1988
+  - title: Williams FW14
+    constructors: [williams]
+  - title: Ferrari F2004
+    constructors: [ferrari]
+    season: 2004
+  - title: Brawn BGP 001
+    constructors: [brawn]
+    season: 2009
+  - title: Red Bull Racing RB19
+    constructors: [red_bull]
+    season: 2023
+
+concept:
+  - title: Safety car
+  - title: Racing flags
+  - title: Pit stop
+  - title: Pole position
+  - title: Fastest lap
+  - title: Parc fermé
+  - title: Formation lap
+  - title: Drafting (aerodynamics)
+  - title: Pay driver
+  - title: World Drivers' Championship
+  - title: World Constructors' Championship
+  - title: Grand Prix motor racing
+
+people:
+  - title: Enzo Ferrari
+    constructors: [ferrari]
+  - title: Colin Chapman
+    constructors: [team_lotus]
+  - title: Bernie Ecclestone
+  - title: Max Mosley
+  - title: Jean-Marie Balestre
+  - title: Jean Todt
+    constructors: [ferrari]
+  - title: Ron Dennis
+    constructors: [mclaren]
+  - title: Frank Williams (Formula One)
+    constructors: [williams]
+  - title: Patrick Head
+    constructors: [williams]
+  - title: Ken Tyrrell
+    constructors: [tyrrell]
+  - title: Adrian Newey
+  - title: Ross Brawn
+    constructors: [brawn, ferrari, mercedes]
+  - title: Gordon Murray
+  - title: Rory Byrne
+  - title: Flavio Briatore
+    constructors: [benetton, renault]
+  - title: Toto Wolff
+    constructors: [mercedes]
+  - title: Christian Horner
+    constructors: [red_bull]
+  - title: Stefano Domenicali
+  - title: Murray Walker
+
+history:
+  - title: Formula One
+  - title: History of Formula One
+  - title: Fédération Internationale de l'Automobile
+  - title: Formula One Group
+  - title: "Formula 1: Drive to Survive"

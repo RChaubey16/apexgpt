@@ -1,5 +1,6 @@
 # Data checks: load the REAL Jolpica dump into a fresh database and run the
-# structured-data sanity checks (Hamilton 105 wins, 2021 champion, size budget, ...).
+# structured-data sanity checks (Hamilton 105 wins, 2021 champion, size budget, ...),
+# then build the Wikipedia article selection from it (offline).
 #
 # Separate from ci.yml on purpose: it depends on an external service (Jolpica),
 # so an outage there must not block unrelated PRs. It runs on PRs and pushes
@@ -105,3 +106,10 @@ jobs:
             echo "::error::Reloading the same dump changed rows (not idempotent)"
             exit 1
           fi
+
+      # Builds the Wikipedia article selection from the real data, offline:
+      # fails if topics.yaml is invalid or names a ref the data doesn't have.
+      # (Resolving titles on Wikipedia is left to the dev machine.)
+      - name: Article selection from the real data (offline)
+        working-directory: ingestion
+        run: uv run --frozen python -m narrative.select --no-resolve
