@@ -110,6 +110,8 @@ uv run python -m narrative.select --no-resolve   # offline: build the selection,
 uv run python -m narrative.select                # resolve on Wikipedia (~50 requests), write data/narrative/selection.json
 uv run python -m narrative --selection           # fetch every selected article (~2,400 requests, ~40 min; resumable)
 uv run python -m narrative --selection --refresh # later: refetch only articles whose revision changed
+uv run python -m narrative.clean                 # clean all of them -> data/narrative/articles.jsonl (~2 min, offline)
+uv run python -m narrative.clean --show "1990 Japanese Grand Prix"   # inspect one cleaned article
 
 uv run python -m narrative --title "1989 Japanese Grand Prix" --title "Ayrton Senna"   # ad hoc
 uv run python -m narrative --titles-file titles.txt             # one title per line, # comments
@@ -138,7 +140,14 @@ uv run python -m narrative --titles-file titles.txt             # one title per 
 - Requests are serial and throttled (`WIKI_MIN_INTERVAL_SECONDS`, default 1 s), send `maxlag=5`, and retry 429/5xx/lag with backoff.
 - Redirects and title normalisation are followed ("Schumi" → Michael Schumacher). Pages that don't exist are reported, not treated as errors.
 - Each cached article keeps its resolved title, revision id and URL (needed for CC BY-SA attribution). Cached articles are never refetched unless `--refresh` finds a newer revision (checked 50 titles per request).
-- Cleaning happens in F2.3.
+
+**Cleaning** ([`ingestion/narrative/cleaner.py`](ingestion/narrative/cleaner.py)) follows `docs/DATA-STRATEGY.md` §2a:
+
+- Removes all tables (results, standings, infoboxes, navboxes, succession and maintenance boxes), images and captions, hatnotes, reference lists, coordinates, inline styles and citation markers.
+- Drops boilerplate sections (References, Notes, See also, External links, Racing record, Helmet, book lists) and every results/records/classification/standings section, plus the table notes they leave ("Source: …").
+- Then applies the article's depth: `full` keeps every section; `race` keeps everything but practice/qualifying/sprint/entry-list sections (so "Background", "Race", "Aftermath", "Diffuser ban and controversy" all stay); `circuit` keeps history, layout and fatal-accident sections (+ the URL's `#anchor` section); `lead` keeps the intro.
+- Output: `data/narrative/articles.jsonl`, one article per line with the selection metadata, page/revision/URL (for attribution) and its sections as heading paths + paragraphs. Never replaced by a partial run: missing or stale cached articles fail it. Stubs (< 20 words) and any leftover markup are reported.
+- Full corpus: 426 MB HTML → 17.7 MB clean text, ~2.8M words (~3.7M tokens).
 
 ### Stats views
 

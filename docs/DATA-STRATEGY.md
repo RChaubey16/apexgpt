@@ -48,20 +48,22 @@
 
 Remove from every article:
 - **All tables**: classification tables, standings after each race, "Complete Formula One World Championship results" grids. SQL already holds these numbers. Removing tables alone cuts the corpus by ~40–60%.
-- **Sections:** References, External links, See also, Notes, Further reading, Bibliography, Helmet, Racing record, Career summary.
-- **Page furniture:** infoboxes, navboxes, image captions, citation markers (`[1]`, `[citation needed]`).
+- **Sections:** References, External links, See also, Notes, Further reading, Bibliography, Helmet, Racing record, Career summary. Also any results/records/classification/standings section ("Indianapolis 500 results", "Karting record", "Race classification"), book lists, and the table notes left behind ("Source: …", "^1 – …").
+- **Page furniture:** infoboxes, navboxes, image captions, citation markers (`[1]`, `[citation needed]`), hatnotes, maintenance boxes, coordinates.
+
+Measured on the 2,349 selected articles (F2.3): 426 MB of fetched HTML → 17.7 MB of clean text, ~2.8M words (~3.7M tokens).
 
 ### 2b. Article Selection by Importance
 
 | Article set | Depth | Approx. count |
 |---|---|---|
 | Season articles ("YYYY Formula One World Championship", 1950–2025) | Full text | 76 |
-| Grand Prix race reports | Background + race report sections only | ~1,150 |
+| Grand Prix race reports | Background + race report sections only (in practice: everything except the practice / qualifying / sprint / entry-list sections, since articles name their narrative sections many ways) | ~1,150 |
 | **Notable drivers** | Full biography | ~250 |
 | Other drivers | Intro paragraph only | ~530 |
 | **Major constructors** | Full article | ~60 |
 | Minor constructors | Intro paragraph only | ~100 |
-| Circuits | Intro + history sections | ~77 |
+| Circuits | Intro + history sections (plus layout/track description and fatal-accident sections) | ~77 |
 | **Curated topic articles** | Full article | ~150 |
 
 **Notable driver** = meets any of: World Champion, race winner, podium finisher, or 30+ championship starts. Computed from the structured data, not hand-picked.
