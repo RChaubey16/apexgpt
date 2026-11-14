@@ -10,16 +10,15 @@ accepted (and cached) if both match, so a cached file is always a verified one.
 import hashlib
 import json
 import logging
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable
 from pathlib import Path
 from typing import IO, Literal
 
 from pydantic import BaseModel, Field, HttpUrl, ValidationError, field_validator
 
+from common.http import Opener, open_url
 from structured.errors import DownloadError
 
 logger = logging.getLogger(__name__)
@@ -33,8 +32,6 @@ MAX_INDEX_BYTES = 1_000_000
 MAX_DUMP_BYTES = 200_000_000
 MAX_ATTEMPTS = 3
 CHUNK_BYTES = 1 << 16
-
-Opener = Callable[..., IO[bytes]]
 
 
 class DumpInfo(BaseModel):
@@ -58,40 +55,14 @@ class DumpIndex(BaseModel):
 
 
 def _open(url: str, opener: Opener) -> IO[bytes]:
-    """Open an https URL with retries on network errors, 429 and 5xx responses."""
-    if urllib.parse.urlsplit(url).scheme != "https":
-        raise DownloadError("refusing to fetch a non-https URL")
-    headers = {"User-Agent": USER_AGENT}
-    request = urllib.request.Request(url, headers=headers)  # noqa: S310 (https only)
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            return opener(request, timeout=TIMEOUT_SECONDS)
-        except urllib.error.HTTPError as exc:
-            retryable = exc.code == 429 or exc.code >= 500
-            if not retryable or attempt == MAX_ATTEMPTS:
-                raise DownloadError(f"HTTP {exc.code} from {_host(url)}") from None
-            delay = _retry_after(exc) or 2**attempt
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
-            if attempt == MAX_ATTEMPTS:
-                raise DownloadError(
-                    f"could not reach {_host(url)}: {type(exc).__name__}"
-                ) from None
-            delay = 2**attempt
-        logger.warning("Request to %s failed; retrying in %ss", _host(url), delay)
-        time.sleep(delay)
-    raise AssertionError("unreachable")
-
-
-def _retry_after(exc: urllib.error.HTTPError) -> int | None:
-    value = exc.headers.get("Retry-After") if exc.headers else None
-    if value and value.isdigit():
-        return min(int(value), 60)
-    return None
-
-
-def _host(url: str) -> str:
-    # Log hosts only: signed download URLs carry credentials in the query string.
-    return urllib.parse.urlsplit(url).netloc
+    return open_url(
+        url,
+        opener,
+        user_agent=USER_AGENT,
+        error=DownloadError,
+        timeout=TIMEOUT_SECONDS,
+        attempts=MAX_ATTEMPTS,
+    )
 
 
 def fetch_dump_info(opener: Opener = urllib.request.urlopen) -> DumpInfo:

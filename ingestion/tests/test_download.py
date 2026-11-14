@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from common import http as common_http
 from structured import download
 from structured.download import (
     DumpInfo,
@@ -67,7 +68,7 @@ class FakeOpener:
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     sleeps: list[float] = []
-    monkeypatch.setattr(download.time, "sleep", sleeps.append)
+    monkeypatch.setattr(common_http.time, "sleep", sleeps.append)
     return sleeps
 
 

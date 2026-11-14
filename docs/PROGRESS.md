@@ -14,18 +14,20 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 1 done; Phase 2 (Narrative corpus) not started |
-| **Current feature** | None (next: F2.1 `feature/wiki-fetcher`) |
-| **Current branch** | `main` |
-| **Open PR** | None |
+| **Current phase** | Phase 2: Narrative corpus |
+| **Current feature** | F2.1 `feature/wiki-fetcher` (PR raised, awaiting review) |
+| **Current branch** | `feature/wiki-fetcher` |
+| **Open PR** | #15 (F2.1) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-13 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
-2. When the user says to start Phase 2: pull `main`, start **F2.1** `feature/wiki-fetcher`.
+1. User reviews and merges the F2.1 PR.
+2. User sets `WIKI_USER_AGENT` in `.env` with their own contact details (needed before the full fetch in F2.2).
+3. After merge: pull `main`, start **F2.2** `feature/article-selection`.
+4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
 
@@ -36,7 +38,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | Planning | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 0. Local foundation | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 1. Structured data | ✅ Done | 2026-11-13 | 2026-11-13 |
-| 2. Narrative corpus | ⬜ Not started | | |
+| 2. Narrative corpus | 🟡 In progress | 2026-11-13 | |
 | 3. Retrieval + LLM | ⬜ Not started | | |
 | 4. Chat API | ⬜ Not started | | |
 | 5. Frontend MVP | ⬜ Not started | | |
@@ -79,7 +81,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check:** sanity checks pass; structured data < ~25 MB (verified in F1.6: 30/30 pass on real data locally and in CI, 11.5 MB)
 
 ### Phase 2: Narrative Corpus
-- [ ] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache
+- [ ] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache · 🔍 PR #15
 - [ ] F2.2 `feature/article-selection`: selection rules + `topics.yaml`
 - [ ] F2.3 `feature/article-cleaner`: Wikipedia cleaner
 - [ ] F2.4 `feature/chunker`: section-based chunker with metadata
@@ -151,6 +153,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-13 | Loader = one-transaction sync: COPY to staging, delete stale races, upsert changed rows, delete stale facts; entities never deleted; scoped to the season range | Idempotent and atomic; safe to re-run; later alias tables can reference entities safely |
 | 2026-11-13 | `ingestion/` is its own uv project (psycopg + pydantic-settings, stdlib urllib for downloads); schema owned by backend migrations | Matches the planned layout; no backend import coupling; minimal deps |
 | 2026-11-13 | Aliases: normalised text, many-to-many, kinds name/surname/nickname; names generated from data, nicknames + lineage curated as CSV seeds keyed by `ref`; synced in the loader's transaction | One lookup table for F3.4; ambiguity kept explicit; seeds survive ID changes; editing a CSV + re-running applies it |
+| 2026-11-13 | Wikipedia fetch: `action=parse` HTML (cleaned later in F2.3) + batched `action=query` revision checks; serial, throttled, `maxlag=5`; JSON-per-article cache keyed by requested title; `WIKI_USER_AGENT` required (user supplies contact details) | Rendered HTML keeps the structure the cleaner needs (tables, infoboxes, citations are marked up); cheap incremental refresh; follows Wikimedia API etiquette without sending personal details by default |
+| 2026-11-13 | Shared `ingestion/common/http.py` (`open_url`) for both fetchers | One implementation of https-only, retries and Retry-After |
 | 2026-11-13 | Sanity checks run inside the load transaction (failure = rollback) and standalone; real-data checks in a separate weekly/path-filtered workflow, outside the `CI passed` gate | A bad dump can't replace good data; real data is verified in CI without making unrelated PRs depend on Jolpica's uptime |
 | 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
@@ -162,6 +166,18 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-13: F2.1 Wikipedia fetcher
+- PR #14 (Phase 1 docs) merged; Phase 2 started.
+- New `ingestion/narrative/` package:
+  - `wiki.py`: MediaWiki client for en.wikipedia. Serial, throttled (`WIKI_MIN_INTERVAL_SECONDS`, default 1 s), `maxlag=5` with Retry-After, 429/5xx/network retries, 20 MB response cap, validated JSON (pydantic). `current_revisions()` batches 50 titles per query and maps requested titles through `normalized` + `redirects` (loop-safe); `parse()` returns rendered HTML + revid (missing → None). Title validation mirrors MediaWiki (spaces/underscores, first-letter capitalisation, forbidden characters, 255 bytes).
+  - `cache.py`: one JSON file per requested title in `data/wikipedia/` (slug + SHA-256 prefix), atomic writes, unreadable files refetched. Stores resolved title, page id, revid, URL (CC BY-SA attribution) and HTML.
+  - `fetch.py` + `python -m narrative`: cached articles reused; `--refresh` refetches only changed revisions; missing pages reported, not fatal. Requires `WIKI_USER_AGENT`.
+- Refactor: retry logic moved from `structured/download.py` to `common/http.py` (`open_url`), shared by both fetchers.
+- Live check (generic test User-Agent, no personal details): fetched 1989/1990 Japanese GP, "Schumi" → Michael Schumacher, "Toro Rosso" → Scuderia Toro Rosso; second run served from cache; `--refresh` = 1 batched request; missing page reported.
+- **Found and fixed:** a `maxlag` reply on the final retry was returned instead of raising "stayed lagged".
+- Tests: ingestion 238 (fake MediaWiki routing by parameters: throttling with a fake clock, maxlag/Retry-After, HTTP retries, invalid/oversized JSON, redirects/normalisation/missing, 50-title batching, redirect loops, cache round trip/uniqueness/corruption, fetch/refresh/deleted-page logic, settings validation, CLI). No real network in tests.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-13: Phase 1 closed
 - PR #13 (F1.6) merged. All Phase 1 features (F1.1–F1.6) merged and the phase done check passed, so **Phase 1 is complete**.
