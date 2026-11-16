@@ -88,11 +88,11 @@ The curated topic list is the most valuable part of the corpus: it targets the "
 | Overlap | ~50 tokens (whole sentences) within a section; none across section boundaries |
 | Vector type | `halfvec(384)` (16-bit), which halves vector and index size with negligible quality loss |
 | Vector index | HNSW on the `halfvec` column (`halfvec_cosine_ops`) |
-| Full-text search | GIN index directly on `to_tsvector('english', text)`, with **no stored `tsvector` column** |
+| Full-text search | GIN index directly on `to_tsvector('english', title \|\| ' ' \|\| text)` (title included so continuation chunks still match the race/driver name), with **no stored `tsvector` column** |
 | Metadata | Integer columns/arrays: `season`, `race_id`, `driver_ids int[]`, `constructor_ids int[]`, `circuit_id`, `topic` (short text), `source_url`, `section` |
 | Raw articles | Not stored in the DB. Kept in a git-ignored `data/` folder on the dev machine; chunks store only `source_url` |
 
-**Estimated corpus:** ~2,400 articles → ~12–15k chunks → ~80–120 MB. Measured (F2.4): 2,349 articles → 14,571 chunks, median ~280 real tokens, 17.3 MB of chunk text.
+**Estimated corpus:** ~2,400 articles → ~12–15k chunks → ~80–120 MB. Measured (F2.4): 2,349 articles → 14,581 chunks, median ~280 real tokens, 17.3 MB of chunk text. Loaded (F2.5): the `chunks` table is **~57 MB** in total (heap 20 MB, HNSW 16 MB, GIN 9 MB), so the whole local database is 76 MB.
 
 ---
 

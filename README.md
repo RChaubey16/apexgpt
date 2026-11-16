@@ -114,6 +114,8 @@ uv run python -m narrative.clean                 # clean all of them -> data/nar
 uv run python -m narrative.clean --show "1990 Japanese Grand Prix"   # inspect one cleaned article
 uv run python -m narrative.chunk                 # split into chunks -> data/narrative/chunks.jsonl (seconds, offline)
 uv run python -m narrative.chunk --show "1990 Japanese Grand Prix"   # inspect one article's chunks
+uv run python -m narrative.embed --dry-run       # what would be embedded / written / deleted (no model, no writes)
+uv run python -m narrative.embed                 # embed new or changed chunks, sync the chunks table (~25 min the first time)
 
 uv run python -m narrative --title "1989 Japanese Grand Prix" --title "Ayrton Senna"   # ad hoc
 uv run python -m narrative --titles-file titles.txt             # one title per line, # comments
@@ -157,7 +159,15 @@ uv run python -m narrative --titles-file titles.txt             # one title per 
 - A longer section is split into near-equal parts at paragraphs (then sentences, then words, only if one is too long); consecutive parts of a section overlap by the last sentence or two (≤ ~50 tokens), never across sections.
 - Sized for the embedding model (bge-small, 512-token input): target ~450 / max 500 estimated tokens *including* the `title > section` heading the chunk is embedded with. Estimates use 1.4 tokens per word (measured with the bge-small tokenizer on this corpus: mean 1.28, p99 1.39).
 - Output: `data/narrative/chunks.jsonl`, one chunk per line: `pageid` + `index` (unique), `section` heading path, `text`, estimated `tokens`, `source_url`/`revid` (attribution) and the article's `season`, `race_id`, `circuit_id`, `driver_ids`, `constructor_ids`, `topic`, `depth`, `kinds` for filtering.
-- Full corpus: **14,571 chunks**, median ~307 estimated tokens (~280 real), 17.3 MB of text.
+- Full corpus: **14,581 chunks**, median ~307 estimated tokens (~280 real), 17.3 MB of text.
+
+**Embedding** ([`ingestion/narrative/embed.py`](ingestion/narrative/embed.py)) loads the chunks into the `chunks` table (backend migration 0006):
+
+- Model: `BAAI/bge-small-en-v1.5` via fastembed (ONNX, CPU), 384 dimensions, stored as `halfvec(384)` with an HNSW cosine index. Downloaded once (~65 MB) into `data/models/`. The backend must embed questions with the same model (`query_embed`).
+- Full-text search: a GIN index on `to_tsvector('english', title || ' ' || text)`. There's no stored tsvector column, so queries must use the same expression.
+- Incremental: each row stores a hash of model + embedded text. Unchanged chunks are not re-embedded, and chunks that only moved (an article gained a section) reuse their stored vector. Metadata-only changes are written without embedding.
+- Safe to interrupt: writes are committed in batches of 256, and a re-run picks up where it stopped. Chunks no longer in the file are deleted last. Ids missing from the structured data are refused before anything is written.
+- Full corpus: 14,581 chunks embedded in ~37 min (~6.5 chunks/s on a laptop CPU); the table is ~57 MB (heap 20 MB, HNSW 16 MB, GIN 9 MB). A re-run with nothing changed takes about a second.
 
 ### Stats views
 
