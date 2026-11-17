@@ -169,6 +169,18 @@ uv run python -m narrative --titles-file titles.txt             # one title per 
 - Safe to interrupt: writes are committed in batches of 256, and a re-run picks up where it stopped. Chunks no longer in the file are deleted last. Ids missing from the structured data are refused before anything is written.
 - Full corpus: 14,581 chunks embedded in ~37 min (~6.5 chunks/s on a laptop CPU); the table is ~57 MB (heap 20 MB, HNSW 16 MB, GIN 9 MB). A re-run with nothing changed takes about a second.
 
+### Database size guard
+
+Production runs on Neon's free tier (1 GB per project), so the loaders guard the budget (`docs/DATA-STRATEGY.md` §4, [`ingestion/common/size_guard.py`](ingestion/common/size_guard.py)):
+
+- **Refuses at 900 MB**, checked before every load:
+  - The structured loader checks again just before commit, so a load that crosses the limit rolls back.
+  - `narrative.embed` checks again before every batch, so it stops at the limit and keeps the batches already committed.
+- **Warns at 700 MB.**
+- After each run, prints every table's rows, data, index and total size, plus the database total.
+- Report only: `cd ingestion && uv run python -m common.size_guard`. It exits 1 at or over the limit; use it against Neon after a restore.
+- Current local size: **80 MB** (chunks 60 MB, structured data ~11 MB).
+
 ### Stats views
 
 Migration `0004` adds four read-only views that the LLM's SQL tool will query (F3.5). Each has `COMMENT ON` text explaining its columns and the data's limits (`\d+ v_driver_career` in psql):

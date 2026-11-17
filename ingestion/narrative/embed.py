@@ -20,6 +20,7 @@ import sys
 import psycopg
 from pydantic import ValidationError
 
+from common.size_guard import SizeGuard
 from narrative.chunks import chunks_path, read_chunks
 from narrative.embedder import MODEL_NAME, Embedder, FastEmbedder
 from narrative.store import SyncPlan, plan_sync, sync_chunks
@@ -96,13 +97,22 @@ def run(argv: list[str] | None = None) -> int:
             settings.database_url.get_secret_value(), settings.database_connect_timeout
         ) as conn:
             conn.autocommit = True  # each batch commits on its own
+            guard = SizeGuard()
+            guard.check(conn, "before syncing chunks")
             plan = plan_sync(conn, chunks, MODEL_NAME)
             _log_plan(plan)
             if args.dry_run:
                 logger.info("--dry-run: nothing embedded or written")
                 return 0
             embedder = _load_embedder(settings) if plan.embed else _NoEmbedder()
-            report = sync_chunks(conn, plan, embedder, progress=_progress)
+            report = sync_chunks(
+                conn,
+                plan,
+                embedder,
+                progress=_progress,
+                before_batch=lambda c: guard.check(c, "before the next batch"),
+            )
+            guard.report(conn)
     except psycopg.Error as exc:
         # Never log the exception text: it can echo connection details.
         logger.error("Database error: %s", type(exc).__name__)

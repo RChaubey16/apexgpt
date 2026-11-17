@@ -98,7 +98,7 @@ apexgpt/
 │   ├── structured/          # Jolpica → Postgres
 │   ├── narrative/           # Wikipedia → clean → chunk → embed → pgvector
 │   │   └── topics.yaml      # curated topic article list
-│   ├── size_guard.py        # DB size budget checks
+│   ├── common/size_guard.py # DB size budget checks
 │   └── Dockerfile
 ├── frontend/                # Next.js app
 │   └── Dockerfile

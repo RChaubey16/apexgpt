@@ -23,6 +23,7 @@ from pathlib import Path
 import psycopg
 from pydantic import ValidationError
 
+from common.size_guard import SizeGuard
 from structured.aliases import read_seeds
 from structured.checks import CHECKS
 from structured.config import Settings
@@ -123,6 +124,10 @@ def run(argv: list[str] | None = None) -> int:
         with connect(
             database_url.get_secret_value(), settings.database_connect_timeout
         ) as conn:
+            # load() runs its own transaction; the size checks run outside it.
+            conn.autocommit = True
+            guard = SizeGuard()
+            guard.check(conn, "before loading")
             load(
                 conn,
                 data,
@@ -130,7 +135,9 @@ def run(argv: list[str] | None = None) -> int:
                 args.last_season,
                 seeds,
                 checks=None if args.no_checks else CHECKS,
+                before_commit=lambda c: guard.check(c, "after this load"),
             )
+            guard.report(conn)
     except IngestionError as exc:
         logger.error("%s", exc)
         return 1
