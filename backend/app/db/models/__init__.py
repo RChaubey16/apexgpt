@@ -17,8 +17,10 @@ from app.db.models.f1 import (
     SprintResult,
     Status,
 )
+from app.db.models.narrative import Chunk
 
 __all__ = [
+    "Chunk",
     "Circuit",
     "Constructor",
     "ConstructorAlias",

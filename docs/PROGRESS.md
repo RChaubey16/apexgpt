@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 2: Narrative corpus |
-| **Current feature** | F2.4 `feature/chunker` (PR raised, awaiting review) |
-| **Current branch** | `feature/chunker` |
-| **Open PR** | #18 (F2.4) |
+| **Current feature** | F2.5 `feature/embedding-pipeline` (PR raised, awaiting review) |
+| **Current branch** | `feature/embedding-pipeline` |
+| **Open PR** | #19 (F2.5) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-14 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F2.4 PR.
-2. After merge: pull `main`, start **F2.5** `feature/embedding-pipeline` (reads `data/narrative/chunks.jsonl`; embed `ChunkRecord.embedding_text`).
+1. User reviews and merges the F2.5 PR.
+2. After merge: pull `main`, start **F2.6** `feature/size-guard` (per-table size report, warn 700 MB, refuse 900 MB; hook into the structured loader and `narrative.embed`).
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -83,8 +83,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F2.1 `feature/wiki-fetcher`: MediaWiki fetcher with cache · PR #15 merged
 - [x] F2.2 `feature/article-selection`: selection rules + `topics.yaml` · PR #16 merged
 - [x] F2.3 `feature/article-cleaner`: Wikipedia cleaner · PR #17 merged
-- [ ] F2.4 `feature/chunker`: section-based chunker with metadata · 🔍 PR #18
-- [ ] F2.5 `feature/embedding-pipeline`: fastembed pipeline + `chunks` table
+- [x] F2.4 `feature/chunker`: section-based chunker with metadata · PR #18 merged
+- [ ] F2.5 `feature/embedding-pipeline`: fastembed pipeline + `chunks` table · 🔍 PR #19
 - [ ] F2.6 `feature/size-guard`: DB size guard
 - [ ] **Phase done check:** "Senna Prost Suzuka collision" returns the 1989/1990 Japanese GP chunks; ~12–15k chunks, < ~120 MB
 
@@ -163,8 +163,12 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-14 | `circuit` depth also keeps layout/track description and fatal-accident sections | Answers "what's the track like" and crash questions; small (77 articles) |
 | 2026-11-14 | Cleaned corpus in `data/narrative/articles.jsonl` (selection metadata + page/revision/URL + sections); a run with any missing/stale/unusable article writes nothing | The chunker needs one input; a partial corpus never replaces a complete one |
 | 2026-11-14 | Corpus is ~3.7M tokens (≈8k chunks at ~450 tokens), below the planned 12–15k chunks | Stripping is more aggressive than estimated; leaves room under the size budget. Chunk size/overlap decided in F2.4 |
-| 2026-11-14 | Chunks: target ~450 / max 500 estimated tokens including the `title > section` heading (not 400–600); ~50-token sentence overlap within a section; lead alone; small subsections of one top-level section packed | bge-small-en-v1.5 truncates input after 512 tokens. Sizes estimated at 1.4 tokens/word (bge tokenizer on this corpus: mean 1.28, p99 1.39) so the chunker needs no model download; 3 of 14,571 chunks are 2–17 tokens over in reality, F2.5 can check exactly |
+| 2026-11-14 | Chunks: target ~450 / max 500 estimated tokens including the `title > section` heading (not 400–600); ~50-token sentence overlap within a section; lead alone; small subsections of one top-level section packed | bge-small-en-v1.5 truncates input after 512 tokens. Sizes estimated at 1.4 tokens/word (bge tokenizer on this corpus: mean 1.28, p99 1.39) so the chunker needs no model download; 3 of 14,581 chunks are 2–17 tokens over in reality, F2.5 can check exactly |
 | 2026-11-14 | Chunks inherit article-level metadata only (no per-chunk name tagging) | Mention tagging is ambiguous ("Hill", "Brabham"); question-side entity resolution is F3.4 |
+| 2026-11-16 | `chunks` keyed by (pageid, chunk_index) with a `content_hash` (BLAKE2b-128 of model + embedded text); sync re-embeds only new text, reuses vectors of moved chunks, commits per 256-row batch, deletes stale rows last | First full embed takes ~37 min on CPU: it must be resumable, and later re-runs should take seconds |
+| 2026-11-16 | Full-text index on `to_tsvector('english', title \|\| ' ' \|\| text)` instead of `text` alone | Continuation chunks rarely repeat the race/driver name; the title restores it. Same cost (expression index, no stored column) |
+| 2026-11-16 | `season`, `race_id`, `circuit_id` are real foreign keys (ON DELETE SET NULL); `driver_ids`/`constructor_ids` are checked by the pipeline before writing | Arrays can't carry foreign keys; a structured reload must never delete chunks |
+| 2026-11-16 | Chunks embedded with fastembed's passage form (no prefix); questions must use `query_embed` (bge query instruction) with the same model | bge-small is asymmetric; the model name is stored in every hash, so a model change re-embeds everything |
 | 2026-11-13 | Sanity checks run inside the load transaction (failure = rollback) and standalone; real-data checks in a separate weekly/path-filtered workflow, outside the `CI passed` gate | A bad dump can't replace good data; real data is verified in CI without making unrelated PRs depend on Jolpica's uptime |
 | 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
@@ -177,13 +181,24 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 Newest first.
 
+### 2026-11-16: F2.5 embedding pipeline
+- PR #18 (F2.4) merged. Corrected F2.4's reported chunk count: **14,581** (14,571 was counted before the final overlap fix).
+- Backend: `pgvector` 0.5.1; model `app/db/models/narrative.py` (`Chunk`) + migration **0006**: `chunks` with `halfvec(384)` + HNSW (`halfvec_cosine_ops`), GIN on `to_tsvector('english', title || ' ' || text)` (no stored tsvector), check constraints (depth, hash format, non-empty text, positive tokens, index ≥ 0), FKs to seasons/races/circuits ON DELETE SET NULL. Expression written as Postgres prints it, so the model/migration drift test stays empty.
+- Ingestion: `fastembed` 0.9.1 (lock pinned to releases ≥ 2 weeks old: numpy 2.5.4, onnxruntime 1.31.1, click 8.5.0, filelock 4.2.6). New `embedder.py` (bge-small via fastembed, model cached in `data/models/`, exact truncation count from the model's tokenizer, `content_hash`), `store.py` (plan → batched upserts → delete stale → row-count check) and CLI `python -m narrative.embed` (`--dry-run`).
+- Benchmarked before choosing: ~10 chunks/s single process (batch 16), ~14.5/s with fastembed's multiprocessing. Not worth the complexity for a one-off run with incremental re-runs.
+- Found while testing: Postgres checks NOT NULL before `ON CONFLICT`, so "keep the stored embedding" rows can't be staged as NULL → the INSERT fills them from the stored row.
+- **Real run:** 14,581 chunks embedded in 37 min (6.5/s alongside the test runs); 3 chunks exceed 512 tokens (exactly as estimated in F2.4). Re-run with no changes: 0 embedded, 0 written, ~1 s. Sizes: `chunks` 57 MB (heap 20, HNSW 16, GIN 9); local DB 76 MB in total.
+- **Search check (vector only, no hybrid/rerank yet):** "Senna Prost Suzuka collision" → #1 is the 1990 Japanese GP lead; also "Prost–Senna rivalry > 1989 > Decisive clash at Suzuka" and both seasons' Japan reports in the top 8. The 1989 Japanese GP race report itself is #15 (#4 in full text for 1990). "Lauda Nurburgring fire 1976" → 1976 German GP, Lauda's 1976 Nürburgring crash section. Full text misses "Nurburgring" (no accent folding) → F3.1.
+- Tests: ingestion 513 (+52: hashing, vector literal, CLI errors without leaking the URL; integration with a fake embedder: first sync + metadata, HNSW nearest neighbour, FTS on title + text using the GIN index, idempotent re-run, only changed text embedded, metadata-only updates, shifted chunks reuse vectors, stale deletes, interrupted run resumes, unknown ids refused before writing, duplicate keys, wrong dimensions, race delete keeps chunks, concurrent change detected, CLI dry run/end to end/model not loaded when nothing to embed/missing table). Backend 202 (+12: indexes, ORM round trip with cosine ordering and FTS, constraints, dimensions, downgrade to 0005). Mutation-checked 5 sync rules; the final row-count check was initially not caught → added a test. Frontend 30 unchanged.
+- PR raised against `main`; awaiting review.
+
 ### 2026-11-14: F2.4 chunker
 - PR #17 (F2.3) merged.
 - Measured first: bge-small-en-v1.5 tokenizer (fetched to the scratchpad only, not a dependency) on the cleaned corpus → 1.28 tokens/word on average, 1.39 at p99 of 350-word windows. The plan's 400–600 tokens would be truncated by the model's 512-token input → target ~450 / max 500 estimated (1.4 tokens/word), heading included.
 - New `ingestion/narrative/chunker.py`: lead alone; runs of sections under one top-level heading packed up to the target (subsection heading lines inside the text; chunk labelled with the shared heading path); longer sections split into near-equal parts at paragraphs → sentences (abbreviation/initial-aware splitter) → word windows; sentence overlap ≤ 50 tokens between parts of one section, never repeating a whole paragraph, none across sections; a short leftover is absorbed into the previous part; every chunk checked ≤ max.
 - New `chunks.py` (`ChunkRecord`: pageid + index, section, text, tokens, source_url/revid, all article metadata; `heading`, `embedding_text`) and CLI `python -m narrative.chunk` (`--show TITLE`). Shared atomic JSONL read/write moved to `jsonl.py` (`articles.py` uses it too).
 - Iterations from real output: balanced splits still left short tails (e.g. a 98-token "Report" part) → absorb the rest when it fits; sentences of a split paragraph were rejoined as separate paragraphs → keep each piece's joiner; no overlap after a sentence-sized piece → only skip the first sentence of whole paragraphs.
-- **Result:** 14,571 chunks (full 8,054, race 5,401, lead 643, circuit 473), estimated tokens median 307 / p90 432 / max 499; real tokens median 280, p99 453, 3 chunks over 512 (max 529). 1,070 chunks under 100 tokens (mostly intro-only articles and one-line sections left after table removal). 17.3 MB of text; ~1 s.
+- **Result:** 14,581 chunks (full 8,063, race 5,402, lead 643, circuit 473; first reported as 14,571, counted before the last overlap fix, corrected in F2.5), estimated tokens median 307 / p90 432 / max 499; real tokens median 280, p99 453, 3 chunks over 512 (max 529). 1,070 chunks under 100 tokens (mostly intro-only articles and one-line sections left after table removal). 17.3 MB of text; ~1 s.
 - Tests: ingestion 461 (sentence splitter cases, packing/labels/headings, lead isolation, balanced split + overlap, coverage in order, no cross-section overlap, long paragraph/list/word-window splits, no short leftover, heading counted in size, custom sizes, bad sizes/headings; CLI end to end with metadata, `--show`, missing file, failure writes nothing, bad lines). Mutation-checked 5 rules (overlap, leftover absorption, top-level grouping, sentence joiners, whole-paragraph overlap); the leftover test initially didn't catch its mutation → rewritten so it does. Backend 190, frontend 30 unchanged.
 - PR raised against `main`; awaiting review.
 
@@ -384,6 +399,10 @@ Newest first.
 ---
 
 ## Known Issues / Open Questions
+
+- F3.1 hybrid search: the English text-search config doesn't fold accents ("Nurburgring" ≠ "Nürburgring", "Raikkonen" ≠ "Räikkönen"). Add `unaccent` (an immutable wrapper is needed for the index) or normalise the query with the entity aliases. Queries must use the indexed expression `to_tsvector('english', title || ' ' || text)`.
+- F3.1: add filter indexes (season, race_id, driver_ids GIN, …) once the queries are known. pgvector 0.8 iterative scans help filtered HNSW searches.
+- F2.5: fastembed downloads the model from Hugging Face without a token (a rate-limit warning is printed; harmless).
 
 - Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1.
 - F3.5 SQL tool: the role's timeout/read-only defaults can be changed by the session (`SET`, `set_config()`), so the tool must only run validated single SELECTs on the v_* views (reject SET/set_config/multiple statements) and should also set its own `SET LOCAL statement_timeout`. Add `COMPOSE_READONLY_DATABASE_URL` for the backend container then.
