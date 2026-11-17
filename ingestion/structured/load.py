@@ -21,7 +21,7 @@ The schema must already exist (backend migrations: `alembic upgrade head`).
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 import psycopg
@@ -267,12 +267,14 @@ def load(
     last_season: int,
     seeds: Seeds | None = None,
     checks: Sequence[Check] | None = None,
+    before_commit: Callable[[psycopg.Connection], object] | None = None,
 ) -> dict[str, TableReport]:
     """Sync the database to `data` for seasons [first_season, last_season], atomically.
 
     With `seeds`, aliases and lineage are synced too, in the same transaction.
     With `checks`, the sanity checks run last, before commit: any failure raises
-    DataCheckError and rolls everything back.
+    DataCheckError and rolls everything back. `before_commit` (the size guard)
+    runs after them and can likewise raise to roll back.
     """
     reports: dict[str, TableReport] = {}
     with conn.transaction(), conn.cursor() as cur:
@@ -312,6 +314,8 @@ def load(
             failures = [r for r in results if not r.passed and not r.skipped]
             if failures:
                 raise DataCheckError(failures)
+        if before_commit is not None:
+            before_commit(conn)
 
     for name, r in reports.items():
         logger.info(

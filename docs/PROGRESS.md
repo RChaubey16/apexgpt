@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 2: Narrative corpus |
-| **Current feature** | F2.5 `feature/embedding-pipeline` (PR raised, awaiting review) |
-| **Current branch** | `feature/embedding-pipeline` |
-| **Open PR** | #19 (F2.5) |
+| **Current feature** | F2.6 `feature/size-guard` (PR raised, awaiting review) |
+| **Current branch** | `feature/size-guard` |
+| **Open PR** | #20 (F2.6) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-14 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F2.5 PR.
-2. After merge: pull `main`, start **F2.6** `feature/size-guard` (per-table size report, warn 700 MB, refuse 900 MB; hook into the structured loader and `narrative.embed`).
+1. User reviews and merges the F2.6 PR (last Phase 2 feature).
+2. After merge: pull `main`, start **Phase 3**, F3.1 `feature/hybrid-search` (see Known Issues: accent folding, filter indexes, and re-checking the Phase 2 search criterion).
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -84,9 +84,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F2.2 `feature/article-selection`: selection rules + `topics.yaml` · PR #16 merged
 - [x] F2.3 `feature/article-cleaner`: Wikipedia cleaner · PR #17 merged
 - [x] F2.4 `feature/chunker`: section-based chunker with metadata · PR #18 merged
-- [ ] F2.5 `feature/embedding-pipeline`: fastembed pipeline + `chunks` table · 🔍 PR #19
-- [ ] F2.6 `feature/size-guard`: DB size guard
-- [ ] **Phase done check:** "Senna Prost Suzuka collision" returns the 1989/1990 Japanese GP chunks; ~12–15k chunks, < ~120 MB
+- [x] F2.5 `feature/embedding-pipeline`: fastembed pipeline + `chunks` table · PR #19 merged
+- [ ] F2.6 `feature/size-guard`: DB size guard · 🔍 PR #20
+- [ ] **Phase done check:** "Senna Prost Suzuka collision" returns the 1989/1990 Japanese GP chunks; ~12–15k chunks, < ~120 MB. *Size and count met (14,581 chunks, chunks table 59.5 MB, database 80 MB). The search part is partly met with vector search alone (1990 GP is #1; the 1989 Suzuka clash is in the top 8 via the rivalry/season articles; the 1989 race report is #15). Re-check with hybrid search in F3.1/F3.2.*
 
 ### Phase 3: Retrieval & LLM Layer
 - [ ] F3.1 `feature/hybrid-search`: hybrid search with RRF
@@ -169,6 +169,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-16 | Full-text index on `to_tsvector('english', title \|\| ' ' \|\| text)` instead of `text` alone | Continuation chunks rarely repeat the race/driver name; the title restores it. Same cost (expression index, no stored column) |
 | 2026-11-16 | `season`, `race_id`, `circuit_id` are real foreign keys (ON DELETE SET NULL); `driver_ids`/`constructor_ids` are checked by the pipeline before writing | Arrays can't carry foreign keys; a structured reload must never delete chunks |
 | 2026-11-16 | Chunks embedded with fastembed's passage form (no prefix); questions must use `query_embed` (bge query instruction) with the same model | bge-small is asymmetric; the model name is stored in every hash, so a model change re-embeds everything |
+| 2026-11-17 | Size guard in `ingestion/common/size_guard.py` (plan said `ingestion/size_guard.py`); thresholds in decimal MB (700 / 900 × 10⁶ bytes) | `common/` is the existing shared package. Decimal MB is the stricter reading of Neon's 1 GB |
+| 2026-11-17 | Guard checks before a load and before each commit (structured: inside the one transaction → rollback; chunks: before every batch) | Catches a load that would cross the limit, not only one that starts past it |
 | 2026-11-13 | Sanity checks run inside the load transaction (failure = rollback) and standalone; real-data checks in a separate weekly/path-filtered workflow, outside the `CI passed` gate | A bad dump can't replace good data; real data is verified in CI without making unrelated PRs depend on Jolpica's uptime |
 | 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
@@ -180,6 +182,23 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-17: F2.6 size guard
+- PR #19 (F2.5) merged.
+- New `ingestion/common/size_guard.py`:
+  - `SizeGuard(warn=700 MB, refuse=900 MB)`. `check()` raises `SizeLimitError` at or over the limit and warns past 700 MB. `report()` logs per-table rows, data, index and total sizes and the database total.
+  - Standalone `python -m common.size_guard` reports and exits 1 at or over the limit.
+  - Exact row counts: the planner's estimates were misleading (chunks 14,080 v 14,581; lineage 0 v 33).
+- Wired in:
+  - **Structured loader:** check before loading; `load(before_commit=…)` checks inside the transaction (rollback when crossed); report after. The CLI connection is now autocommit, so the size queries don't wrap `load()`'s transaction in an outer one.
+  - **`narrative.embed`:** check before planning; `sync_chunks(before_batch=…)` checks before each batch; report after.
+- **Real runs:**
+  - structured reload: OK, report printed;
+  - embed: nothing to do, report printed;
+  - database **80.2 MB** in total (chunks 59.5, results 3.3, driver_standings 2.9, …).
+- **Tests:** ingestion 532 (+19: thresholds, the CLI hides the URL; integration: check ok/warn/refuse, report with exact counts and size order, OVER THE LIMIT flag, a load crossing the limit rolls back everything, chunk sync stops at the limit keeping committed batches, both loader CLIs refuse and report, standalone exit codes). Backend 202, frontend 30 unchanged.
+- **Mutation checks:** 5 guard hooks. The embed pre-check was initially not caught (the per-batch check refused too), so the test now asserts the stage.
+- PR raised against `main`; awaiting review.
 
 ### 2026-11-16: F2.5 embedding pipeline
 - PR #18 (F2.4) merged. Corrected F2.4's reported chunk count: **14,581** (14,571 was counted before the final overlap fix).

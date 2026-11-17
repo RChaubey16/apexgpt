@@ -115,6 +115,13 @@ The ingestion pipeline enforces the budget:
 - **Warns at 700 MB** total database size.
 - **Refuses to load at 900 MB**, which keeps a safe margin below Neon's 1 GB per-project limit.
 
+Implemented in F2.6 (`ingestion/common/size_guard.py`):
+- Sizes use `pg_database_size()`, which also counts rows a running load has written but not yet committed.
+- The structured load is a single transaction: the guard runs before it and again before commit, so crossing the limit rolls it back.
+- The chunk sync commits in batches: the guard runs before each batch.
+- `python -m common.size_guard` prints the report alone and exits 1 over the limit.
+- Measured after Phase 2: **80 MB** in total (chunks 59.5 MB, structured tables ~11 MB, plus Postgres catalogs).
+
 ---
 
 ## 5. Budget Summary
@@ -124,7 +131,7 @@ The ingestion pipeline enforces the budget:
 | Structured | ~15–25 MB |
 | Narrative | ~80–120 MB |
 | Operational | <10 MB |
-| **Total** | **~110–150 MB of 1 GB** |
+| **Total** | **~110–150 MB of 1 GB** (measured after Phase 2: 80 MB: structured ~11 MB, narrative ~60 MB) |
 
 ---
 

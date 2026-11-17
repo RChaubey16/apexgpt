@@ -268,14 +268,25 @@ def sync_chunks(
     *,
     batch_size: int = BATCH_SIZE,
     progress: Callable[[int, int, float], None] | None = None,
+    before_batch: Callable[[psycopg.Connection], object] | None = None,
 ) -> SyncReport:
-    """Carry out a plan from `plan_sync` (same connection, nothing written in between)."""
+    """Carry out a plan from `plan_sync` (same connection, nothing written in between).
+
+    `before_batch` (the size guard) runs before each batch is written; raising
+    stops the sync there, keeping the batches already committed.
+    """
     if embedder.dimensions <= 0 or batch_size <= 0:
         raise ValueError("dimensions and batch_size must be positive")
+
+    def write(rows: Sequence[_Row]) -> int:
+        if before_batch is not None:
+            before_batch(conn)
+        return _write(conn, rows)
+
     written = 0
     unchanged = plan.keep + plan.copy
     for start in range(0, len(unchanged), batch_size):
-        written += _write(conn, unchanged[start : start + batch_size])
+        written += write(unchanged[start : start + batch_size])
 
     truncated = 0
     started = time.monotonic()
@@ -286,8 +297,7 @@ def sync_chunks(
         vectors = embedder.embed(texts)
         if len(vectors) != len(batch):
             raise StoreError(f"got {len(vectors)} embeddings for {len(batch)} texts")
-        written += _write(
-            conn,
+        written += write(
             [
                 _Row(chunk, digest, vector_literal(vector, embedder.dimensions))
                 for (chunk, digest), vector in zip(batch, vectors, strict=True)
