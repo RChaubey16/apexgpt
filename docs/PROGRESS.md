@@ -15,17 +15,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 2: Narrative corpus |
-| **Current feature** | F2.6 `feature/size-guard` (PR raised, awaiting review) |
-| **Current branch** | `feature/size-guard` |
-| **Open PR** | #20 (F2.6) |
+| **Current feature** | None: Phase 2 features all merged; closing the phase |
+| **Current branch** | `feature/close-phase-2` |
+| **Open PR** | #21 (Phase 2 close-out docs) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
-| **Last updated** | 2026-11-14 |
+| **Last updated** | 2026-11-17 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F2.6 PR (last Phase 2 feature).
-2. After merge: pull `main`, start **Phase 3**, F3.1 `feature/hybrid-search` (see Known Issues: accent folding, filter indexes, and re-checking the Phase 2 search criterion).
+1. User decides how to treat the Phase 2 search criterion (see the Phase 2 done check below): accept it as met, or carry it into F3.1/F3.2 as an acceptance test.
+2. User reviews and merges the Phase 2 close-out PR.
+3. **Phase 3 waits for the user's go-ahead.** It starts with F3.1 `feature/hybrid-search`; see Known Issues for accent folding and filter indexes.
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -37,7 +38,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | Planning | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 0. Local foundation | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 1. Structured data | ✅ Done | 2026-11-13 | 2026-11-13 |
-| 2. Narrative corpus | 🟡 In progress | 2026-11-13 | |
+| 2. Narrative corpus | 🟢 Features done (one done-check item open, see below) | 2026-11-13 | 2026-11-17 |
 | 3. Retrieval + LLM | ⬜ Not started | | |
 | 4. Chat API | ⬜ Not started | | |
 | 5. Frontend MVP | ⬜ Not started | | |
@@ -85,8 +86,12 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F2.3 `feature/article-cleaner`: Wikipedia cleaner · PR #17 merged
 - [x] F2.4 `feature/chunker`: section-based chunker with metadata · PR #18 merged
 - [x] F2.5 `feature/embedding-pipeline`: fastembed pipeline + `chunks` table · PR #19 merged
-- [ ] F2.6 `feature/size-guard`: DB size guard · 🔍 PR #20
-- [ ] **Phase done check:** "Senna Prost Suzuka collision" returns the 1989/1990 Japanese GP chunks; ~12–15k chunks, < ~120 MB. *Size and count met (14,581 chunks, chunks table 59.5 MB, database 80 MB). The search part is partly met with vector search alone (1990 GP is #1; the 1989 Suzuka clash is in the top 8 via the rivalry/season articles; the 1989 race report is #15). Re-check with hybrid search in F3.1/F3.2.*
+- [x] F2.6 `feature/size-guard`: DB size guard · PR #20 merged
+- [x] ~12–15k chunks: **14,581**
+- [x] Under ~120 MB: chunks table **59.5 MB**; whole database **80.2 MB**
+- [ ] "Senna Prost Suzuka collision" returns the 1989/1990 Japanese GP chunks: **partly met. Awaiting the user's decision.**
+  - Vector search alone: #1 is the 1990 Japanese GP; the 1989 Japanese GP race report is #15.
+  - Ad-hoc fusion of vector and full-text results (RRF, k=60, not the F3.1 implementation): #1 "Prost–Senna rivalry > 1989 > Decisive clash at Suzuka", #2 "… > 1990: Second clash at Suzuka", #6 the 1990 Japanese GP. The 1989 Japanese GP article's own chunks are not in the top 10.
 
 ### Phase 3: Retrieval & LLM Layer
 - [ ] F3.1 `feature/hybrid-search`: hybrid search with RRF
@@ -183,6 +188,22 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 Newest first.
 
+### 2026-11-17: Phase 2 wrap-up
+- PR #20 (F2.6) merged: **all Phase 2 features (F2.1–F2.6) are merged.**
+- Phase 2 delivers:
+  - the Wikipedia pipeline: select (2,349 articles), fetch (cached), clean (17.7 MB of text), chunk (14,581 chunks), embed (bge-small, `halfvec(384)`, HNSW + full-text GIN), all incremental and offline-friendly;
+  - the database size guard.
+- **Done check:**
+  - Chunk count and size are met.
+  - The search criterion is only partly met (details in the Phase 2 checklist). Left open for the user to decide; Phase 3 hybrid search and reranking target it directly.
+- Loose ends found and fixed:
+  - The running dev backend container predated the `pgvector` dependency: `import pgvector` failed, and its next restart would have failed in `alembic upgrade head`. Rebuilt with `docker compose up -d --build`: healthy, migrations at head. **Anyone with an older local stack must rebuild once.**
+- Loose ends checked and left as they are:
+  - The dev DB's tsvector index was created before the expression was rewritten in Postgres's printed form. It is the same expression tree, so nothing to change.
+  - A local `apexgpt_test` database (in the compose Postgres) is used for integration tests. The tests truncate it, so never point `TEST_DATABASE_URL` at `apexgpt`.
+- Carried into Phase 3 (Known Issues): accent folding in full-text search, filter indexes, the Phase 2 search criterion.
+- Phase 3 not started; waiting for the user's go-ahead.
+
 ### 2026-11-17: F2.6 size guard
 - PR #19 (F2.5) merged.
 - New `ingestion/common/size_guard.py`:
@@ -198,7 +219,7 @@ Newest first.
   - database **80.2 MB** in total (chunks 59.5, results 3.3, driver_standings 2.9, …).
 - **Tests:** ingestion 532 (+19: thresholds, the CLI hides the URL; integration: check ok/warn/refuse, report with exact counts and size order, OVER THE LIMIT flag, a load crossing the limit rolls back everything, chunk sync stops at the limit keeping committed batches, both loader CLIs refuse and report, standalone exit codes). Backend 202, frontend 30 unchanged.
 - **Mutation checks:** 5 guard hooks. The embed pre-check was initially not caught (the per-batch check refused too), so the test now asserts the stage.
-- PR raised against `main`; awaiting review.
+- PR #20 merged 2026-11-17.
 
 ### 2026-11-16: F2.5 embedding pipeline
 - PR #18 (F2.4) merged. Corrected F2.4's reported chunk count: **14,581** (14,571 was counted before the final overlap fix).
