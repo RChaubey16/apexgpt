@@ -14,19 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 2: Narrative corpus |
-| **Current feature** | None: Phase 2 features all merged; closing the phase |
-| **Current branch** | `feature/close-phase-2` |
-| **Open PR** | #21 (Phase 2 close-out docs) |
+| **Current phase** | Phase 2 complete; Phase 3 not started |
+| **Current feature** | None (waiting for the go-ahead for Phase 3) |
+| **Current branch** | `feature/phase-2-decision` |
+| **Open PR** | #22 (records the Phase 2 search-check decision) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-17 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User decides how to treat the Phase 2 search criterion (see the Phase 2 done check below): accept it as met, or carry it into F3.1/F3.2 as an acceptance test.
-2. User reviews and merges the Phase 2 close-out PR.
-3. **Phase 3 waits for the user's go-ahead.** It starts with F3.1 `feature/hybrid-search`; see Known Issues for accent folding and filter indexes.
+1. User merges the decision PR.
+2. **Phase 3 waits for the user's go-ahead.** It starts with F3.1 `feature/hybrid-search`. Carried in: the Senna/Suzuka acceptance test (F3.1/F3.2), accent folding, filter indexes (see Known Issues).
 3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -38,7 +37,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | Planning | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 0. Local foundation | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 1. Structured data | ✅ Done | 2026-11-13 | 2026-11-13 |
-| 2. Narrative corpus | 🟢 Features done (one done-check item open, see below) | 2026-11-13 | 2026-11-17 |
+| 2. Narrative corpus | ✅ Done | 2026-11-13 | 2026-11-17 |
 | 3. Retrieval + LLM | ⬜ Not started | | |
 | 4. Chat API | ⬜ Not started | | |
 | 5. Frontend MVP | ⬜ Not started | | |
@@ -89,13 +88,13 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F2.6 `feature/size-guard`: DB size guard · PR #20 merged
 - [x] ~12–15k chunks: **14,581**
 - [x] Under ~120 MB: chunks table **59.5 MB**; whole database **80.2 MB**
-- [ ] "Senna Prost Suzuka collision" returns the 1989/1990 Japanese GP chunks: **partly met. Awaiting the user's decision.**
+- [x] "Senna Prost Suzuka collision" returns the 1989/1990 Japanese GP chunks: **partly met; the user accepted carrying it into Phase 3** (2026-11-17). It becomes an acceptance test for F3.1/F3.2.
   - Vector search alone: #1 is the 1990 Japanese GP; the 1989 Japanese GP race report is #15.
   - Ad-hoc fusion of vector and full-text results (RRF, k=60, not the F3.1 implementation): #1 "Prost–Senna rivalry > 1989 > Decisive clash at Suzuka", #2 "… > 1990: Second clash at Suzuka", #6 the 1990 Japanese GP. The 1989 Japanese GP article's own chunks are not in the top 10.
 
 ### Phase 3: Retrieval & LLM Layer
-- [ ] F3.1 `feature/hybrid-search`: hybrid search with RRF
-- [ ] F3.2 `feature/reranker`: reranker
+- [ ] F3.1 `feature/hybrid-search`: hybrid search with RRF. **Acceptance:** "Senna Prost Suzuka collision" returns chunks of both the 1989 and the 1990 Japanese Grand Prix articles in the top results (carried from Phase 2).
+- [ ] F3.2 `feature/reranker`: reranker. **Acceptance:** the Senna/Suzuka test holds in the top 5 after reranking.
 - [ ] F3.3 `feature/llm-client`: LLM client with fallback
 - [ ] F3.4 `feature/entity-resolution`: entity resolution
 - [ ] F3.5 `feature/stats-tool`: text-to-SQL stats tool
@@ -176,6 +175,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-16 | Chunks embedded with fastembed's passage form (no prefix); questions must use `query_embed` (bge query instruction) with the same model | bge-small is asymmetric; the model name is stored in every hash, so a model change re-embeds everything |
 | 2026-11-17 | Size guard in `ingestion/common/size_guard.py` (plan said `ingestion/size_guard.py`); thresholds in decimal MB (700 / 900 × 10⁶ bytes) | `common/` is the existing shared package. Decimal MB is the stricter reading of Neon's 1 GB |
 | 2026-11-17 | Guard checks before a load and before each commit (structured: inside the one transaction → rollback; chunks: before every batch) | Catches a load that would cross the limit, not only one that starts past it |
+| 2026-11-17 | Phase 2 closed with the search criterion partly met (1990 Japanese GP #1; 1989 race report #15 with vector search alone); carried into F3.1/F3.2 as an acceptance test | User's decision. The right content is found (rivalry/biography sections), and ranking is Phase 3's job |
 | 2026-11-13 | Sanity checks run inside the load transaction (failure = rollback) and standalone; real-data checks in a separate weekly/path-filtered workflow, outside the `CI passed` gate | A bad dump can't replace good data; real data is verified in CI without making unrelated PRs depend on Jolpica's uptime |
 | 2026-11-13 | LLM role `apexgpt_llm_reader`: created NOLOGIN by migration (no password in code), SELECT on the v_* views only, role defaults statement_timeout 5s / lock_timeout 1s / idle-in-transaction 10s / read-only / 5 connections; login enabled by `python -m app.db.readonly_role` from READONLY_DATABASE_URL | Least privilege; credentials stay in env; defaults are a backstop, the SQL tool must still validate queries |
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
@@ -187,6 +187,11 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-17: Phase 2 closed
+- PR #21 (Phase 2 close-out docs) merged.
+- User decision on the open done-check item: **carry the Senna/Suzuka search criterion into Phase 3** as an acceptance test (F3.1 top results; F3.2 top 5 after reranking). **Phase 2 is complete.**
+- `main` synced; working tree clean. Phase 3 not started; waiting for the user's go-ahead.
 
 ### 2026-11-17: Phase 2 wrap-up
 - PR #20 (F2.6) merged: **all Phase 2 features (F2.1–F2.6) are merged.**
