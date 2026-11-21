@@ -14,19 +14,20 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 2 complete; Phase 3 not started |
-| **Current feature** | None (waiting for the go-ahead for Phase 3) |
-| **Current branch** | `feature/phase-2-decision` |
-| **Open PR** | #22 (records the Phase 2 search-check decision) |
+| **Current phase** | Phase 3 approved; starts after the docs-refresh PR |
+| **Current feature** | None (docs refresh in review; F3.1 next) |
+| **Current branch** | `feature/docs-refresh` |
+| **Open PR** | Docs refresh (setup timings, status) |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
-| **Last updated** | 2026-11-17 |
+| **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User merges the decision PR.
-2. **Phase 3 waits for the user's go-ahead.** It starts with F3.1 `feature/hybrid-search`. Carried in: the Senna/Suzuka acceptance test (F3.1/F3.2), accent folding, filter indexes (see Known Issues).
-3. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
+1. User merges the docs-refresh PR.
+2. **F3.1 `feature/hybrid-search`** (user gave the go-ahead for Phase 3 on 2026-11-21). Carried in: the Senna/Suzuka acceptance test (F3.1/F3.2), accent folding, filter indexes (see Known Issues).
+3. Before F3.3 (user): add at least `GROQ_API_KEY` to `.env`; Gemini and OpenRouter keys enable the fallbacks.
+4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
 
@@ -187,6 +188,12 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-21: Setup on a new machine and corpus rebuild
+- Fresh clone with a new `.env`. The dev DB volume had been initialised with an earlier `POSTGRES_PASSWORD`, so the backend failed with "password authentication failed". Fixed by setting the role's password to the `.env` value (`ALTER ROLE`) instead of recreating the volume, which kept the loaded structured data. Postgres only reads `POSTGRES_PASSWORD` when a volume is first created.
+- `data/` is git-ignored, so the Wikipedia corpus had to be rebuilt: select (2,349 articles) → fetch → clean → chunk → embed. Results match the 2026-11-17 run: 14,581 chunks, 17.7 MB of text, `chunks` table 57 MB, database 77–81 MB (size guard OK).
+- Timings: the fetch took ~4¼ h (Wikipedia renders each article on request, 2–17 s each), not the ~40 min the README said; embedding took 17 min. README updated.
+- User gave the go-ahead for Phase 3, starting with F3.1.
 
 ### 2026-11-17: Phase 2 closed
 - PR #21 (Phase 2 close-out docs) merged.
@@ -448,6 +455,8 @@ Newest first.
 - F3.1 hybrid search: the English text-search config doesn't fold accents ("Nurburgring" ≠ "Nürburgring", "Raikkonen" ≠ "Räikkönen"). Add `unaccent` (an immutable wrapper is needed for the index) or normalise the query with the entity aliases. Queries must use the indexed expression `to_tsvector('english', title || ' ' || text)`.
 - F3.1: add filter indexes (season, race_id, driver_ids GIN, …) once the queries are known. pgvector 0.8 iterative scans help filtered HNSW searches.
 - F2.5: fastembed downloads the model from Hugging Face without a token (a rate-limit warning is printed; harmless).
+- F2.4/F2.5: 4 chunks are longer than bge-small's 512-token limit, so their ends are not embedded (they are still in full-text search). Check whether the chunker's token count matches the model's tokenizer; revisit in F6 tuning.
+- F2.3: 39 cleaned articles are under 20 words (very short Wikipedia stubs, e.g. "Al Herman"). Kept; check whether intro-only entities need fuller coverage in F6.
 
 - Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1.
 - F3.5 SQL tool: the role's timeout/read-only defaults can be changed by the session (`SET`, `set_config()`), so the tool must only run validated single SELECTs on the v_* views (reject SET/set_config/multiple statements) and should also set its own `SET LOCAL statement_timeout`. Add `COMPOSE_READONLY_DATABASE_URL` for the backend container then.

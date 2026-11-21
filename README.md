@@ -108,18 +108,21 @@ The narrative corpus (Phase 2) starts from Wikipedia articles fetched through th
 cd ingestion
 uv run python -m narrative.select --no-resolve   # offline: build the selection, print counts
 uv run python -m narrative.select                # resolve on Wikipedia (~50 requests), write data/narrative/selection.json
-uv run python -m narrative --selection           # fetch every selected article (~2,400 requests, ~40 min; resumable)
+uv run python -m narrative --selection           # fetch every selected article (~2,400 requests, ~4 h; resumable)
 uv run python -m narrative --selection --refresh # later: refetch only articles whose revision changed
 uv run python -m narrative.clean                 # clean all of them -> data/narrative/articles.jsonl (~2 min, offline)
 uv run python -m narrative.clean --show "1990 Japanese Grand Prix"   # inspect one cleaned article
 uv run python -m narrative.chunk                 # split into chunks -> data/narrative/chunks.jsonl (seconds, offline)
 uv run python -m narrative.chunk --show "1990 Japanese Grand Prix"   # inspect one article's chunks
 uv run python -m narrative.embed --dry-run       # what would be embedded / written / deleted (no model, no writes)
-uv run python -m narrative.embed                 # embed new or changed chunks, sync the chunks table (~25 min the first time)
+uv run python -m narrative.embed                 # embed new or changed chunks, sync the chunks table (~15–25 min the first time)
 
 uv run python -m narrative --title "1989 Japanese Grand Prix" --title "Ayrton Senna"   # ad hoc
 uv run python -m narrative --titles-file titles.txt             # one title per line, # comments
 ```
+
+- The full fetch is slow because Wikipedia renders each article on request (2–17 s each). Requests stay serial on purpose (Wikimedia's API etiquette), so don't parallelise it. On macOS, `caffeinate -i -w <pid>` keeps the machine awake until the fetch exits.
+- `data/` is git-ignored, so a fresh clone has no corpus. Copy `data/wikipedia/` from another machine to skip the fetch, or run the whole sequence above (about 4½ hours end to end).
 
 **Selection** ([`ingestion/narrative/selection.py`](ingestion/narrative/selection.py)) follows `docs/DATA-STRATEGY.md` §2b. Titles come from each entity's Wikipedia URL in the structured data, never guessed:
 
