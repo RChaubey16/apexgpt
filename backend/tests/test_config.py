@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -113,3 +115,24 @@ def test_invalid_database_url_error_hides_password() -> None:
         make_settings(database_url="mysql://u:s3cret-pw@host/apex")
 
     assert "s3cret-pw" not in str(exc_info.value)
+
+
+def test_embedding_cache_dir_defaults_to_unset() -> None:
+    assert make_settings().embedding_cache_dir is None
+    assert make_settings(embedding_cache_dir="  ").embedding_cache_dir is None
+
+
+def test_embedding_cache_dir_is_read_as_a_path(tmp_path: Path) -> None:
+    missing = tmp_path / "models"  # created by fastembed on first use
+    assert (
+        make_settings(embedding_cache_dir=str(missing)).embedding_cache_dir == missing
+    )
+
+
+def test_embedding_cache_dir_must_not_be_a_file(tmp_path: Path) -> None:
+    file = tmp_path / "models"
+    file.write_text("not a directory")
+    with pytest.raises(
+        ValidationError, match="EMBEDDING_CACHE_DIR must be a directory"
+    ):
+        make_settings(embedding_cache_dir=str(file))

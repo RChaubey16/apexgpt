@@ -14,18 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 3 approved; starts after the docs-refresh PR |
-| **Current feature** | None (docs refresh in review; F3.1 next) |
-| **Current branch** | `feature/docs-refresh` |
-| **Open PR** | Docs refresh (setup timings, status) |
+| **Current phase** | Phase 3: Retrieval + LLM (in progress) |
+| **Current feature** | F3.1 hybrid search (PR in review) |
+| **Current branch** | `feature/hybrid-search` |
+| **Open PR** | F3.1 hybrid search |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User merges the docs-refresh PR.
-2. **F3.1 `feature/hybrid-search`** (user gave the go-ahead for Phase 3 on 2026-11-21). Carried in: the Senna/Suzuka acceptance test (F3.1/F3.2), accent folding, filter indexes (see Known Issues).
+1. User reviews and merges the F3.1 PR.
+2. **F3.2 `feature/reranker`**: `bge-reranker-base` over the hybrid results, top 5. Acceptance: the Senna/Suzuka test holds in the top 5 (`pytest -m corpus`). See Known Issues for what to check.
 3. Before F3.3 (user): add at least `GROQ_API_KEY` to `.env`; Gemini and OpenRouter keys enable the fallbacks.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -94,7 +94,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
   - Ad-hoc fusion of vector and full-text results (RRF, k=60, not the F3.1 implementation): #1 "Prost–Senna rivalry > 1989 > Decisive clash at Suzuka", #2 "… > 1990: Second clash at Suzuka", #6 the 1990 Japanese GP. The 1989 Japanese GP article's own chunks are not in the top 10.
 
 ### Phase 3: Retrieval & LLM Layer
-- [ ] F3.1 `feature/hybrid-search`: hybrid search with RRF. **Acceptance:** "Senna Prost Suzuka collision" returns chunks of both the 1989 and the 1990 Japanese Grand Prix articles in the top results (carried from Phase 2).
+- [ ] F3.1 `feature/hybrid-search`: hybrid search with RRF · 🔍 PR raised. **Acceptance:** "Senna Prost Suzuka collision" returns chunks of both the 1989 and the 1990 Japanese Grand Prix articles in the top results (carried from Phase 2). **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #6 (top 10; `pytest -m corpus`).
 - [ ] F3.2 `feature/reranker`: reranker. **Acceptance:** the Senna/Suzuka test holds in the top 5 after reranking.
 - [ ] F3.3 `feature/llm-client`: LLM client with fallback
 - [ ] F3.4 `feature/entity-resolution`: entity resolution
@@ -182,12 +182,40 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-13 | Stats views are plain (not materialized) views with `COMMENT ON` docs per view/column; fastest laps exposed as `fastest_laps_since_2004`; `race_starts` approximate alongside exact `race_entries` | Data is small (queries < 60 ms); comments let the SQL tool tell the LLM the caveats; column names prevent misreading incomplete data |
 | 2026-11-13 | Poles = `results.grid = 1` (qualifying only exists from 1994) | Matches official pole counts across all eras |
 | 2026-11-12 | CI: one GitHub Actions workflow, parallel jobs, single `CI passed` gate; actions pinned to commit SHAs; CI Postgres uses trust auth (no password literal) | One required check for branch protection; supply-chain safety; avoids secret-scanner false positives like the F0.3 GitGuardian alert |
+| 2026-11-21 | Hybrid search = RRF (k 60) of three lists: vector (weight 1.0), all-words full-text per chunk (0.5), and all-words per **article**, represented by its nearest chunk (0.5); 50 candidates each; at most 2 chunks per article | Chosen on 15 labelled questions (session log 2026-11-21). The article list is what puts the 1989 Japanese GP in the top results: no single chunk has all of "Senna Prost Suzuka collision" |
+| 2026-11-21 | Corrects 2026-11-16: fastembed's `query_embed` adds **no** instruction for bge-small (same vector as `passage_embed`), so the backend prepends bge's retrieval instruction itself | Measured. With the instruction the expected articles ranked higher on the labelled set |
+| 2026-11-21 | Accent folding with a text search configuration `apex_english` (`unaccent` → `english_stem`), with the GIN index rebuilt on it (migration 0007); not an `unaccent()` wrapper function | A regconfig is immutable, so no wrapper is needed, and documents and queries fold the same way. `unaccent` is a trusted extension, available on Neon |
+| 2026-11-21 | A year in the question → season filter that keeps untagged chunks (`season = ANY(...) OR season IS NULL`); no new metadata indexes | Only race chunks have a season, so a strict filter would drop biographies and rivalries. Every list already uses an index (HNSW with pgvector 0.8 iterative scans, GIN): ~10 ms total on 14.5k chunks |
+| 2026-11-21 | Search-quality tests on the real corpus behind a `corpus` pytest marker (`CORPUS_DATABASE_URL`, read-only), outside CI | CI has no corpus; the acceptance test still needs the real data and model |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-21: F3.1 hybrid search
+- **Built** (`backend/app/retrieval/`):
+  - Query embedder: bge-small via fastembed, loaded lazily under a lock, with bge's retrieval instruction prepended.
+  - Year → season filter.
+  - RRF fusion, a pure function with a per-article cap.
+  - `HybridSearcher`: one SQL round trip for the three candidate lists, one for the chosen rows.
+  - CLI `python -m app.retrieval`.
+  - `EMBEDDING_CACHE_DIR` setting; docker compose mounts `data/models`.
+- **Migration 0007:** `unaccent` + `apex_english` text search config; `ix_chunks_tsvector` rebuilt on it. Ingestion's full-text test updated to the new config.
+- **Tuning** on 15 labelled questions (famous incidents, each naming the article that must come back), comparing candidate counts (50/100), k (20/60), caps (1/2/3), weights, AND vs OR full-text and the article list:
+  - Vector only (no instruction, no cap): 14/15 in the top 10. Senna/Suzuka fails (1989 Japanese GP at #11–20).
+  - Chunk all-words full-text added: the 1989 race never matches, since no chunk has all four words. Any-word (OR) full-text is noisy ("Abu Dhabi 2021" promotes every year's Abu Dhabi race).
+  - Article all-words list added (first version 3.3 s; rewritten as one GIN lookup per word): 15/15 in the top 10, 13/15 in the top 5, Senna/Suzuka with both races in the top 6.
+  - The season filter raised MRR from 0.746 to 0.781.
+  - Production code reproduces it exactly.
+- **Performance** (full corpus, local):
+  - ~10 ms per warm search, embedding included; SQL 1–3 ms per list, all on indexes.
+  - Peak backend memory with the model loaded: 247 MB of the 768 MB limit.
+- **Tests:** backend 174 unit (+79) and 123 integration (+16), all passing; corpus 15/15 (`pytest -m corpus`); ingestion 532 passing. Mutation checks (season filter keeps untagged chunks, article list needs every word, per-article cap): each caught by its test.
+- **Docker:** dev stack rebuilt and healthy, migrations at 0007, search works in the container. The runtime image builds, is healthy and runs non-root; 612 MB (was 340 MB).
+- **Docs:** README knowledge-search section, `.env.example`, DATA-STRATEGY full-text row. Also fixed the README's integration-test example, which pointed `TEST_DATABASE_URL` at the real `apexgpt` database.
+- Resolved the Known Issues on accent folding and filter indexes; new ones for F3.2, F3.6 and F7.1.
 
 ### 2026-11-21: Setup on a new machine and corpus rebuild
 - Fresh clone with a new `.env`. The dev DB volume had been initialised with an earlier `POSTGRES_PASSWORD`, so the backend failed with "password authentication failed". Fixed by setting the role's password to the `.env` value (`ALTER ROLE`) instead of recreating the volume, which kept the loaded structured data. Postgres only reads `POSTGRES_PASSWORD` when a volume is first created.
@@ -452,8 +480,9 @@ Newest first.
 
 ## Known Issues / Open Questions
 
-- F3.1 hybrid search: the English text-search config doesn't fold accents ("Nurburgring" ≠ "Nürburgring", "Raikkonen" ≠ "Räikkönen"). Add `unaccent` (an immutable wrapper is needed for the index) or normalise the query with the entity aliases. Queries must use the indexed expression `to_tsvector('english', title || ' ' || text)`.
-- F3.1: add filter indexes (season, race_id, driver_ids GIN, …) once the queries are known. pgvector 0.8 iterative scans help filtered HNSW searches.
+- F3.2: fusion sometimes pushes a strong vector hit down. "How did Hunt beat Lauda in 1976" puts the Hunt–Lauda rivalry lead at #8 (#1 with vector search alone), and odd chunks reach the top 10 ("1985 … Race 13: Belgium" for Senna/Suzuka). The reranker should fix both; re-run `pytest -m corpus` after it.
+- F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
+- F7.1: the backend runtime image grew from 340 MB to 612 MB with fastembed/onnxruntime (F3.2's reranker uses the same runtime). In production the model downloads to a temporary directory on first search. Bake it into the image or mount a volume.
 - F2.5: fastembed downloads the model from Hugging Face without a token (a rate-limit warning is printed; harmless).
 - F2.4/F2.5: 4 chunks are longer than bge-small's 512-token limit, so their ends are not embedded (they are still in full-text search). Check whether the chunker's token count matches the model's tokenizer; revisit in F6 tuning.
 - F2.3: 39 cleaned articles are under 20 words (very short Wikipedia stubs, e.g. "Al Herman"). Kept; check whether intro-only entities need fuller coverage in F6.

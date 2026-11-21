@@ -58,6 +58,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       DATABASE_CONNECT_TIMEOUT: ${DATABASE_CONNECT_TIMEOUT:-10}
+      # Shared with the ingestion pipeline (data/models), so the search model
+      # is downloaded once and survives container rebuilds.
+      EMBEDDING_CACHE_DIR: /models
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:
@@ -65,6 +68,7 @@ services:
       - ./backend/app:/app/app
       - ./backend/migrations:/app/migrations
       - ./backend/tests:/app/tests
+      - ./data/models:/models
     depends_on:
       db:
         condition: service_healthy

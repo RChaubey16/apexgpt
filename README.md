@@ -205,6 +205,27 @@ Re-run it to rotate the password.
 
 Poles use `grid = 1` (qualifying data starts in 1994), fastest laps are only recorded from 2004, and starts are approximate (see `docs/DATA-STRATEGY.md`).
 
+### Knowledge search
+
+Hybrid search over the Wikipedia chunks ([`backend/app/retrieval/`](backend/app/retrieval/)). It needs the corpus loaded (above) and migrations at head.
+
+```bash
+cd backend
+uv run python -m app.retrieval "Senna Prost Suzuka collision"     # top 10 chunks, with the lists that found each
+uv run python -m app.retrieval "Lauda 1976" --limit 5 --show-text
+uv run python -m app.retrieval "Lauda crash" --season 1976        # explicit season filter
+uv run python -m app.retrieval "Lauda 1976" --no-filters          # ignore the year in the question
+```
+
+- **Three ranked lists, fused with Reciprocal Rank Fusion** (weights 1.0 / 0.5 / 0.5, 50 candidates each, at most 2 chunks per article):
+  - **vector:** nearest chunks to the question's bge-small embedding (HNSW).
+  - **text:** chunks containing every word of the question (full-text, GIN).
+  - **article:** articles containing every word somewhere, each represented by its chunk nearest to the question. Race articles rarely repeat the circuit or the drivers in every section.
+- **Accents are folded** in full-text search: "Nurburgring" matches "Nürburgring", "Raikkonen" matches "Räikkönen". This uses the `apex_english` text search configuration, which is `unaccent` plus English stemming (migration 0007).
+- **Years in the question filter by season** (1950–2025). The filter keeps that season's chunks and every chunk without a season, such as driver, team and topic articles. A decade ("the 1980s"), a year after 2025, or more than 10 years means no filter.
+- The query model (`BAAI/bge-small-en-v1.5`, ~65 MB) downloads on first search into `EMBEDDING_CACHE_DIR`; docker compose mounts `data/models` for it. A warm search takes ~10 ms on the full corpus. Loading the model raises the backend's memory to ~250 MB.
+- Errors: bad input raises `ValueError`. A database or model failure raises `SearchError` with a message that is safe to show users; logs record only the error class.
+
 ### Backend
 
 ```bash
@@ -213,9 +234,14 @@ uv sync                                  # install dependencies (incl. dev)
 uv run uvicorn app.main:create_app --factory --reload   # http://localhost:8000/health, docs at /docs
 uv run pytest                            # unit tests (no database needed)
 
-# Integration tests: real DB. They migrate up/down, so never use a DB with real data.
-TEST_DATABASE_URL=postgresql://apexgpt:change-me@localhost:5432/apexgpt \
+# Integration tests: real DB. They migrate down to an empty schema, so use the
+# separate test database, never one with real data.
+TEST_DATABASE_URL=postgresql://apexgpt:change-me@localhost:5432/apexgpt_test \
   uv run pytest -m integration
+
+# Search quality on the loaded corpus (read-only; includes the F3.1 acceptance test).
+CORPUS_DATABASE_URL=postgresql://apexgpt:change-me@localhost:5432/apexgpt \
+EMBEDDING_CACHE_DIR=../data/models uv run pytest -m corpus
 ```
 
 Health endpoints: `/health` is liveness only and never touches the DB, so the 30s Docker healthcheck doesn't keep Neon awake. `/health/ready` checks the DB and returns 503 if it's unreachable.

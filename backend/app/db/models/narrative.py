@@ -28,10 +28,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 EMBEDDING_DIMENSIONS = 384
+# English stemming with accents folded (migration 0007): "Nurburgring" matches
+# "Nürburgring". Queries must parse with the same configuration.
+TS_CONFIG = "apex_english"
 # The text full-text search matches: the article title, then the chunk.
 # Written as Postgres prints it, so Alembic sees no difference; queries may
 # write `title || ' ' || text` (the same expression) and still use the index.
-CHUNK_TSVECTOR = "to_tsvector('english'::regconfig, (title || ' '::text) || text)"
+CHUNK_TSVECTOR = f"to_tsvector('{TS_CONFIG}'::regconfig, (title || ' '::text) || text)"
 DEPTHS = ("full", "race", "circuit", "lead")
 
 

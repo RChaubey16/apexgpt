@@ -88,7 +88,7 @@ The curated topic list is the most valuable part of the corpus: it targets the "
 | Overlap | ~50 tokens (whole sentences) within a section; none across section boundaries |
 | Vector type | `halfvec(384)` (16-bit), which halves vector and index size with negligible quality loss |
 | Vector index | HNSW on the `halfvec` column (`halfvec_cosine_ops`) |
-| Full-text search | GIN index directly on `to_tsvector('english', title \|\| ' ' \|\| text)` (title included so continuation chunks still match the race/driver name), with **no stored `tsvector` column** |
+| Full-text search | GIN index directly on `to_tsvector('apex_english', title \|\| ' ' \|\| text)` (title included so continuation chunks still match the race/driver name), with **no stored `tsvector` column**. `apex_english` is English stemming with `unaccent`, so accents are folded (F3.1, migration 0007) |
 | Metadata | Integer columns/arrays: `season`, `race_id`, `driver_ids int[]`, `constructor_ids int[]`, `circuit_id`, `topic` (short text), `source_url`, `section` |
 | Raw articles | Not stored in the DB. Kept in a git-ignored `data/` folder on the dev machine; chunks store only `source_url` |
 

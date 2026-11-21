@@ -209,12 +209,13 @@ def test_full_text_search_matches_title_and_text(conn: psycopg.Connection) -> No
         ],
     )
 
+    # The backend's accent-folding config (migration 0007); the index is on it.
     def search(q: str) -> list[int]:
         return [
             r[0]
             for r in conn.execute(
-                "SELECT pageid FROM chunks WHERE to_tsvector('english'::regconfig, "
-                "title || ' ' || text) @@ websearch_to_tsquery('english', %s)",
+                "SELECT pageid FROM chunks WHERE to_tsvector('apex_english'::regconfig, "
+                "title || ' ' || text) @@ websearch_to_tsquery('apex_english', %s)",
                 (q,),
             )
         ]
@@ -222,10 +223,11 @@ def test_full_text_search_matches_title_and_text(conn: psycopg.Connection) -> No
     assert search("collision Senna Prost") == []  # "collided" ≠ "collision" stem
     assert search("Senna Prost collided") == [1]
     assert search("Japanese chicane") == [1]  # title words count too
+    assert search("Sénna chicané") == [1]  # accents folded
     conn.execute("SET enable_seqscan = off")
     plan = conn.execute(
-        "EXPLAIN SELECT pageid FROM chunks WHERE to_tsvector('english'::regconfig, "
-        "title || ' ' || text) @@ websearch_to_tsquery('english', 'Senna')"
+        "EXPLAIN SELECT pageid FROM chunks WHERE to_tsvector('apex_english'::regconfig, "
+        "title || ' ' || text) @@ websearch_to_tsquery('apex_english', 'Senna')"
     ).fetchall()
     conn.execute("RESET enable_seqscan")
     assert "ix_chunks_tsvector" in " ".join(r[0] for r in plan)
