@@ -117,7 +117,10 @@ def test_invalid_database_url_error_hides_password() -> None:
     assert "s3cret-pw" not in str(exc_info.value)
 
 
-def test_embedding_cache_dir_defaults_to_unset() -> None:
+def test_embedding_cache_dir_defaults_to_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(
+        "EMBEDDING_CACHE_DIR", raising=False
+    )  # e.g. exported for corpus tests
     assert make_settings().embedding_cache_dir is None
     assert make_settings(embedding_cache_dir="  ").embedding_cache_dir is None
 
@@ -136,3 +139,15 @@ def test_embedding_cache_dir_must_not_be_a_file(tmp_path: Path) -> None:
         ValidationError, match="EMBEDDING_CACHE_DIR must be a directory"
     ):
         make_settings(embedding_cache_dir=str(file))
+
+
+def test_onnx_threads_default_to_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ONNX_THREADS", raising=False)
+    assert make_settings().onnx_threads == 1
+    assert make_settings(onnx_threads=4).onnx_threads == 4
+
+
+@pytest.mark.parametrize("value", [0, 17, -1])
+def test_onnx_threads_must_be_between_1_and_16(value: int) -> None:
+    with pytest.raises(ValidationError, match="ONNX_THREADS must be between 1 and 16"):
+        make_settings(onnx_threads=value)

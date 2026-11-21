@@ -16,6 +16,7 @@ from app.db.models import Chunk, Season
 from app.db.models.narrative import TS_CONFIG
 from app.retrieval.embedder import DIMENSIONS
 from app.retrieval.filters import NO_FILTERS, SearchFilters
+from app.retrieval.retriever import KnowledgeRetriever
 from app.retrieval.search import _CANDIDATES_SQL, HybridSearcher
 from tests.integration import test_f1_schema as f1
 
@@ -330,3 +331,36 @@ def test_every_list_can_use_an_index(session: Session) -> None:
 
     assert "ix_chunks_embedding_hnsw" in plan
     assert plan.count("ix_chunks_tsvector") >= 2  # text list + per-word article lookups
+
+
+# --- F3.2: retrieval with reranking ---
+
+
+class KeywordReranker:
+    """Scores a document 1 if it mentions "Suzuka", else 0."""
+
+    def score(self, query: str, documents: list[str]) -> list[float]:
+        return [1.0 if "Suzuka" in d else 0.0 for d in documents]
+
+
+def test_retriever_reranks_database_results(session: Session) -> None:
+    session.add_all(
+        [
+            make_chunk(i, 0, f"Race {i}", "Senna and Prost.", embedding=one_hot(0))
+            for i in range(1, 7)
+        ]
+        + [make_chunk(9, 0, "1989 Japanese Grand Prix", "Senna and Prost at Suzuka.")]
+    )
+    session.flush()
+    retriever = KnowledgeRetriever(HybridSearcher(FixedEmbedder()), KeywordReranker())
+
+    reranked = retriever.retrieve(session, "Senna Prost", top_k=3)
+    hybrid = KnowledgeRetriever(HybridSearcher(FixedEmbedder()), None).retrieve(
+        session, "Senna Prost", top_k=3
+    )
+
+    # Far in vector space (hybrid #7), lifted into the top 3 by the reranker.
+    assert "1989 Japanese Grand Prix" not in [r.title for r in hybrid]
+    assert "1989 Japanese Grand Prix" in [r.title for r in reranked]
+    for r in reranked:  # each score belongs to its own row
+        assert r.rerank_score == (1.0 if "Suzuka" in r.text else 0.0)

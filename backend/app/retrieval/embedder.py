@@ -36,8 +36,9 @@ class FastEmbedQueryEmbedder:
     concurrent first requests load it once.
     """
 
-    def __init__(self, cache_dir: Path | None = None) -> None:
+    def __init__(self, cache_dir: Path | None = None, threads: int = 1) -> None:
         self._cache_dir = cache_dir
+        self._threads = threads  # see Settings.onnx_threads
         self._model: Any = None
         self._lock = threading.Lock()
 
@@ -48,7 +49,9 @@ class FastEmbedQueryEmbedder:
                     from fastembed import TextEmbedding  # slow import
 
                     cache = str(self._cache_dir) if self._cache_dir else None
-                    self._model = TextEmbedding(MODEL_NAME, cache_dir=cache)
+                    self._model = TextEmbedding(
+                        MODEL_NAME, cache_dir=cache, threads=self._threads
+                    )
                 except Exception as exc:  # download, disk or ONNX runtime errors
                     logger.warning(
                         "Embedding model failed to load: %s", type(exc).__name__

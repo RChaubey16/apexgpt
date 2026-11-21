@@ -138,9 +138,17 @@ class SearchResult:
     season: int | None
     race_id: int | None
     # RRF score: only meaningful for ordering results of the same search.
+    # After reranking it is the blended score (retriever.py).
     score: float
     # Which lists found it: "vector", "text", "article".
     signals: tuple[str, ...]
+    # The cross-encoder's relevance score; None when the result wasn't reranked.
+    rerank_score: float | None = None
+
+    @property
+    def heading(self) -> str:
+        """'Title > Section', or the title for an article's lead."""
+        return f"{self.title} > {self.section}" if self.section else self.title
 
 
 def normalise_query(query: str) -> str:

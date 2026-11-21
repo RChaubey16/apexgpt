@@ -7,3 +7,7 @@ class SearchError(RuntimeError):
 
 class EmbeddingUnavailableError(SearchError):
     """The query-embedding model could not be loaded or failed to embed."""
+
+
+class RerankerUnavailableError(SearchError):
+    """The reranking model could not be loaded or failed to score."""

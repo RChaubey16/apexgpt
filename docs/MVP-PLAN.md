@@ -18,7 +18,7 @@ Related docs:
 | Database (prod) | **Neon free tier**: serverless Postgres + pgvector (structured stats + vectors in one DB) |
 | Database (local dev) | Postgres + pgvector container, same major version as Neon |
 | Embeddings | `BAAI/bge-small-en-v1.5` via **fastembed** (ONNX Runtime, no PyTorch) |
-| Reranker | `BAAI/bge-reranker-base` via **fastembed** |
+| Reranker | `Xenova/ms-marco-MiniLM-L-6-v2` via **fastembed** (changed from `bge-reranker-base` in F3.2: ~2 GB RAM, 1.6 s per question, failed the acceptance test) |
 | LLM | Free tiers only, via LiteLLM: Groq (primary) → Gemini → OpenRouter `:free` (fallbacks) |
 | Data sources | Jolpica-F1 (structured, Ergast successor), Wikipedia (narrative, CC BY-SA, attributed in citations) |
 | Containers | Docker from day one; Docker Compose for local dev |
@@ -161,7 +161,7 @@ Follows the rules in [DATA-STRATEGY.md](./DATA-STRATEGY.md).
 
 ### Phase 3: Retrieval & LLM Layer (1.5 weeks)
 
-- **Hybrid search:** vector and full-text results merged via Reciprocal Rank Fusion. Metadata filters are extracted from the query (e.g. "1986" → season filter). The top results are reranked with `bge-reranker-base` (fastembed) to keep the best 5.
+- **Hybrid search:** vector and full-text results merged via Reciprocal Rank Fusion. Metadata filters are extracted from the query (e.g. "1986" → season filter). The top results are reranked with a cross-encoder (MiniLM-L-6 via fastembed; see the tech stack) to keep the best 5.
 - **LLM client:** LiteLLM with Groq as primary (Llama 3.3 70B or similar), and automatic fallback to Gemini, then OpenRouter, on 429s or errors.
 - **Tools (function calling):**
   - `query_stats(sql)`: text-to-SQL over the helper views, using the read-only role, with validation and row limits.
@@ -287,7 +287,7 @@ Each feature has an ID, a branch name and the commit message to use. Features ru
 | ID | Branch | Scope | Commit message |
 |---|---|---|---|
 | F3.1 | `feature/hybrid-search` | Vector + full-text search, Reciprocal Rank Fusion, metadata filters | `feat: add hybrid vector and full-text search` |
-| F3.2 | `feature/reranker` | `bge-reranker-base` via fastembed, top-5 selection | `feat: add reranker to retrieval pipeline` |
+| F3.2 | `feature/reranker` | Cross-encoder reranker via fastembed (MiniLM-L-6; plan said `bge-reranker-base`), top-5 selection | `feat: add reranker to retrieval pipeline` |
 | F3.3 | `feature/llm-client` | LiteLLM wrapper, Groq → Gemini → OpenRouter fallback, timeouts, retries | `feat: add LLM client with free-provider fallback` |
 | F3.4 | `feature/entity-resolution` | Map names/aliases to driver, constructor and circuit IDs | `feat: add entity resolution for F1 names and aliases` |
 | F3.5 | `feature/stats-tool` | `query_stats` text-to-SQL tool: SQL validation (SELECT-only, views-only), row limits | `feat: add text-to-SQL stats tool` |

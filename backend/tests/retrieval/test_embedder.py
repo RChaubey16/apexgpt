@@ -24,8 +24,10 @@ INGESTION_EMBEDDER = (
 class FakeModel:
     instances: list["FakeModel"] = []
 
-    def __init__(self, name: str, cache_dir: str | None = None) -> None:
-        self.name, self.cache_dir = name, cache_dir
+    def __init__(
+        self, name: str, cache_dir: str | None = None, threads: int | None = None
+    ) -> None:
+        self.name, self.cache_dir, self.threads = name, cache_dir, threads
         self.queries: list[str] = []
         FakeModel.instances.append(self)
 
@@ -56,6 +58,7 @@ def test_queries_get_the_retrieval_instruction(fake_fastembed: type[FakeModel]) 
 
     (model,) = fake_fastembed.instances
     assert (model.name, model.cache_dir) == (MODEL_NAME, "/models")
+    assert model.threads == 1  # default: one ONNX thread (Settings.onnx_threads)
     assert model.queries == [QUERY_INSTRUCTION + "Lauda 1976"]
     assert len(vector) == DIMENSIONS
     assert vector[0] == pytest.approx(0.05)
@@ -138,3 +141,9 @@ def test_model_returning_nothing_is_rejected(
 
     with pytest.raises(EmbeddingUnavailableError):
         FastEmbedQueryEmbedder().embed_query("q")
+
+
+def test_thread_count_is_passed_on(fake_fastembed: type[FakeModel]) -> None:
+    FastEmbedQueryEmbedder(threads=4).embed_query("x")
+
+    assert fake_fastembed.instances[0].threads == 4

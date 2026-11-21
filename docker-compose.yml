@@ -61,6 +61,9 @@ services:
       # Shared with the ingestion pipeline (data/models), so the search model
       # is downloaded once and survives container rebuilds.
       EMBEDDING_CACHE_DIR: /models
+      # Matches the 1-CPU limit below: more threads than CPUs made reranking
+      # ~11× slower (ONNX Runtime sees every host core, not the quota).
+      ONNX_THREADS: ${ONNX_THREADS:-1}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:
