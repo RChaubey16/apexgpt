@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     # use. Blank means fastembed's default (a temporary directory, so it is
     # downloaded again after a reboot). The ingestion pipeline uses data/models.
     embedding_cache_dir: Path | None = None
+    # Threads each ONNX model (embedder, reranker) may use. ONNX Runtime
+    # defaults to one per host core, but a container sees every host core while
+    # its CPU quota is 1: in the dev container, reranking took 16 s instead of
+    # 1.4 s. Keep it at the CPU limit (1 in docker compose and production).
+    onnx_threads: int = 1
 
     @field_validator("database_url")
     @classmethod
@@ -95,6 +100,13 @@ class Settings(BaseSettings):
     def _validate_cache_dir(cls, value: Path | None) -> Path | None:
         if value is not None and value.exists() and not value.is_dir():
             raise ValueError("EMBEDDING_CACHE_DIR must be a directory")
+        return value
+
+    @field_validator("onnx_threads")
+    @classmethod
+    def _validate_onnx_threads(cls, value: int) -> int:
+        if not 1 <= value <= 16:
+            raise ValueError("ONNX_THREADS must be between 1 and 16")
         return value
 
     @field_validator("database_connect_timeout")
