@@ -12,7 +12,7 @@ from sqlalchemy.exc import DataError, IntegrityError, StatementError
 from sqlalchemy.orm import Session
 
 from app.db.models import Chunk
-from app.db.models.narrative import CHUNK_TSVECTOR
+from app.db.models.narrative import CHUNK_TSVECTOR, TS_CONFIG
 from tests.integration import test_f1_schema as f1
 
 # The F1 schema tests' rolled-back session and parent rows.
@@ -115,7 +115,7 @@ def test_round_trip_with_links_and_vector_search(
     matched = session.scalars(
         select(Chunk.chunk_index).where(
             text(
-                f"{CHUNK_TSVECTOR} @@ websearch_to_tsquery('english', 'Japanese stall')"
+                f"{CHUNK_TSVECTOR} @@ websearch_to_tsquery('{TS_CONFIG}', 'Japanese stall')"
             )
         )
     ).all()

@@ -5,6 +5,7 @@ error instead of surfacing later at request time.
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, SecretStr, TypeAdapter, field_validator
@@ -63,6 +64,10 @@ class Settings(BaseSettings):
     # Optional until the SQL tool (F3.5): the read-only role the LLM's queries
     # run as (apexgpt_llm_reader). Blank means unset.
     readonly_database_url: SecretStr | None = None
+    # Where the query-embedding model (bge-small, ~65 MB) is downloaded on first
+    # use. Blank means fastembed's default (a temporary directory, so it is
+    # downloaded again after a reboot). The ingestion pipeline uses data/models.
+    embedding_cache_dir: Path | None = None
 
     @field_validator("database_url")
     @classmethod
@@ -77,6 +82,20 @@ class Settings(BaseSettings):
         if value is None or not value.get_secret_value().strip():
             return None
         return SecretStr(normalise_database_url(value.get_secret_value()))
+
+    @field_validator("embedding_cache_dir", mode="before")
+    @classmethod
+    def _blank_cache_dir_is_unset(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("embedding_cache_dir")
+    @classmethod
+    def _validate_cache_dir(cls, value: Path | None) -> Path | None:
+        if value is not None and value.exists() and not value.is_dir():
+            raise ValueError("EMBEDDING_CACHE_DIR must be a directory")
+        return value
 
     @field_validator("database_connect_timeout")
     @classmethod
