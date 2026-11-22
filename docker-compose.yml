@@ -58,6 +58,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       DATABASE_CONNECT_TIMEOUT: ${DATABASE_CONNECT_TIMEOUT:-10}
+      # The LLM's stats queries (F3.5) run as the read-only role; host `db`, like
+      # COMPOSE_DATABASE_URL. Blank = the stats tool reports it isn't configured.
+      READONLY_DATABASE_URL: ${COMPOSE_READONLY_DATABASE_URL:-}
       # Shared with the ingestion pipeline (data/models), so the search model
       # is downloaded once and survives container rebuilds.
       EMBEDDING_CACHE_DIR: /models
