@@ -15,18 +15,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 3: Retrieval + LLM (in progress) |
-| **Current feature** | F3.5 stats tool (PR in review) |
-| **Current branch** | `feature/stats-tool` |
-| **Open PR** | F3.5 stats tool |
+| **Current feature** | F3.6 knowledge search tool (PR in review) |
+| **Current branch** | `feature/knowledge-search-tool` |
+| **Open PR** | F3.6 knowledge search tool |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F3.5 PR.
-2. User: add `COMPOSE_READONLY_DATABASE_URL` to `.env` (the `READONLY_DATABASE_URL` value with host `db` and port `5432`), so the backend container's stats tool is configured.
-3. **F3.6 `feature/knowledge-search-tool`**: the `search_f1_knowledge` tool wrapping the retriever (F3.1/F3.2).
+1. User reviews and merges the F3.6 PR.
+2. **F3.7 `feature/answer-orchestrator`**: the tool-calling loop (entity resolution → tools → grounded, cited answer). Phase 3 is done when it answers the three CLI questions correctly. See Known Issues for free-tier token limits.
+3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 3. Optional (user): add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` so the fallbacks work, then run `LLM_LIVE_TESTS=1 uv run pytest -m llm` to check their default models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -99,8 +99,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F3.2 `feature/reranker`: reranker · PR #25 merged. **Acceptance:** the Senna/Suzuka test holds in the top 5 after reranking. **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #4 (`pytest -m corpus`).
 - [x] F3.3 `feature/llm-client`: LLM client with fallback · PR #26 merged. Verified live on Groq (answer, tool call, stream); Gemini/OpenRouter not yet (no keys).
 - [x] F3.4 `feature/entity-resolution`: entity resolution · PR #27 merged. 30/30 labelled questions (`pytest -m corpus`).
-- [ ] F3.5 `feature/stats-tool`: text-to-SQL stats tool · 🔍 PR raised. Live: Groq wrote correct SQL for 8/8 questions; `pytest -m llm` 5/5.
-- [ ] F3.6 `feature/knowledge-search-tool`: knowledge search tool
+- [x] F3.5 `feature/stats-tool`: text-to-SQL stats tool · PR #28 merged. Live: Groq wrote correct SQL for 8/8 questions; `pytest -m llm` 5/5.
+- [ ] F3.6 `feature/knowledge-search-tool`: knowledge search tool · 🔍 PR raised. Live: Groq's own search terms found the right articles 3/3.
 - [ ] F3.7 `feature/answer-orchestrator`: tool-calling orchestrator
 - [ ] **Phase done check:** the three CLI test questions are answered correctly
 
@@ -205,12 +205,30 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-22 | Defence in depth: validation, then the read-only role, then a READ ONLY transaction with the tool's own `SET LOCAL statement_timeout` 3 s / `lock_timeout` 1 s; 50-row cap (51 fetched to flag truncation); its own 2+1 connection pool | Resolves the F1.5 Known Issue (role defaults can be changed by a session) |
 | 2026-11-22 | Errors for the LLM: rejection reasons, and for SQLSTATE classes 42/22/21/0A plus timeouts Postgres's primary message only; other database errors become a generic "unavailable" | The LLM can fix its own query; no hosts, context lines or credentials leak |
 | 2026-11-22 | The tool description carries the views' `COMMENT ON` text and a rule against `LIMIT 1` for "most/best" questions | Live test: "most wins at Monza" came back as Hamilton alone, but Hamilton and Schumacher share the record (5); with the rule, 5/5 twice |
+| 2026-11-22 | One tool interface: `name`, `definition()`, `call(arguments) -> ToolOutcome(payload, ok, sources)`; expected failures become error payloads, never exceptions | The orchestrator (F3.7) treats every tool the same and always has something to send back to the model |
+| 2026-11-22 | Knowledge results: 5 chunks with short source ids numbered by the caller (S1, S2, … across searches), text cut at 2,000 chars, URLs kept out of the payload | Short ids are easier for the model to cite; ~1,600 tokens per call matters on the free tier; URLs aren't needed to reason, only to display |
+| 2026-11-22 | `search_f1_knowledge(query, seasons?)`: seasons only (no driver/team filters) | Only race chunks carry metadata (F3.1); driver/team filters would drop the biographies and rivalries that answer most questions |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-22: F3.6 knowledge search tool
+- **Built:**
+  - `app/tools/base.py`: `Tool` protocol, `ToolOutcome`, `Source`.
+  - `app/tools/knowledge.py`: `KnowledgeTool` (argument validation, numbered sources, text cap, error payloads); `build_knowledge_tool()`.
+  - `StatsTool` gained `name` / `definition()` / `call()` on the same interface.
+- **Real corpus:**
+  - The acceptance query gets both Japanese GPs; Abu Dhabi 2021, the 1976 German GP with a season filter, and the 1976 Japanese GP for Hunt/Lauda all come back.
+  - ~6,600 characters per call.
+  - In the dev container: 731 ms median per search, peak 387 MB.
+- **Live (Groq):** the model chose its own search terms for 3 questions; all found the expected articles and its arguments validated.
+- **Tests:**
+  - Backend 482 unit (+37), 141 integration (+1: the tool over real Postgres), 74 corpus (+5), all passing. Ingestion 532 passing.
+  - Mutation checks (source offset, text cap, season range, URL in payload): each caught.
+- **Note:** on the host, models were re-downloaded because `.env` has no `EMBEDDING_CACHE_DIR` (it predates the setting); added to Next Steps.
 
 ### 2026-11-22: F3.5 stats tool
 - **Setup on this machine:** `python -m app.db.readonly_role` enabled the read-only role's login here (it had never been run on this machine's database).

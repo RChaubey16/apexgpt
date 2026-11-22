@@ -29,6 +29,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from app.core.config import Settings
+from app.tools.base import ToolOutcome
 from app.tools.sql_guard import STATS_VIEWS, UnsafeQueryError, validate_stats_sql
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,12 @@ def _postgres_message(exc: Exception) -> tuple[str | None, str]:
     return sqlstate, primary
 
 
+NAME = "query_stats"
+
+
 class StatsTool:
+    name = NAME
+
     def __init__(self, engine: Engine | None, *, max_rows: int = MAX_ROWS) -> None:
         """engine=None means READONLY_DATABASE_URL is not configured."""
         self._engine = engine
@@ -220,6 +226,23 @@ class StatsTool:
             self._schema = format_schema(rows)
         return self._schema
 
+    def definition(self) -> dict[str, Any]:
+        """The tool definition, with the live schema. Raises StatsUnavailable
+        when the stats database isn't configured or reachable (don't offer it)."""
+        return tool_definition(self.schema())
+
+    def call(self, arguments: Any, **context: Any) -> ToolOutcome:
+        """Run the model's `{"sql": ...}`; every expected failure becomes an
+        error payload for the model (base.Tool)."""
+        sql = arguments.get("sql") if isinstance(arguments, dict) else None
+        if not isinstance(sql, str):
+            return ToolOutcome.error(NAME, "arguments must be an object with 'sql'")
+        try:
+            result = self.run(sql)
+        except StatsToolError as exc:
+            return ToolOutcome.error(NAME, str(exc))
+        return ToolOutcome(NAME, result.to_payload(), ok=True)
+
     def dispose(self) -> None:
         if self._engine is not None:
             self._engine.dispose()
@@ -257,7 +280,7 @@ def tool_definition(schema: str) -> dict[str, Any]:
     return {
         "type": "function",
         "function": {
-            "name": "query_stats",
+            "name": NAME,
             "description": (
                 "Run one read-only PostgreSQL SELECT over Formula 1 statistics "
                 "(1950-2025) and get the rows back. Use it for counts, records, "
