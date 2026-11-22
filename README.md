@@ -230,6 +230,32 @@ uv run python -m app.retrieval "Lauda 1976" --no-filters          # ignore the y
 - **Cost:** on the full corpus in the dev container (1 CPU), one retrieval takes ~0.7 s warm: ~0.1 s for the hybrid search, ~70 ms per reranked chunk. With both models loaded the backend uses ~400 MB of its 768 MB limit.
 - Errors: bad input raises `ValueError`. A database or embedding-model failure raises `SearchError` with a message that is safe to show users; logs record only the error class.
 
+### Entity resolution
+
+Finds the drivers, constructors and circuits named in a question ([`backend/app/retrieval/entities.py`](backend/app/retrieval/entities.py)), so later tools can work with IDs instead of names.
+
+```bash
+cd backend
+uv run python -m app.retrieval.entities "Did Schumi beat Hill at Adelaide in 1994?"
+# "Schumi" -> Michael Schumacher · "Hill" (ambiguous) -> Damon Hill first (raced in 1994), Graham, Phil · "Adelaide" -> Adelaide Street Circuit
+```
+
+- **Names:**
+  - Drivers and constructors come from the alias tables: full names, surnames, constructor names and curated nicknames ("Schumi", "the Professor", "Checo").
+  - Circuits come from the `circuits` table (ref, locality, and the name without generic words, e.g. "Circuit de Spa-Francorchamps" → "spa francorchamps"), plus a few curated names ("Singapore", "COTA", "Nordschleife").
+  - Questions are normalised like the alias tables, so accents and case don't matter.
+- **Matching:**
+  - The longest alias wins ("Red Bull Ring" is the circuit, not the team).
+  - Single-word aliases that are everyday words ("pace", "speed", "era", "driver") count only when capitalised.
+  - "March" and "May" never count alone.
+- **Ambiguity is kept.** Each mention lists up to 5 candidates, best first:
+  1. active in a season the question names;
+  2. match strength: full name > nickname > team name = surname > circuit;
+  3. wins, then races.
+
+  So "McLaren" is the team and "Prost" is Alain Prost.
+- The index (~2,000 aliases) loads on first use (~40 ms) and is reloaded every 6 hours; a question resolves in ~20 µs. If a reload fails, the previous index is kept.
+
 ### LLM client
 
 Free-tier LLMs with fallback ([`backend/app/llm/`](backend/app/llm/)): `build_llm_client(settings).complete(messages, tools=...)` for answers and tool calls, and `.stream(messages)` for streamed text. Set at least `GROQ_API_KEY` in `.env`.
