@@ -14,17 +14,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 3: Retrieval + LLM (all features built; done check passed) |
-| **Current feature** | F3.7 answer orchestrator (PR in review) |
-| **Current branch** | `feature/answer-orchestrator` |
-| **Open PR** | F3.7 answer orchestrator |
+| **Current phase** | Phase 3 complete; Phase 4 not started |
+| **Current feature** | None (waiting for the go-ahead for Phase 4) |
+| **Current branch** | `feature/close-phase-3` |
+| **Open PR** | Phase 3 close-out docs |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F3.7 PR. That completes Phase 3 (the done check already passes live).
+1. User merges the Phase 3 close-out PR.
 2. **Phase 4 waits for the user's go-ahead.** It starts with F4.1 `feature/chat-endpoint`: `POST /api/chat` over SSE. See Known Issues: streaming after tool calls.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
@@ -39,7 +39,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 0. Local foundation | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 1. Structured data | ✅ Done | 2026-11-13 | 2026-11-13 |
 | 2. Narrative corpus | ✅ Done | 2026-11-13 | 2026-11-17 |
-| 3. Retrieval + LLM | 🟡 In progress (done check passed; F3.7 in review) | 2026-11-21 | |
+| 3. Retrieval + LLM | ✅ Done | 2026-11-21 | 2026-11-22 |
 | 4. Chat API | ⬜ Not started | | |
 | 5. Frontend MVP | ⬜ Not started | | |
 | 6. Eval + hardening | ⬜ Not started | | |
@@ -93,14 +93,14 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
   - Vector search alone: #1 is the 1990 Japanese GP; the 1989 Japanese GP race report is #15.
   - Ad-hoc fusion of vector and full-text results (RRF, k=60, not the F3.1 implementation): #1 "Prost–Senna rivalry > 1989 > Decisive clash at Suzuka", #2 "… > 1990: Second clash at Suzuka", #6 the 1990 Japanese GP. The 1989 Japanese GP article's own chunks are not in the top 10.
 
-### Phase 3: Retrieval & LLM Layer
+### Phase 3: Retrieval & LLM Layer ✅
 - [x] F3.1 `feature/hybrid-search`: hybrid search with RRF · PR #24 merged. **Acceptance:** "Senna Prost Suzuka collision" returns chunks of both the 1989 and the 1990 Japanese Grand Prix articles in the top results (carried from Phase 2). **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #6 (top 10; `pytest -m corpus`).
 - [x] F3.2 `feature/reranker`: reranker · PR #25 merged. **Acceptance:** the Senna/Suzuka test holds in the top 5 after reranking. **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #4 (`pytest -m corpus`).
 - [x] F3.3 `feature/llm-client`: LLM client with fallback · PR #26 merged. Verified live on Groq (answer, tool call, stream); Gemini/OpenRouter not yet (no keys).
 - [x] F3.4 `feature/entity-resolution`: entity resolution · PR #27 merged. 30/30 labelled questions (`pytest -m corpus`).
 - [x] F3.5 `feature/stats-tool`: text-to-SQL stats tool · PR #28 merged. Live: Groq wrote correct SQL for 8/8 questions; `pytest -m llm` 5/5.
 - [x] F3.6 `feature/knowledge-search-tool`: knowledge search tool · PR #29 merged. Live: Groq's own search terms found the right articles 3/3.
-- [ ] F3.7 `feature/answer-orchestrator`: tool-calling orchestrator · 🔍 PR raised
+- [x] F3.7 `feature/answer-orchestrator`: tool-calling orchestrator · PR #30 merged
 - [x] **Phase done check:** the three CLI test questions are answered correctly (2026-11-22, live: `pytest -m llm tests/live/test_phase3_done_check.py` 3/3, and by hand with `python -m app.answer`)
 
 ### Phase 4: Chat API
@@ -218,6 +218,24 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-22: Phase 3 closed
+- PR #30 (F3.7) merged: **all Phase 3 features (F3.1–F3.7) are merged, and the done check passes** (the three CLI questions, by hand and live).
+- Phase 3 delivers:
+  - hybrid search (vector + full-text + article lists, RRF, accent folding, season filters);
+  - MiniLM-L-6 reranking (blend ×2, top 5);
+  - the LLM client (openai SDK; Groq → Gemini → OpenRouter, with retries, fallback, streaming and short rate-limit waits);
+  - entity resolution;
+  - the validated text-to-SQL stats tool on the read-only role;
+  - the knowledge search tool;
+  - the grounded, cited answer orchestrator (`python -m app.answer`).
+- Plan changes made with the user along the way (all in the Decision Log):
+  - MiniLM-L-6 instead of bge-reranker-base;
+  - the openai SDK instead of LiteLLM;
+  - `openai/gpt-oss-120b` on Groq;
+  - new Gemini/OpenRouter fallback models.
+- Carried into Phase 4 and later (Known Issues): streaming the final reply after tool calls (F4.1), free-tier token limits, fallback answer quality (F6), and baking the models into the production image (F7.1).
+- `main` synced. Phase 4 not started; waiting for the user's go-ahead.
 
 ### 2026-11-22: F3.7 answer orchestrator — Phase 3 done check passed
 - **Built:**
