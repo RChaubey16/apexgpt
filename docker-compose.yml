@@ -64,6 +64,15 @@ services:
       # Matches the 1-CPU limit below: more threads than CPUs made reranking
       # ~11× slower (ONNX Runtime sees every host core, not the quota).
       ONNX_THREADS: ${ONNX_THREADS:-1}
+      # LLM providers (F3.3): a blank key disables that provider.
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      LLM_GROQ_MODEL: ${LLM_GROQ_MODEL:-openai/gpt-oss-120b}
+      LLM_GEMINI_MODEL: ${LLM_GEMINI_MODEL:-gemini-2.5-flash}
+      LLM_OPENROUTER_MODEL: ${LLM_OPENROUTER_MODEL:-openai/gpt-oss-120b:free}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:

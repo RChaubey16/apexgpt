@@ -14,7 +14,7 @@ ApexGPT uses a hybrid RAG design: statistical questions are answered with SQL ov
 | Frontend | Next.js (TypeScript, Tailwind) |
 | Database | Postgres + pgvector (Neon in production, Docker locally) |
 | Embeddings / reranking | fastembed (`bge-small-en-v1.5`, `bge-reranker-base`) |
-| LLM | Free tiers via LiteLLM: Groq → Gemini → OpenRouter |
+| LLM | Free tiers via the openai SDK (OpenAI-compatible APIs): Groq → Gemini → OpenRouter |
 | Data | Jolpica-F1 (structured), Wikipedia (narrative, CC BY-SA) |
 | Infra | Docker, Docker Compose, Coolify |
 
@@ -229,6 +229,26 @@ uv run python -m app.retrieval "Lauda 1976" --no-filters          # ignore the y
 - **Threads:** each model uses `ONNX_THREADS` threads (default 1). Keep that at the backend's CPU limit. ONNX Runtime otherwise starts one thread per host core: in the 1-CPU dev container that made retrieval 16 s instead of 0.7 s.
 - **Cost:** on the full corpus in the dev container (1 CPU), one retrieval takes ~0.7 s warm: ~0.1 s for the hybrid search, ~70 ms per reranked chunk. With both models loaded the backend uses ~400 MB of its 768 MB limit.
 - Errors: bad input raises `ValueError`. A database or embedding-model failure raises `SearchError` with a message that is safe to show users; logs record only the error class.
+
+### LLM client
+
+Free-tier LLMs with fallback ([`backend/app/llm/`](backend/app/llm/)): `build_llm_client(settings).complete(messages, tools=...)` for answers and tool calls, and `.stream(messages)` for streamed text. Set at least `GROQ_API_KEY` in `.env`.
+
+```bash
+cd backend
+uv run python -m app.llm "Who won the 1976 championship?"   # shows which provider answered
+uv run python -m app.llm "Explain DRS" --stream
+uv run python -m app.llm "Hi" --provider gemini             # only this provider
+LLM_LIVE_TESTS=1 uv run pytest -m llm                       # each configured provider: answer, tool call, stream
+```
+
+- **Providers:** Groq → Gemini → OpenRouter, through their OpenAI-compatible APIs with the official `openai` SDK. Only providers with a key are used. Models are settings (`LLM_GROQ_MODEL`, …), because free-tier lists change; the Groq default is `openai/gpt-oss-120b`.
+- **Fallback:**
+  - A timeout, connection error or 5xx is retried on the same provider (`LLM_MAX_RETRIES`, default 1), then the next provider is tried.
+  - A rate limit (429), bad key, retired model (404) or rejected request (400) moves straight to the next provider.
+  - A response it can't use (empty, a tool that wasn't offered, arguments that aren't a JSON object) is treated as a failure too.
+- **Streaming** falls back the same way until the first token. After that, a failure raises `LLMStreamInterruptedError`, because part of the answer has already been shown.
+- **Errors:** bad requests raise `ValueError` before any call. When every provider fails, `LLMUnavailableError` is raised with a message that is safe to show. Logs carry the provider, model, error class and status code, never prompts, answers or keys.
 
 ### Backend
 
