@@ -364,3 +364,33 @@ def test_retriever_reranks_database_results(session: Session) -> None:
     assert "1989 Japanese Grand Prix" in [r.title for r in reranked]
     for r in reranked:  # each score belongs to its own row
         assert r.rerank_score == (1.0 if "Suzuka" in r.text else 0.0)
+
+
+# --- F3.6: the search_f1_knowledge tool over the real query path ---
+
+
+def test_knowledge_tool_returns_cited_chunks(session: Session) -> None:
+    from contextlib import nullcontext
+
+    from app.tools.knowledge import KnowledgeTool
+
+    session.add_all(
+        [
+            make_chunk(1, 0, "1989 Japanese Grand Prix", "Senna and Prost collided at the chicane.",
+                       embedding=one_hot(0)),
+            make_chunk(2, 0, "Monaco Grand Prix", "A street circuit."),
+        ]
+    )  # fmt: skip
+    session.flush()
+    tool = KnowledgeTool(
+        KnowledgeRetriever(HybridSearcher(FixedEmbedder()), None),
+        lambda: nullcontext(session),  # keep the test's rolled-back session open
+    )
+
+    outcome = tool.call({"query": "Senna Prost chicane"}, first_source_number=7)
+
+    assert outcome.ok
+    first = outcome.payload["results"][0]
+    assert (first["source"], first["title"]) == ("S7", "1989 Japanese Grand Prix")
+    assert outcome.sources[0].url == "https://en.wikipedia.org/?curid=1"
+    assert not tool.call({"query": "x", "seasons": [1800]}).ok

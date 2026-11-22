@@ -226,6 +226,15 @@ uv run python -m app.tools.stats "SELECT * FROM drivers"    # rejected: unknown 
 - **The tool description** (`tool_definition(tool.schema())`) lists every view, column and `COMMENT ON` note (~4,000 characters). It also tells the model never to answer a "most / best" question with `LIMIT 1`, because records are often shared (Monza: Hamilton and Schumacher, 5 wins each).
 - `LLM_LIVE_TESTS=1 uv run pytest -m llm` also runs 5 questions end to end: the real LLM writes the SQL and the tool answers.
 
+### Knowledge search tool
+
+`search_f1_knowledge`, the tool through which the LLM looks up F1 history ([`backend/app/tools/knowledge.py`](backend/app/tools/knowledge.py)). It wraps the retrieval pipeline below.
+
+- **Arguments:** `query` (short search terms, up to 300 characters) and optional `seasons` (years in 1950–2025, at most 10). The model's arguments are validated: bad ones come back as an error message it can act on, and unknown keys are ignored.
+- **Results:** the top 5 chunks, each with a source id (`S1`, `S2`, …) plus title, section, season and text (cut at 2,000 characters). That's ~6,500 characters per call. URLs travel separately in `outcome.sources` for citations. The caller sets `first_source_number`, so ids stay unique across several searches in one answer.
+- **Shared tool interface** ([`base.py`](backend/app/tools/base.py)): both tools have `name`, `definition()` and `call(arguments)`, which returns a `ToolOutcome` (payload, ok, sources) and never raises for expected failures. `query_stats` follows the same interface.
+- `EMBEDDING_CACHE_DIR=../data/models` in `.env` keeps the host from downloading the models again (docker compose sets its own path).
+
 ### Knowledge search
 
 Retrieval over the Wikipedia chunks ([`backend/app/retrieval/`](backend/app/retrieval/)): hybrid search, then reranking, then the top 5 (`build_retriever(settings).retrieve(session, question)`). It needs the corpus loaded (above) and migrations at head.
