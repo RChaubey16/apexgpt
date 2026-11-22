@@ -89,7 +89,8 @@ apexgpt/
 │   │   ├── api/             # routes: /chat, /feedback, /health, /health/ready
 │   │   ├── core/            # config, logging, rate limiting, in-memory cache
 │   │   ├── db/              # SQLAlchemy models, session, Alembic migrations
-│   │   ├── llm/             # LLM client (openai SDK), prompts, provider fallback
+│   │   ├── answer/          # orchestrator: entity hints → tool loop → cited answer; prompts
+│   │   ├── llm/             # LLM client (openai SDK), provider fallback
 │   │   ├── retrieval/       # hybrid search, reranker, entity resolution
 │   │   └── tools/           # query_stats, search_f1_knowledge
 │   ├── tests/

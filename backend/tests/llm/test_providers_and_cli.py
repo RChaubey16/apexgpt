@@ -27,7 +27,7 @@ def test_only_providers_with_keys_are_used_in_fixed_order() -> None:
 
     assert [(p.name, p.base_url, p.model) for p in providers] == [
         ("groq", GROQ_BASE_URL, "openai/gpt-oss-120b"),
-        ("openrouter", OPENROUTER_BASE_URL, "openai/gpt-oss-120b:free"),
+        ("openrouter", OPENROUTER_BASE_URL, "nvidia/nemotron-3-ultra-550b-a55b:free"),
     ]
     assert providers[0].api_key.get_secret_value() == "gq-key"
 
@@ -203,3 +203,13 @@ def test_cli_rejects_unknown_providers(fake_cli) -> None:
     with pytest.raises(SystemExit) as info:
         cli.run(["hi", "--provider", "openai"])
     assert info.value.code == 2
+
+
+def test_rate_limit_wait_setting() -> None:
+    assert make_settings().llm_rate_limit_wait_seconds == 20
+    client = build_llm_client(
+        make_settings(groq_api_key="k", llm_rate_limit_wait_seconds=0)
+    )
+    assert client._rate_limit_wait == 0
+    with pytest.raises(ValidationError, match="LLM_RATE_LIMIT_WAIT_SECONDS"):
+        make_settings(llm_rate_limit_wait_seconds=61)

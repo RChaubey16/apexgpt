@@ -14,20 +14,19 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 3: Retrieval + LLM (in progress) |
-| **Current feature** | F3.6 knowledge search tool (PR in review) |
-| **Current branch** | `feature/knowledge-search-tool` |
-| **Open PR** | F3.6 knowledge search tool |
+| **Current phase** | Phase 3: Retrieval + LLM (all features built; done check passed) |
+| **Current feature** | F3.7 answer orchestrator (PR in review) |
+| **Current branch** | `feature/answer-orchestrator` |
+| **Open PR** | F3.7 answer orchestrator |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F3.6 PR.
-2. **F3.7 `feature/answer-orchestrator`**: the tool-calling loop (entity resolution → tools → grounded, cited answer). Phase 3 is done when it answers the three CLI questions correctly. See Known Issues for free-tier token limits.
+1. User reviews and merges the F3.7 PR. That completes Phase 3 (the done check already passes live).
+2. **Phase 4 waits for the user's go-ahead.** It starts with F4.1 `feature/chat-endpoint`: `POST /api/chat` over SSE. See Known Issues: streaming after tool calls.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
-3. Optional (user): add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` so the fallbacks work, then run `LLM_LIVE_TESTS=1 uv run pytest -m llm` to check their default models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -40,7 +39,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 0. Local foundation | ✅ Done | 2026-11-12 | 2026-11-12 |
 | 1. Structured data | ✅ Done | 2026-11-13 | 2026-11-13 |
 | 2. Narrative corpus | ✅ Done | 2026-11-13 | 2026-11-17 |
-| 3. Retrieval + LLM | ⬜ Not started | | |
+| 3. Retrieval + LLM | 🟡 In progress (done check passed; F3.7 in review) | 2026-11-21 | |
 | 4. Chat API | ⬜ Not started | | |
 | 5. Frontend MVP | ⬜ Not started | | |
 | 6. Eval + hardening | ⬜ Not started | | |
@@ -100,9 +99,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F3.3 `feature/llm-client`: LLM client with fallback · PR #26 merged. Verified live on Groq (answer, tool call, stream); Gemini/OpenRouter not yet (no keys).
 - [x] F3.4 `feature/entity-resolution`: entity resolution · PR #27 merged. 30/30 labelled questions (`pytest -m corpus`).
 - [x] F3.5 `feature/stats-tool`: text-to-SQL stats tool · PR #28 merged. Live: Groq wrote correct SQL for 8/8 questions; `pytest -m llm` 5/5.
-- [ ] F3.6 `feature/knowledge-search-tool`: knowledge search tool · 🔍 PR raised. Live: Groq's own search terms found the right articles 3/3.
-- [ ] F3.7 `feature/answer-orchestrator`: tool-calling orchestrator
-- [ ] **Phase done check:** the three CLI test questions are answered correctly
+- [x] F3.6 `feature/knowledge-search-tool`: knowledge search tool · PR #29 merged. Live: Groq's own search terms found the right articles 3/3.
+- [ ] F3.7 `feature/answer-orchestrator`: tool-calling orchestrator · 🔍 PR raised
+- [x] **Phase done check:** the three CLI test questions are answered correctly (2026-11-22, live: `pytest -m llm tests/live/test_phase3_done_check.py` 3/3, and by hand with `python -m app.answer`)
 
 ### Phase 4: Chat API
 - [ ] F4.1 `feature/chat-endpoint`: streaming chat endpoint
@@ -208,12 +207,39 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-22 | One tool interface: `name`, `definition()`, `call(arguments) -> ToolOutcome(payload, ok, sources)`; expected failures become error payloads, never exceptions | The orchestrator (F3.7) treats every tool the same and always has something to send back to the model |
 | 2026-11-22 | Knowledge results: 5 chunks with short source ids numbered by the caller (S1, S2, … across searches), text cut at 2,000 chars, URLs kept out of the payload | Short ids are easier for the model to cite; ~1,600 tokens per call matters on the free tier; URLs aren't needed to reason, only to display |
 | 2026-11-22 | `search_f1_knowledge(query, seasons?)`: seasons only (no driver/team filters) | Only race chunks carry metadata (F3.1); driver/team filters would drop the biographies and rivalries that answer most questions |
+| 2026-11-22 | The orchestrator lives in `app/answer/` (with its prompts), not `app/llm/` as the plan's layout said | It depends on the LLM client, both tools and entity resolution; inside `app/llm/` the low-level client would import everything above it |
+| 2026-11-22 | Tool loop: up to 3 rounds / 4 tool calls, then one request without tools; entity hints in the user message with the views' own values (`driver_ref = '…'`, `circuit_name = '…'`) | Bounded cost on the free tier; hints with exact column values stopped wasted queries (`circuit_name ILIKE '%Abu Dhabi%'` → 0 rows) |
+| 2026-11-22 | Citations normalised before checking (`【S3】`, `[S3†L2]`, `[S1, S2]` → `[S3]`, `[S1][S2]`); unknown ids removed; `Answer.sources` = the cited sources in order | gpt-oss writes full-width, suffixed citations; without this the Hunt/Lauda answer listed no sources |
+| 2026-11-22 | Output reservations 900 (tool rounds) / 1,000 (final); stats description omits `*_id` and `wikipedia_url` columns; client waits once (≤ `LLM_RATE_LIMIT_WAIT_SECONDS`, default 20) when every provider is rate limited | Groq's free tier: 8,000 tokens/minute for gpt-oss-120b, counting `max_tokens`. One narrative answer was ~8.5k tokens with 1,500-token reservations |
+| 2026-11-22 | Fallback defaults changed: Gemini `gemini-3.1-flash-lite`, OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free` | Live checks once the keys were added: `gemini-2.5-flash` is closed to new users (404), `gpt-oss-120b:free` is gone (404). Newer Gemini flash models were overloaded (503, timeouts, 19–34 s); lite made a correct tool call in 2 s, nemotron in 1.3 s |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-22: F3.7 answer orchestrator — Phase 3 done check passed
+- **Built:**
+  - `app/answer/`:
+    - `prompts.py`: the grounded system prompt and entity hints;
+    - `orchestrator.py`: resolve names → tool loop with limits → final no-tools round → citation check;
+    - `build_orchestrator()` and the CLI `python -m app.answer`.
+  - LLM client: wait-once-and-retry on short rate limits (`LLM_RATE_LIMIT_WAIT_SECONDS`); `parse_duration` for Groq's reset headers.
+- **Done check, by hand and live (`pytest -m llm`, 3/3):**
+  - "Who has the most wins at Monza?" → Hamilton and Schumacher, 5 each (table).
+  - "Explain Abu Dhabi 2021" → the title decider: 369.5 points each, Latifi's crash, only 5 lapped cars unlapped, last-lap pass, protest, Masi replaced; cited.
+  - "How did Hunt beat Lauda in 1976 and what were the final points?" → Nürburgring crash and return, the Fuji decider, Hunt 3rd → 69–68; both tools, cited.
+- **Found on the way, all fixed:**
+  - Groq's 8k tokens/minute limit counts `max_tokens`, so one answer could exceed it: smaller reservations, a leaner stats description, the wait-and-retry.
+  - Once the Gemini/OpenRouter keys were added, both default models returned 404: new defaults, chosen by live tool-call tests.
+  - gpt-oss's `【S3†…】` citations left the source list empty: normalisation.
+  - A wasted query (`ILIKE '%Abu Dhabi%'`): hints now give exact column values.
+  - Unrequested "Missing details" paragraphs and query explanations: prompt rules.
+- **Dev container:** stats question in 1.4 s (104 MB); narrative question in 7.7 s. Groq hit its limit mid-answer and Gemini lite finished with 5 citations; peak 405 MB of 768 MB.
+- **Tests:**
+  - Backend 535 unit (+53: orchestrator loop, limits, hints, failures, citations, CLI; rate-limit waits and header parsing), 141 integration, 74 corpus, all passing; live `pytest -m llm` incl. the done check. Ingestion 532 passing.
+  - Mutation checks (citation normalisation, final round without tools, source numbering, tool-call limit, unknown citations, wait limit, single retry): each caught.
 
 ### 2026-11-22: F3.6 knowledge search tool
 - **Built:**
@@ -613,6 +639,8 @@ Newest first.
 
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5).
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
+- F4.1: answers are built non-streaming (tool rounds, then a final reply). For SSE, stream only the final reply (`LLMClient.stream` with the tool messages so far). Check that every provider accepts tool messages in a request without tools; Gemini lite, the current fallback, did in F3.7's final round.
+- F6: fallback answers (Gemini lite, nemotron) are less polished than gpt-oss-120b's; the golden set should score each provider. Gemini 3.x flash previews and newer flash models were overloaded when tested; revisit the default.
 - F3.7/F6: the `query_stats` description is ~1,000 tokens and goes with every request that offers the tool. On Groq's free tier, 8 quick text-to-SQL requests hit the per-minute token limit (429); with no Gemini/OpenRouter key there is no fallback. The orchestrator should offer tools only when needed and keep prompts small; adding the fallback keys helps.
 - F3.4: an everyday-word surname in an all-lowercase question isn't found ("pace" for Carlos Pace); write it capitalised or use the full name. When new drivers or teams are loaded, check whether any new single-word alias is an everyday word and add it to `COMMON_WORDS` in `app/retrieval/entities.py`.
 - F3.4: candidates are ordered, not decided. The orchestrator (F3.7) should use the best guess, but mention the alternatives when `ambiguous` and no season settles it (e.g. "Schumacher" alone).

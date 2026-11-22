@@ -22,6 +22,7 @@ def build_llm_client(settings: Settings, *, only: str | None = None) -> LLMClien
         providers,
         timeout=settings.llm_timeout_seconds,
         max_retries=settings.llm_max_retries,
+        rate_limit_wait_seconds=settings.llm_rate_limit_wait_seconds,
     )
 
 

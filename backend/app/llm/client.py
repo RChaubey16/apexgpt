@@ -79,6 +79,11 @@ class InvalidResponseError(Exception):
     """A provider answered, but with something we can't use (internal)."""
 
 
+@dataclass(frozen=True)
+class _Success[V]:
+    value: V
+
+
 class LLMStream:
     """A streamed answer: iterate for text pieces. Single use.
 
@@ -99,6 +104,40 @@ def _is_transient(exc: openai.APIError) -> bool:
     if isinstance(exc, openai.APIConnectionError):  # includes APITimeoutError
         return True
     return isinstance(exc, openai.APIStatusError) and exc.status_code >= 500
+
+
+_DURATION_PART = re.compile(r"(\d+(?:\.\d+)?)(ms|h|m|s)")
+
+
+def parse_duration(value: str | None) -> float | None:
+    """Seconds from '42.5', '42.577s', '1m2.5s' or '120ms' (rate-limit headers)."""
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    parts = _DURATION_PART.findall(value)
+    if not parts or "".join(n + u for n, u in parts) != value:
+        return None
+    scale = {"ms": 0.001, "s": 1.0, "m": 60.0, "h": 3600.0}
+    return sum(float(n) * scale[u] for n, u in parts)
+
+
+def rate_limit_wait(exc: openai.APIError) -> float | None:
+    """How long a 429 says to wait: Retry-After, else the token window's reset."""
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None) or {}
+    for header in (
+        "retry-after",
+        "x-ratelimit-reset-tokens",
+        "x-ratelimit-reset-requests",
+    ):
+        seconds = parse_duration(headers.get(header))
+        if seconds is not None:
+            return seconds
+    return None
 
 
 def _status(exc: BaseException) -> int | None:
@@ -221,12 +260,16 @@ class LLMClient:
         *,
         timeout: float = 30.0,
         max_retries: int = 1,
+        rate_limit_wait_seconds: float = 0.0,
         client_factory: Callable[..., Any] = openai.OpenAI,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._providers = list(providers)
         self._timeout = timeout
         self._max_retries = max_retries
+        # When every provider failed and one was rate limited for at most this
+        # long, wait and try the chain once more (0 = never wait).
+        self._rate_limit_wait = rate_limit_wait_seconds
         self._client_factory = client_factory
         self._sleep = sleep
         self._clients: dict[str, Any] = {}
@@ -251,12 +294,39 @@ class LLMClient:
                 "No language model is configured (set GROQ_API_KEY, GEMINI_API_KEY "
                 "or OPENROUTER_API_KEY)"
             )
+        for chain in (1, 2):
+            shortest_wait = self._try_chain(attempt_fn)
+            if isinstance(shortest_wait, _Success):
+                return shortest_wait.value
+            if (
+                chain == 1
+                and shortest_wait is not None
+                and shortest_wait <= self._rate_limit_wait
+            ):
+                logger.warning(
+                    "All providers failed; rate limited, retrying in %.1fs",
+                    shortest_wait,
+                )
+                self._sleep(shortest_wait + 0.5)
+                continue
+            break
+        raise LLMUnavailableError("The language model is unavailable right now")
+
+    def _try_chain(
+        self, attempt_fn: Callable[[Provider], T]
+    ) -> "_Success[T] | float | None":
+        """Each provider in order: a _Success, or the shortest rate-limit wait seen."""
+        shortest: float | None = None
         for provider in self._providers:
             for attempt in range(1, self._max_retries + 2):
                 try:
-                    return attempt_fn(provider)
+                    return _Success(attempt_fn(provider))
                 except openai.APIError as exc:
                     transient = _is_transient(exc)
+                    if isinstance(exc, openai.RateLimitError):
+                        wait = rate_limit_wait(exc)
+                        if wait is not None:
+                            shortest = wait if shortest is None else min(shortest, wait)
                     logger.warning(
                         "LLM call failed: provider=%s model=%s attempt=%d error=%s status=%s",
                         provider.name,
@@ -279,7 +349,7 @@ class LLMClient:
                         exc,
                     )
                     break
-        raise LLMUnavailableError("The language model is unavailable right now")
+        return shortest
 
     def complete(
         self,
