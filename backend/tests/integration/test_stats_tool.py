@@ -166,8 +166,9 @@ def test_the_schema_lists_the_views_with_their_comments(tool: StatsTool) -> None
 
     for view in STATS_VIEWS:
         assert f"\n{view}" in f"\n{schema}"
-    assert "  driver_name text" in schema
-    assert "poles bigint -- " in schema  # column comments from migration 0004
+    assert "driver_name text" in schema and "poles int" in schema
+    assert "notes: " in schema and "poles: " in schema  # COMMENT ON text (0004)
+    assert "driver_id" not in schema  # ids are left out of the description
     assert tool.schema() is schema  # cached
 
 

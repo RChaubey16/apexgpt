@@ -19,6 +19,7 @@ exist'). Connection details, hosts and passwords never appear in either.
 
 import datetime as dt
 import logging
+import re
 import time
 from dataclasses import dataclass
 from decimal import Decimal
@@ -260,19 +261,55 @@ ORDER BY array_position(CAST(:views AS text[]), c.relname::text), a.attnum
 """)
 
 
+_SHORT_TYPES = (
+    (re.compile(r"^(smallint|integer|bigint)$"), "int"),
+    (re.compile(r"^numeric(\(.*\))?$"), "num"),
+    (re.compile(r"^(character varying|character)(\(.*\))?$|^text$"), "text"),
+    (re.compile(r"^timestamp.*$"), "timestamp"),
+)
+
+
+def _short_type(sql_type: str) -> str:
+    for pattern, short in _SHORT_TYPES:
+        if pattern.match(sql_type):
+            return short
+    return sql_type
+
+
+def _first_sentence(comment: str) -> str:
+    sentence = comment.split(". ")[0].strip()
+    return sentence if sentence.endswith(".") else sentence + "."
+
+
+def _described(column: str) -> bool:
+    """Internal ids and URLs are left out of the description (the model never
+    needs them: entity hints give refs); they can still be queried."""
+    return not (column.endswith("_id") or column == "wikipedia_url")
+
+
 def format_schema(rows: Any) -> str:
-    """Compact text: one block per view, one line per column."""
-    blocks: list[str] = []
-    current = None
+    """Compact text for the tool description (it goes with every LLM request,
+    and the free tier counts tokens per minute): one block per view with its
+    comment, the columns on one line with short types, then the column notes
+    (first sentence of each COMMENT ON)."""
+    views: dict[str, dict[str, Any]] = {}
     for row in rows:
-        if row.view != current:
-            current = row.view
-            blocks.append(
-                f"\n{row.view}" + (f": {row.view_comment}" if row.view_comment else "")
-            )
-        note = f" -- {row.column_comment}" if row.column_comment else ""
-        blocks.append(f"  {row.column} {row.type}{note}")
-    return "\n".join(blocks).strip()
+        if not _described(row.column):
+            continue
+        view = views.setdefault(
+            row.view, {"comment": row.view_comment, "columns": [], "notes": []}
+        )
+        view["columns"].append(f"{row.column} {_short_type(row.type)}")
+        if row.column_comment:
+            view["notes"].append(f"{row.column}: {_first_sentence(row.column_comment)}")
+    blocks = []
+    for name, view in views.items():
+        lines = [name + (f": {view['comment']}" if view["comment"] else "")]
+        lines.append("  columns: " + ", ".join(view["columns"]))
+        if view["notes"]:
+            lines.append("  notes: " + " ".join(view["notes"]))
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
 
 
 def tool_definition(schema: str) -> dict[str, Any]:

@@ -80,13 +80,16 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
     llm_groq_model: str = "openai/gpt-oss-120b"
-    llm_gemini_model: str = "gemini-2.5-flash"
-    llm_openrouter_model: str = "openai/gpt-oss-120b:free"
+    llm_gemini_model: str = "gemini-3.1-flash-lite"
+    llm_openrouter_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     # Per request, per attempt. Free tiers can be slow under load.
     llm_timeout_seconds: float = 30.0
     # Extra attempts on the same provider after a timeout, connection error or
     # 5xx, before falling back. Rate limits (429) fall back at once.
     llm_max_retries: int = 1
+    # When every provider is rate limited and the limit resets within this many
+    # seconds, wait once and retry (free tiers limit tokens per minute). 0 = off.
+    llm_rate_limit_wait_seconds: float = 20.0
 
     @field_validator("database_url")
     @classmethod
@@ -139,6 +142,13 @@ class Settings(BaseSettings):
     def _validate_llm_timeout(cls, value: float) -> float:
         if not 1 <= value <= 120:
             raise ValueError("LLM_TIMEOUT_SECONDS must be between 1 and 120")
+        return value
+
+    @field_validator("llm_rate_limit_wait_seconds")
+    @classmethod
+    def _validate_rate_limit_wait(cls, value: float) -> float:
+        if not 0 <= value <= 60:
+            raise ValueError("LLM_RATE_LIMIT_WAIT_SECONDS must be between 0 and 60")
         return value
 
     @field_validator("llm_max_retries")

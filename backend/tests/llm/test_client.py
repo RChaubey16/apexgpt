@@ -564,3 +564,128 @@ def test_stream_validates_the_request() -> None:
     with pytest.raises(ValueError, match="at least one message"):
         client.stream([])
     assert fake.requests == []
+
+
+# --- rate limits: wait once when the limit resets soon ---
+
+
+def rate_limited(headers: dict[str, str]) -> openai.RateLimitError:
+    return openai.RateLimitError(
+        "rate limited",
+        response=httpx2.Response(429, request=REQUEST, headers=headers),
+        body=None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "seconds"),
+    [("42", 42.0), ("1.5", 1.5), ("42.577s", 42.577), ("1m2.5s", 62.5), ("120ms", 0.12),
+     ("2h", 7200.0), (None, None), ("", None), ("soon", None), ("5x", None)],
+)  # fmt: skip
+def test_parse_duration(value, seconds) -> None:
+    from app.llm.client import parse_duration
+
+    assert parse_duration(value) == (
+        pytest.approx(seconds) if seconds is not None else None
+    )
+
+
+def test_a_short_rate_limit_is_waited_out_once() -> None:
+    fake = FakeProviders({"groq": [rate_limited({"retry-after": "2"}), completion()]})
+    sleeps: list[float] = []
+    client = LLMClient(
+        [provider("groq")],
+        rate_limit_wait_seconds=20,
+        client_factory=fake,
+        sleep=sleeps.append,
+    )
+
+    assert client.complete(USER).provider == "groq"
+    assert sleeps == [2.5]  # the reset plus a little margin
+    assert fake.calls() == ["groq", "groq"]
+
+
+def test_the_token_window_reset_is_used_without_retry_after() -> None:
+    fake = FakeProviders(
+        {"groq": [rate_limited({"x-ratelimit-reset-tokens": "7.2s"}), completion()]}
+    )
+    sleeps: list[float] = []
+    LLMClient(
+        [provider("groq")],
+        rate_limit_wait_seconds=20,
+        client_factory=fake,
+        sleep=sleeps.append,
+    ).complete(USER)
+
+    assert sleeps == [pytest.approx(7.7)]
+
+
+def test_the_shortest_wait_of_the_chain_is_used() -> None:
+    fake = FakeProviders(
+        {
+            "groq": [rate_limited({"retry-after": "9"}), completion()],
+            "gemini": [rate_limited({"retry-after": "3"}), completion()],
+        }
+    )
+    sleeps: list[float] = []
+    client = LLMClient(
+        [provider("groq"), provider("gemini")],
+        rate_limit_wait_seconds=20, client_factory=fake, sleep=sleeps.append,
+    )  # fmt: skip
+
+    assert client.complete(USER).provider == "groq"
+    assert sleeps == [3.5]
+
+
+@pytest.mark.parametrize(
+    ("headers", "wait_limit"),
+    [({"retry-after": "45"}, 20), ({"retry-after": "2"}, 0), ({}, 20)],
+    ids=["too long", "waiting off", "no hint"],
+)
+def test_no_wait_when_too_long_disabled_or_unknown(headers, wait_limit) -> None:
+    fake = FakeProviders({"groq": [rate_limited(headers), completion()]})
+    sleeps: list[float] = []
+    client = LLMClient(
+        [provider("groq")], rate_limit_wait_seconds=wait_limit, client_factory=fake,
+        sleep=sleeps.append,
+    )  # fmt: skip
+
+    with pytest.raises(LLMUnavailableError):
+        client.complete(USER)
+    assert sleeps == [] and fake.calls() == ["groq"]
+
+
+def test_the_chain_is_retried_only_once() -> None:
+    fake = FakeProviders(
+        {
+            "groq": [
+                rate_limited({"retry-after": "1"}),
+                rate_limited({"retry-after": "1"}),
+            ]
+        }
+    )
+    sleeps: list[float] = []
+    client = LLMClient(
+        [provider("groq")],
+        rate_limit_wait_seconds=20,
+        client_factory=fake,
+        sleep=sleeps.append,
+    )
+
+    with pytest.raises(LLMUnavailableError):
+        client.complete(USER)
+    assert sleeps == [1.5] and fake.calls() == ["groq", "groq"]
+
+
+def test_a_working_fallback_means_no_wait() -> None:
+    fake = FakeProviders(
+        {"groq": [rate_limited({"retry-after": "1"})], "gemini": [completion()]}
+    )
+    sleeps: list[float] = []
+    client = LLMClient(
+        [provider("groq"), provider("gemini")],
+        rate_limit_wait_seconds=20, client_factory=fake, sleep=sleeps.append,
+    )  # fmt: skip
+
+    assert client.complete(USER).provider == "gemini"
+    assert sleeps == []

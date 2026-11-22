@@ -126,19 +126,29 @@ def test_schema_text_lists_views_columns_and_comments() -> None:
         SimpleNamespace(view="v_driver_career", view_comment="One row per driver.",
                         column="driver_name", type="text", column_comment=None),
         SimpleNamespace(view="v_driver_career", view_comment="One row per driver.",
-                        column="poles", type="bigint", column_comment="Grid position 1."),
+                        column="poles", type="bigint",
+                        column_comment="Grid position 1. Qualifying only exists from 1994."),
+        SimpleNamespace(view="v_driver_career", view_comment="One row per driver.",
+                        column="driver_id", type="integer", column_comment=None),
+        SimpleNamespace(view="v_driver_career", view_comment="One row per driver.",
+                        column="wikipedia_url", type="text", column_comment=None),
         SimpleNamespace(view="v_season_summary", view_comment=None,
                         column="season", type="smallint", column_comment=None),
+        SimpleNamespace(view="v_season_summary", view_comment=None,
+                        column="code", type="character varying(3)", column_comment="Short code"),
+        SimpleNamespace(view="v_season_summary", view_comment=None,
+                        column="points", type="numeric(6,2)", column_comment=None),
     ]  # fmt: skip
 
     assert format_schema(rows) == (
         "v_driver_career: One row per driver.\n"
-        "  driver_name text\n"
-        "  poles bigint -- Grid position 1.\n"
+        "  columns: driver_name text, poles int\n"
+        "  notes: poles: Grid position 1.\n"  # first sentence only
         "\n"
         "v_season_summary\n"
-        "  season smallint"
-    )
+        "  columns: season int, code text, points num\n"
+        "  notes: code: Short code."
+    )  # ids and URLs are left out of the description
 
 
 def test_tool_definition_for_the_llm() -> None:
