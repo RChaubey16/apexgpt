@@ -11,7 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import sessionmaker
 
 from app import __version__
-from app.api.routes import health
+from app.answer import build_orchestrator
+from app.api.routes import chat, health
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
@@ -27,6 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
+        app.state.orchestrator.close()
         engine.dispose()
 
     app = FastAPI(
@@ -40,6 +42,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.engine = engine
     app.state.session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    # Built once and shared: models, connections and the entity index load on
+    # first use, so startup stays fast and works without the database.
+    app.state.orchestrator = build_orchestrator(settings, app.state.session_factory)
     app.dependency_overrides[get_settings] = lambda: settings
 
     app.add_middleware(
@@ -50,4 +55,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     register_exception_handlers(app)
     app.include_router(health.router)
+    app.include_router(chat.router)
     return app
