@@ -15,18 +15,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 3: Retrieval + LLM (in progress) |
-| **Current feature** | F3.2 reranker (PR in review) |
-| **Current branch** | `feature/reranker` |
-| **Open PR** | F3.2 reranker |
+| **Current feature** | F3.3 LLM client (PR in review) |
+| **Current branch** | `feature/llm-client` |
+| **Open PR** | F3.3 LLM client |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F3.2 PR.
-2. **F3.3 `feature/llm-client`**: LiteLLM wrapper, Groq → Gemini → OpenRouter fallback, timeouts, retries.
-3. Before F3.3 (user): add at least `GROQ_API_KEY` to `.env`; Gemini and OpenRouter keys enable the fallbacks. The client and its tests can be built with mocked providers, but checking it against the real APIs needs the keys.
+1. User reviews and merges the F3.3 PR.
+2. **F3.4 `feature/entity-resolution`**: map driver, constructor and circuit names and aliases to IDs (the alias tables from F1.3).
+3. Optional (user): add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` so the fallbacks work, then run `LLM_LIVE_TESTS=1 uv run pytest -m llm` to check their default models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
 ---
@@ -95,8 +95,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 3: Retrieval & LLM Layer
 - [x] F3.1 `feature/hybrid-search`: hybrid search with RRF · PR #24 merged. **Acceptance:** "Senna Prost Suzuka collision" returns chunks of both the 1989 and the 1990 Japanese Grand Prix articles in the top results (carried from Phase 2). **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #6 (top 10; `pytest -m corpus`).
-- [ ] F3.2 `feature/reranker`: reranker · 🔍 PR raised. **Acceptance:** the Senna/Suzuka test holds in the top 5 after reranking. **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #4 (`pytest -m corpus`).
-- [ ] F3.3 `feature/llm-client`: LLM client with fallback
+- [x] F3.2 `feature/reranker`: reranker · PR #25 merged. **Acceptance:** the Senna/Suzuka test holds in the top 5 after reranking. **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #4 (`pytest -m corpus`).
+- [ ] F3.3 `feature/llm-client`: LLM client with fallback · 🔍 PR raised. Verified live on Groq (answer, tool call, stream); Gemini/OpenRouter not yet (no keys).
 - [ ] F3.4 `feature/entity-resolution`: entity resolution
 - [ ] F3.5 `feature/stats-tool`: text-to-SQL stats tool
 - [ ] F3.6 `feature/knowledge-search-tool`: knowledge search tool
@@ -138,7 +138,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | Date | Decision | Reason |
 |---|---|---|
 | 2026-11-12 | Hybrid RAG: SQL for stats + pgvector for narrative | Vector-only RAG gets counting and ranking questions wrong |
-| 2026-11-12 | Free LLMs only via LiteLLM (Groq → Gemini → OpenRouter) | No paid AI services |
+| 2026-11-12 | Free LLMs only via LiteLLM (Groq → Gemini → OpenRouter) | No paid AI services. *Library changed on 2026-11-21 (see below)* |
 | 2026-11-12 | No user accounts in MVP | Keep MVP scope small |
 | 2026-11-12 | Deployment moved to the last MVP phase | User preference; production-ready Dockerfiles still built from Phase 0 |
 | 2026-11-12 | fastembed (ONNX) instead of PyTorch for embeddings and reranking | Cuts backend RAM from ~1.5 GB to ~0.5 GB |
@@ -191,12 +191,37 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-21 | Reranker order is blended with the hybrid order (RRF, reranker ×2), not used alone; 10 candidates → top 5; documents scored one at a time | Blended: 15/15 in the top 5, reranker alone: 14/15. 10, 12, 15, 20 and 30 candidates gave identical results, and reranking costs ~70 ms per candidate on one CPU. Batches raised peak RAM by ~240 MB with no speed gain |
 | 2026-11-21 | A failing reranker falls back to the hybrid order (warning logged) instead of failing retrieval | A model problem should degrade answers, not break chat |
 | 2026-11-21 | `ONNX_THREADS` setting (default 1) for both models | ONNX Runtime starts a thread per host core, and a container sees all of them under a 1-CPU quota: retrieval took 16.4 s instead of 0.7 s in the dev container |
+| 2026-11-21 | **LLM client uses the official openai SDK against each provider's OpenAI-compatible API, not LiteLLM** (user's decision, changes the 2026-11-12 plan) | Measured: importing LiteLLM 1.110.2 added ~213 MB RAM and 3.1 s (backend ~400 → ~610 MB of 768 MB); openai 3.57 added ~44 MB and 0.2 s. Groq, Gemini and OpenRouter are all OpenAI-compatible, and the fallback/retry logic is ours either way. A non-compatible provider would need its own adapter |
+| 2026-11-21 | Groq model `openai/gpt-oss-120b`; every provider's model is a setting | Llama 3.3 70B is no longer offered on the key's free tier (11 models listed). gpt-oss-120b made correct tool calls in ~0.6 s (qwen3.8-27b: 1.4 s) |
+| 2026-11-21 | Fallback rules: timeouts/connection/5xx retry the same provider (`LLM_MAX_RETRIES`, default 1, backoff 0.5 s/1 s), every other API error or an unusable response goes to the next provider; SDK retries off | Free-tier 429 limits last minutes to days, so retrying is pointless; a 400 can be provider-specific (Groq `tool_use_failed`); our own loop keeps it testable |
+| 2026-11-21 | Streaming is in the client (F3.3), falling back only before the first token | F4.1 needs it; once text is shown, switching provider would repeat or contradict it |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-21: F3.3 LLM client
+- **Two plan changes, both decided by the user after measurements:**
+  - openai SDK instead of LiteLLM (+44 MB vs +213 MB RAM; 0.2 s vs 3.1 s import).
+  - LiteLLM was checked first: 1.110.2 is past the compromised 1.82.7/1.82.8 PyPI releases. It was removed again before committing.
+  - Groq's Llama 3.3 70B is gone from the free tier, so the default is `openai/gpt-oss-120b`, chosen after a live tool-call test.
+- **Built** (`backend/app/llm/`):
+  - `providers.py`: Groq → Gemini → OpenRouter, keys optional.
+  - `client.py`: `LLMClient.complete` (text + tool calls) and `.stream`, with our own retries and fallback, request validation and response validation.
+  - `build_llm_client(settings)`; CLI `python -m app.llm`.
+  - Settings: three keys (blank = off), a model per provider, timeout, retries.
+  - docker compose passes all of them to the backend.
+- **Live checks (Groq):**
+  - CLI answer in 632 ms, and streaming works.
+  - `pytest -m llm`: 3/3 (answer, tool call, stream); Gemini/OpenRouter skipped (no keys).
+  - In the dev container: retrieval + a grounded Groq answer to the Senna/Suzuka question in 863 ms; peak 394 MB of 768 MB.
+- **Tests:**
+  - Backend 281 unit (+71), 124 integration, 30 corpus, all passing. Ingestion 532 passing.
+  - Mutation checks (429 retried, unknown tool accepted, mid-stream error swallowed, SDK retries left on): each caught.
+- **Docker:** the runtime image builds, is healthy and runs non-root; 650 MB (was 612 MB).
+- **Docs:** README LLM-client section and stack row, `.env.example`, MVP-PLAN (stack, phase text, layout, F3.3 row), Decision Log, Known Issues.
 
 ### 2026-11-21: F3.2 reranker
 - **Built** (`backend/app/retrieval/`):
@@ -515,6 +540,8 @@ Newest first.
 
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5).
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
+- F3.3: the Gemini (`gemini-2.5-flash`) and OpenRouter (`openai/gpt-oss-120b:free`) default models are unverified (no keys yet). A wrong model fails with 404 and falls through, so check with `LLM_LIVE_TESTS=1 uv run pytest -m llm` once keys are added.
+- F7.1: production needs `GROQ_API_KEY` (and the fallback keys) set as Coolify secrets; docker compose already passes them to the backend.
 - F7.1: the backend runtime image grew from 340 MB to 612 MB with fastembed/onnxruntime (F3.2's reranker added no dependencies). In production both models (~145 MB) download to a temporary directory on first search: bake them into the image or mount a volume. Set `ONNX_THREADS` to the production CPU limit.
 - F2.5: fastembed downloads the model from Hugging Face without a token (a rate-limit warning is printed; harmless).
 - F2.4/F2.5: 4 chunks are longer than bge-small's 512-token limit, so their ends are not embedded (they are still in full-text search). Check whether the chunker's token count matches the model's tokenizer; revisit in F6 tuning.

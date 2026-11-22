@@ -74,6 +74,20 @@ class Settings(BaseSettings):
     # 1.4 s. Keep it at the CPU limit (1 in docker compose and production).
     onnx_threads: int = 1
 
+    # LLM providers (F3.3), free tiers only, tried in this order. A provider is
+    # used only when its key is set; blank means unset. See app/llm/providers.py.
+    groq_api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+    openrouter_api_key: SecretStr | None = None
+    llm_groq_model: str = "openai/gpt-oss-120b"
+    llm_gemini_model: str = "gemini-2.5-flash"
+    llm_openrouter_model: str = "openai/gpt-oss-120b:free"
+    # Per request, per attempt. Free tiers can be slow under load.
+    llm_timeout_seconds: float = 30.0
+    # Extra attempts on the same provider after a timeout, connection error or
+    # 5xx, before falling back. Rate limits (429) fall back at once.
+    llm_max_retries: int = 1
+
     @field_validator("database_url")
     @classmethod
     def _validate_database_url(cls, value: SecretStr) -> SecretStr:
@@ -100,6 +114,38 @@ class Settings(BaseSettings):
     def _validate_cache_dir(cls, value: Path | None) -> Path | None:
         if value is not None and value.exists() and not value.is_dir():
             raise ValueError("EMBEDDING_CACHE_DIR must be a directory")
+        return value
+
+    @field_validator(
+        "groq_api_key", "gemini_api_key", "openrouter_api_key", mode="before"
+    )
+    @classmethod
+    def _blank_key_is_unset(cls, value: object) -> object:
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            return None
+        return raw.strip() if isinstance(raw, str) else raw
+
+    @field_validator("llm_groq_model", "llm_gemini_model", "llm_openrouter_model")
+    @classmethod
+    def _validate_model_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value or len(value) > 200 or any(c.isspace() for c in value):
+            raise ValueError("LLM model names must be non-empty with no spaces")
+        return value
+
+    @field_validator("llm_timeout_seconds")
+    @classmethod
+    def _validate_llm_timeout(cls, value: float) -> float:
+        if not 1 <= value <= 120:
+            raise ValueError("LLM_TIMEOUT_SECONDS must be between 1 and 120")
+        return value
+
+    @field_validator("llm_max_retries")
+    @classmethod
+    def _validate_llm_retries(cls, value: int) -> int:
+        if not 0 <= value <= 3:
+            raise ValueError("LLM_MAX_RETRIES must be between 0 and 3")
         return value
 
     @field_validator("onnx_threads")
