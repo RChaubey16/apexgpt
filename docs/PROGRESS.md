@@ -15,17 +15,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 3: Retrieval + LLM (in progress) |
-| **Current feature** | F3.4 entity resolution (PR in review) |
-| **Current branch** | `feature/entity-resolution` |
-| **Open PR** | F3.4 entity resolution |
+| **Current feature** | F3.5 stats tool (PR in review) |
+| **Current branch** | `feature/stats-tool` |
+| **Open PR** | F3.5 stats tool |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F3.4 PR.
-2. **F3.5 `feature/stats-tool`**: text-to-SQL stats tool over the `v_*` views with the read-only role (see Known Issues for the validation it needs).
+1. User reviews and merges the F3.5 PR.
+2. User: add `COMPOSE_READONLY_DATABASE_URL` to `.env` (the `READONLY_DATABASE_URL` value with host `db` and port `5432`), so the backend container's stats tool is configured.
+3. **F3.6 `feature/knowledge-search-tool`**: the `search_f1_knowledge` tool wrapping the retriever (F3.1/F3.2).
 3. Optional (user): add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` so the fallbacks work, then run `LLM_LIVE_TESTS=1 uv run pytest -m llm` to check their default models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -97,8 +98,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F3.1 `feature/hybrid-search`: hybrid search with RRF · PR #24 merged. **Acceptance:** "Senna Prost Suzuka collision" returns chunks of both the 1989 and the 1990 Japanese Grand Prix articles in the top results (carried from Phase 2). **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #6 (top 10; `pytest -m corpus`).
 - [x] F3.2 `feature/reranker`: reranker · PR #25 merged. **Acceptance:** the Senna/Suzuka test holds in the top 5 after reranking. **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #4 (`pytest -m corpus`).
 - [x] F3.3 `feature/llm-client`: LLM client with fallback · PR #26 merged. Verified live on Groq (answer, tool call, stream); Gemini/OpenRouter not yet (no keys).
-- [ ] F3.4 `feature/entity-resolution`: entity resolution · 🔍 PR raised. 30/30 labelled questions (`pytest -m corpus`).
-- [ ] F3.5 `feature/stats-tool`: text-to-SQL stats tool
+- [x] F3.4 `feature/entity-resolution`: entity resolution · PR #27 merged. 30/30 labelled questions (`pytest -m corpus`).
+- [ ] F3.5 `feature/stats-tool`: text-to-SQL stats tool · 🔍 PR raised. Live: Groq wrote correct SQL for 8/8 questions; `pytest -m llm` 5/5.
 - [ ] F3.6 `feature/knowledge-search-tool`: knowledge search tool
 - [ ] F3.7 `feature/answer-orchestrator`: tool-calling orchestrator
 - [ ] **Phase done check:** the three CLI test questions are answered correctly
@@ -199,12 +200,39 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-22 | Single-word aliases that are everyday words in F1 questions (curated list of 36, e.g. pace, speed, era, driver, force) match only when capitalised; "March"/"May" never match alone; rare-word names (senna, hunt, button, lotus) always match | 145 single-word aliases are dictionary words. Precision first: tagging "top speed" as Scott Speed misleads the LLM; lowercase "senna" must still work |
 | 2026-11-22 | Circuits resolved from the `circuits` table (ref, locality, name minus generic leading/trailing words) plus a small curated map; no country aliases | No circuit alias table exists. Countries would tag "drivers from Argentina" as the Buenos Aires circuit |
 | 2026-11-22 | Entity index held in memory (~2,000 aliases, +7 MB), reloaded every 6 hours, keeping the old index if a reload fails | ~20 µs per question with no DB round trip; loader updates appear without a restart |
+| 2026-11-22 | Stats SQL validated with Postgres's own parser (`pglast` 8.9, PG 18 grammar) against allowlists of node types, relations (the 4 views + CTEs), functions, cast types and SQL value functions; not regexes or a denylist | INTO, FOR UPDATE, DELETE-in-CTE and set_config all parse as a top-level SELECT, so only a full-tree check is safe; default-deny means unknown constructs are rejected. +25 MB, 0.4 s import |
+| 2026-11-22 | The tool runs SQL regenerated from the validated tree (deparsed), with the row limit set in the tree, through the driver's cursor with no parameters | No gap between what's checked and what runs; through SQLAlchemy, `ILIKE '%monza%'` failed (`%` read as a placeholder) |
+| 2026-11-22 | Defence in depth: validation, then the read-only role, then a READ ONLY transaction with the tool's own `SET LOCAL statement_timeout` 3 s / `lock_timeout` 1 s; 50-row cap (51 fetched to flag truncation); its own 2+1 connection pool | Resolves the F1.5 Known Issue (role defaults can be changed by a session) |
+| 2026-11-22 | Errors for the LLM: rejection reasons, and for SQLSTATE classes 42/22/21/0A plus timeouts Postgres's primary message only; other database errors become a generic "unavailable" | The LLM can fix its own query; no hosts, context lines or credentials leak |
+| 2026-11-22 | The tool description carries the views' `COMMENT ON` text and a rule against `LIMIT 1` for "most/best" questions | Live test: "most wins at Monza" came back as Hamilton alone, but Hamilton and Schumacher share the record (5); with the rule, 5/5 twice |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-22: F3.5 stats tool
+- **Setup on this machine:** `python -m app.db.readonly_role` enabled the read-only role's login here (it had never been run on this machine's database).
+- **Built** (`backend/app/tools/`):
+  - `sql_guard.py`: pglast parse, full-tree allowlists, LIMIT set in the tree, deparse.
+  - `stats.py`: `StatsTool.run`, executed as the role in a read-only transaction with its own timeouts, JSON-safe values, payload for the LLM, error classes.
+  - `schema()` from `COMMENT ON`, `tool_definition()`, and CLI `python -m app.tools.stats`.
+  - docker compose passes `COMPOSE_READONLY_DATABASE_URL`.
+- **Validator:** 6 real queries pass. 23 attacks are rejected with messages the LLM can use: INTO, FOR UPDATE, DELETE in a CTE, set_config, pg_sleep, query_to_xml, ::regclass, current_user, catalogs, raw tables in subqueries, functions in FROM, TABLESAMPLE, $1, LIMIT (SELECT …), other databases, COPY, EXPLAIN, and more.
+- **Bugs found while trying it on the real views, both fixed:**
+  - `%` in `ILIKE '%monza%'` broke queries sent through SQLAlchemy.
+  - Raw psycopg errors were not classified.
+- **Live text-to-SQL (Groq gpt-oss-120b, real tool description):**
+  - 8/8 questions got correct SQL at the first attempt.
+  - The "most wins at Monza" test caught `LIMIT 1` hiding the Hamilton/Schumacher tie, so I added a rule to the description; `pytest -m llm` then passed 5/5, twice.
+  - The free tier's per-minute limit was hit once (Known Issues).
+- **Container:** the stats tool as the role, Monza query 3 ms; peak 376 MB with retrieval loaded.
+- **Docker:** runtime image builds, healthy, non-root, 691 MB (+41 MB: pglast).
+- **Tests:**
+  - Backend 445 unit (+111), 140 integration (+12: as the role via SET ROLE, the % and quote literals, truncation, one-line errors, schema comments, the validator's views = the role's grants, the read-only transaction and timeout), 69 corpus (+8: known answers, the 3 s timeout stopping a triple cross join on the real data), all passing. Ingestion 532 passing.
+  - Mutation checks (node allowlist, function allowlist, unknown tables, large LIMIT kept, original SQL run instead of deparsed, SELECT INTO): each caught.
+- Resolved the F1.5 Known Issue on session-changeable role defaults.
 
 ### 2026-11-22: F3.4 entity resolution
 - **Built** (`backend/app/retrieval/`):
@@ -567,6 +595,7 @@ Newest first.
 
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5).
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
+- F3.7/F6: the `query_stats` description is ~1,000 tokens and goes with every request that offers the tool. On Groq's free tier, 8 quick text-to-SQL requests hit the per-minute token limit (429); with no Gemini/OpenRouter key there is no fallback. The orchestrator should offer tools only when needed and keep prompts small; adding the fallback keys helps.
 - F3.4: an everyday-word surname in an all-lowercase question isn't found ("pace" for Carlos Pace); write it capitalised or use the full name. When new drivers or teams are loaded, check whether any new single-word alias is an everyday word and add it to `COMMON_WORDS` in `app/retrieval/entities.py`.
 - F3.4: candidates are ordered, not decided. The orchestrator (F3.7) should use the best guess, but mention the alternatives when `ambiguous` and no season settles it (e.g. "Schumacher" alone).
 - F3.3: the Gemini (`gemini-2.5-flash`) and OpenRouter (`openai/gpt-oss-120b:free`) default models are unverified (no keys yet). A wrong model fails with 404 and falls through, so check with `LLM_LIVE_TESTS=1 uv run pytest -m llm` once keys are added.
@@ -577,5 +606,4 @@ Newest first.
 - F2.3: 39 cleaned articles are under 20 words (very short Wikipedia stubs, e.g. "Al Herman"). Kept; check whether intro-only entities need fuller coverage in F6.
 
 - Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1.
-- F3.5 SQL tool: the role's timeout/read-only defaults can be changed by the session (`SET`, `set_config()`), so the tool must only run validated single SELECTs on the v_* views (reject SET/set_config/multiple statements) and should also set its own `SET LOCAL statement_timeout`. Add `COMPOSE_READONLY_DATABASE_URL` for the backend container then.
 - F7.2 (Neon): confirm the migration's `CREATE ROLE` works as the Neon owner role and run `python -m app.db.readonly_role` against Neon.

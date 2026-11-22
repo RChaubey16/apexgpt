@@ -205,6 +205,27 @@ Re-run it to rotate the password.
 
 Poles use `grid = 1` (qualifying data starts in 1994), fastest laps are only recorded from 2004, and starts are approximate (see `docs/DATA-STRATEGY.md`).
 
+### Stats tool
+
+`query_stats`, the tool through which the LLM answers statistics questions ([`backend/app/tools/`](backend/app/tools/)). The LLM writes one SQL `SELECT` over the stats views; the tool checks it, runs it as the read-only role and returns the rows. It needs `READONLY_DATABASE_URL` (and `COMPOSE_READONLY_DATABASE_URL` for docker compose) with the role's login enabled (see Stats views).
+
+```bash
+cd backend
+uv run python -m app.tools.stats --schema                   # the views and column notes the LLM sees
+uv run python -m app.tools.stats "SELECT driver_name, wins FROM v_driver_career ORDER BY wins DESC LIMIT 5"
+uv run python -m app.tools.stats "SELECT * FROM drivers"    # rejected: unknown table drivers (exit 2)
+```
+
+- **Validation** ([`sql_guard.py`](backend/app/tools/sql_guard.py)): the SQL is parsed with Postgres's own parser (`pglast`, Postgres 18 grammar), and the whole tree must pass allowlists:
+  - one `SELECT` (WITH/UNION allowed) reading only the four views (or its own CTEs);
+  - known-safe node types only, which rules out `INTO`, `FOR UPDATE`, data-modifying CTEs, `$1` parameters, functions in `FROM` and `TABLESAMPLE`;
+  - allowlisted functions and cast types only, which keeps out `set_config`, `pg_sleep`, `query_to_xml`, file readers and `::regclass`.
+- **What runs** is the SQL *regenerated from the validated tree*, with `LIMIT` capped at 51, so exactly what was checked executes. At most 50 rows come back, and a note says when more existed.
+- **Then the database:** each query runs as `apexgpt_llm_reader` in a `READ ONLY` transaction, with the tool's own `statement_timeout` (3 s) and `lock_timeout` (1 s).
+- **Errors are written for the LLM to fix its query:** why a query was rejected, or Postgres's one-line message (`column "x" does not exist`, `division by zero`, a timeout). Connection details never appear.
+- **The tool description** (`tool_definition(tool.schema())`) lists every view, column and `COMMENT ON` note (~4,000 characters). It also tells the model never to answer a "most / best" question with `LIMIT 1`, because records are often shared (Monza: Hamilton and Schumacher, 5 wins each).
+- `LLM_LIVE_TESTS=1 uv run pytest -m llm` also runs 5 questions end to end: the real LLM writes the SQL and the tool answers.
+
 ### Knowledge search
 
 Retrieval over the Wikipedia chunks ([`backend/app/retrieval/`](backend/app/retrieval/)): hybrid search, then reranking, then the top 5 (`build_retriever(settings).retrieve(session, question)`). It needs the corpus loaded (above) and migrations at head.
