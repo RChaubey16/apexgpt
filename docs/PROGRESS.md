@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 3: Retrieval + LLM (in progress) |
-| **Current feature** | F3.3 LLM client (PR in review) |
-| **Current branch** | `feature/llm-client` |
-| **Open PR** | F3.3 LLM client |
+| **Current feature** | F3.4 entity resolution (PR in review) |
+| **Current branch** | `feature/entity-resolution` |
+| **Open PR** | F3.4 entity resolution |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F3.3 PR.
-2. **F3.4 `feature/entity-resolution`**: map driver, constructor and circuit names and aliases to IDs (the alias tables from F1.3).
+1. User reviews and merges the F3.4 PR.
+2. **F3.5 `feature/stats-tool`**: text-to-SQL stats tool over the `v_*` views with the read-only role (see Known Issues for the validation it needs).
 3. Optional (user): add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` so the fallbacks work, then run `LLM_LIVE_TESTS=1 uv run pytest -m llm` to check their default models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -96,8 +96,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 3: Retrieval & LLM Layer
 - [x] F3.1 `feature/hybrid-search`: hybrid search with RRF · PR #24 merged. **Acceptance:** "Senna Prost Suzuka collision" returns chunks of both the 1989 and the 1990 Japanese Grand Prix articles in the top results (carried from Phase 2). **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #6 (top 10; `pytest -m corpus`).
 - [x] F3.2 `feature/reranker`: reranker · PR #25 merged. **Acceptance:** the Senna/Suzuka test holds in the top 5 after reranking. **Met:** 1990 Japanese GP #1, 1989 Japanese GP race report #4 (`pytest -m corpus`).
-- [ ] F3.3 `feature/llm-client`: LLM client with fallback · 🔍 PR raised. Verified live on Groq (answer, tool call, stream); Gemini/OpenRouter not yet (no keys).
-- [ ] F3.4 `feature/entity-resolution`: entity resolution
+- [x] F3.3 `feature/llm-client`: LLM client with fallback · PR #26 merged. Verified live on Groq (answer, tool call, stream); Gemini/OpenRouter not yet (no keys).
+- [ ] F3.4 `feature/entity-resolution`: entity resolution · 🔍 PR raised. 30/30 labelled questions (`pytest -m corpus`).
 - [ ] F3.5 `feature/stats-tool`: text-to-SQL stats tool
 - [ ] F3.6 `feature/knowledge-search-tool`: knowledge search tool
 - [ ] F3.7 `feature/answer-orchestrator`: tool-calling orchestrator
@@ -195,12 +195,39 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-21 | Groq model `openai/gpt-oss-120b`; every provider's model is a setting | Llama 3.3 70B is no longer offered on the key's free tier (11 models listed). gpt-oss-120b made correct tool calls in ~0.6 s (qwen3.8-27b: 1.4 s) |
 | 2026-11-21 | Fallback rules: timeouts/connection/5xx retry the same provider (`LLM_MAX_RETRIES`, default 1, backoff 0.5 s/1 s), every other API error or an unusable response goes to the next provider; SDK retries off | Free-tier 429 limits last minutes to days, so retrying is pointless; a 400 can be provider-specific (Groq `tool_use_failed`); our own loop keeps it testable |
 | 2026-11-21 | Streaming is in the client (F3.3), falling back only before the first token | F4.1 needs it; once text is shown, switching provider would repeat or contradict it |
+| 2026-11-22 | Entity resolution keeps ambiguity: each mention lists up to 5 candidates, ordered by active-in-a-named-season, then match strength (driver full name > nickname > constructor name = surname > circuit), then wins and races | The orchestrator (F3.7) can show or use the alternatives. Ranking a team name and a surname equally lets prominence decide teams named after drivers ("McLaren" the team, "Prost" the driver) |
+| 2026-11-22 | Single-word aliases that are everyday words in F1 questions (curated list of 36, e.g. pace, speed, era, driver, force) match only when capitalised; "March"/"May" never match alone; rare-word names (senna, hunt, button, lotus) always match | 145 single-word aliases are dictionary words. Precision first: tagging "top speed" as Scott Speed misleads the LLM; lowercase "senna" must still work |
+| 2026-11-22 | Circuits resolved from the `circuits` table (ref, locality, name minus generic leading/trailing words) plus a small curated map; no country aliases | No circuit alias table exists. Countries would tag "drivers from Argentina" as the Buenos Aires circuit |
+| 2026-11-22 | Entity index held in memory (~2,000 aliases, +7 MB), reloaded every 6 hours, keeping the old index if a reload fails | ~20 µs per question with no DB round trip; loader updates appear without a restart |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-22: F3.4 entity resolution
+- **Built** (`backend/app/retrieval/`):
+  - `normalise.py`: the loader's `normalise_alias`, copied, with a test that compares both on 18 samples.
+  - `entities.py`:
+    - in-memory `EntityIndex` built from the alias tables and `circuits` (with curated circuit names);
+    - `EntityResolver`: longest-match scan, the everyday-word rules, ranking, 6-hour reload that keeps the old index on failure;
+    - CLI `python -m app.retrieval.entities`.
+- **Data checks:**
+  - 2,068 aliases.
+  - Ambiguous surnames: "taylor" → 4 drivers, "hill" → 3 (+ Embassy Hill team), "schumacher" → 3; "kimi" is two drivers.
+  - 145 single-word aliases are dictionary words; 36 are everyday F1-question words and were curated into `COMMON_WORDS`.
+  - Circuits: generic words are stripped only at the ends, so Imola never becomes "ferrari". Countries were left out.
+- **Evaluation:** 30 labelled questions.
+  - 19/21 on the first run: one labelling mistake, and "Prost" picked the Prost GP team over Alain Prost.
+  - The ranking fix (team name = surname, prominence decides) took it to 21/21.
+  - The 9 questions added afterwards passed unchanged.
+- **Performance:** index load 88 ms (Mac) / 37 ms (container), resolve ~20 µs, +7 MB.
+- **Tests:**
+  - Backend 334 unit (+53), 128 integration (+4: the index SQL on real Postgres), 61 corpus (+31: the 30 questions and the curated circuit names), all passing. Ingestion 532 passing.
+  - Mutation checks (everyday words, season activity, longest-first, team-name rank, months): all caught. Longest-first needed two new tests ("Red Bull Ring", "Kimi Räikkönen") before it was.
+  - Fixed while testing: `load_entity_index` no longer rolls back the caller's session.
+- **Docs:** README section, DATA-STRATEGY note, Decision Log, Known Issues.
 
 ### 2026-11-21: F3.3 LLM client
 - **Two plan changes, both decided by the user after measurements:**
@@ -540,6 +567,8 @@ Newest first.
 
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5).
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
+- F3.4: an everyday-word surname in an all-lowercase question isn't found ("pace" for Carlos Pace); write it capitalised or use the full name. When new drivers or teams are loaded, check whether any new single-word alias is an everyday word and add it to `COMMON_WORDS` in `app/retrieval/entities.py`.
+- F3.4: candidates are ordered, not decided. The orchestrator (F3.7) should use the best guess, but mention the alternatives when `ambiguous` and no season settles it (e.g. "Schumacher" alone).
 - F3.3: the Gemini (`gemini-2.5-flash`) and OpenRouter (`openai/gpt-oss-120b:free`) default models are unverified (no keys yet). A wrong model fails with 404 and falls through, so check with `LLM_LIVE_TESTS=1 uv run pytest -m llm` once keys are added.
 - F7.1: production needs `GROQ_API_KEY` (and the fallback keys) set as Coolify secrets; docker compose already passes them to the backend.
 - F7.1: the backend runtime image grew from 340 MB to 612 MB with fastembed/onnxruntime (F3.2's reranker added no dependencies). In production both models (~145 MB) download to a temporary directory on first search: bake them into the image or mount a volume. Set `ONNX_THREADS` to the production CPU limit.
