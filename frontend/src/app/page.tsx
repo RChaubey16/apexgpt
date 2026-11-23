@@ -1,4 +1,5 @@
 import { BackendStatus } from "@/components/BackendStatus";
+import { Chat } from "@/components/Chat";
 import { ConfigError, getApiBaseUrl } from "@/lib/config";
 
 function resolveApiBaseUrl(): string | null {
@@ -18,20 +19,20 @@ export default function Home() {
   const apiBaseUrl = resolveApiBaseUrl();
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-8 px-6 py-24 text-center">
-      <div className="flex flex-col items-center gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-500">
-          Formula 1 · 1950–2025
-        </p>
-        <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
-          Apex<span className="text-red-500">GPT</span>
-        </h1>
-        <p className="max-w-md text-base text-zinc-400">
-          Ask anything about drivers, constructors, circuits, seasons, rivalries and
-          championship battles. Chat is coming soon.
-        </p>
-      </div>
-      <BackendStatus apiBaseUrl={apiBaseUrl} />
+    <main className="flex flex-1 flex-col">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-background/95 px-4 py-3 backdrop-blur">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-xl font-bold tracking-tight">
+            Apex<span className="text-red-500">GPT</span>
+          </h1>
+          <p className="hidden text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 sm:block">
+            Formula 1 · 1950–2025
+          </p>
+        </div>
+        {/* Calls /health/ready on load, which also wakes a suspended database. */}
+        <BackendStatus apiBaseUrl={apiBaseUrl} />
+      </header>
+      <Chat apiBaseUrl={apiBaseUrl} />
     </main>
   );
 }

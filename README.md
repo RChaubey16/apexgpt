@@ -460,6 +460,18 @@ npm test && npm run lint && npm run typecheck
 
 `NEXT_PUBLIC_API_URL` is inlined at **build time**, so the Docker image takes it as a build arg. Details: [frontend/README.md](frontend/README.md).
 
+**Chat UI (F5.1):** one page.
+- **Header:** a backend status pill that calls `/health/ready` on load (waking Neon).
+- **Chat:**
+  - Enter sends and Shift+Enter adds a new line; 500 characters at most, with a counter near the limit.
+  - Stop keeps whatever has arrived.
+- **While answering:** tool status ("Checking the stats…", "Searching F1 history…") and "Answering: …" for a rewritten follow-up.
+- **Errors:** the backend's message is shown; after a 429, Send stays disabled for `Retry-After` seconds.
+- **Code:**
+  - [`src/lib/chat.ts`](frontend/src/lib/chat.ts): the streaming client. It uses `fetch` POST, since `EventSource` can't POST, parses SSE across any chunking, validates every event, and returns typed errors.
+  - [`src/lib/conversation.ts`](frontend/src/lib/conversation.ts): message state and the `history` sent with follow-ups (finished exchanges only, within the backend's limits).
+- Answers are plain text for now: markdown, tables and citation chips arrive in F5.2.
+
 ## Development Workflow
 
 - One feature at a time on a `feature/<name>` branch created from `main`.
