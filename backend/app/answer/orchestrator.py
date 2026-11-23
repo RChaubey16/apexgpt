@@ -9,6 +9,8 @@
 1. Entity resolution (F3.4) finds the names in the question; the best guesses
    and alternatives go into the user message as hints (refs the SQL views use).
    If it fails, the question goes on without hints.
+0. With conversation history, a follow-up is first condensed into a
+   standalone question (app/answer/followups, F4.2); everything below uses it.
 2. Every round is streamed with the tools offered (LLMClient.stream_turn): tool
    calls are collected and run, text streams to the caller as it arrives. Up to
    MAX_ROUNDS rounds and MAX_TOOL_CALLS calls; every outcome (rows, passages
@@ -33,6 +35,7 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from app.answer.followups import HistoryMessage, condense, validate_history
 from app.answer.prompts import FINAL_ROUND_NOTE, SYSTEM_PROMPT, user_message
 from app.llm.client import PROVIDER_KEY, LLMClient, Turn
 from app.llm.errors import LLMError
@@ -85,9 +88,18 @@ class Answer:
     completion_tokens: int
     latency_ms: int
     llm_calls: int = field(default=0)
+    # The question as asked, when a follow-up was condensed into `question`.
+    asked: str | None = None
 
 
 # --- events ---
+
+
+@dataclass(frozen=True)
+class QuestionEvent:
+    """A follow-up was condensed: this is the question being answered."""
+
+    text: str
 
 
 @dataclass(frozen=True)
@@ -121,7 +133,9 @@ class DoneEvent:
     answer: Answer
 
 
-AnswerEvent = ToolEvent | TableEvent | TokenEvent | CitationEvent | DoneEvent
+AnswerEvent = (
+    QuestionEvent | ToolEvent | TableEvent | TokenEvent | CitationEvent | DoneEvent
+)
 
 
 # --- citations ---
@@ -322,24 +336,44 @@ class Orchestrator:
             )
         return tool.call(arguments, first_source_number=next_source)
 
-    def answer(self, question: str) -> Answer:
+    def answer(self, question: str, history: Sequence[HistoryMessage] = ()) -> Answer:
         """The whole answer at once (the CLI and tests): stream() collected."""
-        for event in self.stream(question):
+        for event in self.stream(question, history):
             if isinstance(event, DoneEvent):
                 return event.answer
         raise AnswerUnavailableError(
             "The language model returned no answer"
         )  # unreachable
 
-    def stream(self, question: str) -> Iterator[AnswerEvent]:
-        """Events for one question, ending with DoneEvent. Raises ValueError for
-        a bad question (before any event) and AnswerUnavailableError when no
-        provider can answer or the stream breaks off."""
+    def stream(
+        self, question: str, history: Sequence[HistoryMessage] = ()
+    ) -> Iterator[AnswerEvent]:
+        """Events for one question, ending with DoneEvent. `history` is the
+        recent conversation, oldest first (a follow-up is condensed with it).
+        Raises ValueError for a bad question or history (before any event) and
+        AnswerUnavailableError when no provider can answer or the stream
+        breaks off."""
         question = normalise_query(question)
-        return self._stream(question)
+        history = validate_history(history)
+        return self._stream(question, history)
 
-    def _stream(self, question: str) -> Iterator[AnswerEvent]:
+    def _stream(
+        self, asked: str, history: tuple[HistoryMessage, ...]
+    ) -> Iterator[AnswerEvent]:
         started = time.perf_counter()
+        prompt_tokens = completion_tokens = llm_calls = 0
+        question = asked
+        if history:
+            condensed = condense(self._llm, asked, history)
+            question = condensed.question
+            if condensed.provider:
+                llm_calls += 1
+            if condensed.usage:
+                prompt_tokens += condensed.usage.prompt_tokens
+                completion_tokens += condensed.usage.completion_tokens
+            if condensed.rewritten:
+                logger.info("Follow-up condensed (%d history messages)", len(history))
+                yield QuestionEvent(question)
         resolution = self._resolve(question)
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -350,7 +384,6 @@ class Orchestrator:
         citations = CitationFilter(sources)
         text_parts: list[str] = []
         records: list[ToolCallRecord] = []
-        prompt_tokens = completion_tokens = llm_calls = 0
         provider = model = ""
 
         def emit(text: str, new: list[Source]) -> Iterator[AnswerEvent]:
@@ -456,5 +489,6 @@ class Orchestrator:
                 completion_tokens=completion_tokens,
                 latency_ms=latency,
                 llm_calls=llm_calls,
+                asked=asked if question != asked else None,
             )
         )

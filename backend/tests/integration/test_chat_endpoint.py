@@ -93,3 +93,45 @@ def test_a_rejected_query_is_reported_to_the_model_not_the_user(reader_engine) -
     assert "table" not in [e for e, _ in events]
     assert "unknown table drivers" in llm.requests[1]["messages"][-1]["content"]
     assert events[-1][0] == "done"
+
+
+def test_a_follow_up_is_condensed_then_answered_from_the_database(
+    reader_engine,
+) -> None:
+    from tests.answer.test_orchestrator import CondensingLLM
+
+    llm = CondensingLLM(
+        "How many times did Ayrton Senna win at Monza?",
+        reply(
+            None,
+            call(
+                "query_stats",
+                1,
+                sql="SELECT count(*) AS wins FROM v_race_winners "
+                "WHERE circuit_name ILIKE '%monza%' AND driver_name = 'Ayrton Senna'",
+            ),
+        ),
+        reply("Ayrton Senna won once at Monza."),
+    )
+    app = create_app(make_settings(environment="test"))
+    app.dependency_overrides[get_orchestrator] = lambda: Orchestrator(
+        llm, [StatsTool(reader_engine)]  # type: ignore[arg-type]
+    )
+    body = {
+        "question": "How many times did he win there?",
+        "history": [
+            {"role": "user", "content": "Who won at Monza?"},
+            {"role": "assistant", "content": "Ayrton Senna and Gerhard Berger."},
+        ],
+    }
+
+    events = frames(TestClient(app).post("/api/chat", json=body).text)
+
+    assert events[0] == (
+        "question",
+        {"text": "How many times did Ayrton Senna win at Monza?"},
+    )
+    assert dict(events)["table"] == {"columns": ["wins"], "rows": [[1]]}
+    assert events[-1][0] == "done"
+    assert events[-1][1]["question"] == "How many times did Ayrton Senna win at Monza?"
+    assert "Who won at Monza?" in llm.completions[0][1]["content"]

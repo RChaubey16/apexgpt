@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 4: Chat API (in progress) |
-| **Current feature** | F4.1 streaming chat endpoint (PR in review) |
-| **Current branch** | `feature/chat-endpoint` |
-| **Open PR** | F4.1 chat endpoint |
+| **Current feature** | F4.2 conversation memory (PR in review) |
+| **Current branch** | `feature/conversation-memory` |
+| **Open PR** | F4.2 follow-up question handling |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
-| **Last updated** | 2026-11-21 |
+| **Last updated** | 2026-11-23 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F4.1 PR.
-2. **F4.2 `feature/conversation-memory`**: the client sends recent history, and the backend condenses follow-ups into standalone questions (adds `history` to the `/api/chat` request).
+1. User reviews and merges the F4.2 PR.
+2. **F4.3 `feature/feedback-endpoint`**: `POST /api/feedback` stores thumbs up/down (question, answer excerpt ≤ 500 chars, rating), kept for 90 days.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -104,8 +104,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check:** the three CLI test questions are answered correctly (2026-11-22, live: `pytest -m llm tests/live/test_phase3_done_check.py` 3/3, and by hand with `python -m app.answer`)
 
 ### Phase 4: Chat API
-- [ ] F4.1 `feature/chat-endpoint`: streaming chat endpoint · 🔍 PR raised
-- [ ] F4.2 `feature/conversation-memory`: follow-up handling
+- [x] F4.1 `feature/chat-endpoint`: streaming chat endpoint · PR #32 merged
+- [ ] F4.2 `feature/conversation-memory`: follow-up handling · 🔍 PR raised
 - [ ] F4.3 `feature/feedback-endpoint`: feedback endpoint
 - [ ] F4.4 `feature/rate-limiting-cache`: rate limiting + cache
 - [ ] F4.5 `feature/structured-logging`: structured file logging
@@ -216,12 +216,30 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-22 | Tool calls keep provider extras and are echoed back; tool history from another provider is flattened to text (`prepare_messages`) | Gemini 3 rejects function calls without its own `thought_signature` (400), even its own when the field was dropped; flattened text works everywhere (measured). Fixed a latent F3.3/F3.7 bug: multi-round answers on Gemini failed |
 | 2026-11-22 | `CitationFilter` checks citations while streaming: hold from `[`/`【` to the closing bracket (≤ 40 chars), normalise or drop, then release; whitespace is only touched where a marker was dropped | An invalid `[S9]` never reaches the client; the old cleaner also collapsed all double spaces, which broke nested markdown lists |
 | 2026-11-22 | SSE events: the plan's `token`, `citation`, `table`, `done`, `error`, plus `tool` (started/finished). Stream always ends with `done` or `error`; request body is strict (`extra="forbid"`) | Tool rounds take 1–4 s with nothing else to show; a strict body means `history` only works once F4.2 handles it |
+| 2026-11-23 | Follow-ups: `history` (≤ 20 messages, user/assistant only, ≤ 8,000 chars each) is used only to condense the question, in one request without tools (temperature 0, ≤ 400 output tokens); the standalone question then goes through the whole pipeline; the answering model never sees the history | Entity resolution and the tools need names, not "he"/"that year". Keeping the history out of the answer rounds saves tokens on every round (Groq's 8k/minute) and keeps client-supplied text out of the grounded prompt |
+| 2026-11-23 | Condense input: last 6 messages, assistant answers cut to 600 chars without `[S#]` markers; no condensing when the history has no user message; an LLM failure or unusable rewrite answers the question as asked (logged) | Bounded cost (~450 tokens, 0.4–0.9 s measured on Groq); the direct answer comes first in our answers; a literal answer beats an error. 400 output tokens because gpt-oss's reasoning counts against `max_tokens` (it used 64–212) |
+| 2026-11-23 | New SSE event `question` (when the follow-up was rewritten) and `question` in `done` | The UI can show how a follow-up was understood, and the answer can be checked against it |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-23: F4.2 follow-up question handling
+- PR #32 (F4.1) merged.
+- **Built:**
+  - `app/answer/followups.py`: `HistoryMessage`, `validate_history`, the condense prompt and `transcript` (last 6 messages, trimmed answers without markers), `parse_rewrite` (first line, labels and quotes stripped, normalised), and `condense` (falls back to the question as asked).
+  - Orchestrator: `stream(question, history)` / `answer(question, history)`; a `QuestionEvent` when rewritten; `Answer.asked`; the condense request's tokens and call are counted.
+  - `/api/chat`: optional `history` (strict `ChatMessage` model), the `question` event and `done.question`.
+- **Live (Groq), 6 conversations:**
+  - "How many poles did he get that year?" → "… Ayrton Senna get in 1988?"; "And at Silverstone?" → "Who has the most wins at Silverstone?"; "which of them had more wins?" → "Which of James Hunt and Niki Lauda …".
+  - Standalone questions and an injection attempt in the history came back unchanged.
+  - 0.4–0.9 s, 214–237 prompt + 64–212 completion tokens each.
+- **Dev container, real HTTP:** a follow-up streamed `question` first, then the stats tool, answer done in 4.9 s, 125 MB. The answer was wrong (7 poles, the real count is 13): the stats views have no per-season poles (Known Issues), not a condensing problem.
+- **Tests:**
+  - Backend 646 unit (+38: condensing, cleaning, transcript, history validation, orchestrator follow-ups, the API's history contract and 422s), 144 integration (+1: a condensed follow-up through the real stats tool), 74 corpus, live `pytest -m llm` 22 (+1: a follow-up end to end), all passing. Ingestion 532 passing.
+  - Mutation checks (resolving or answering the raw question, markers kept, whole history sent, no fallback on an unusable rewrite or an outage, no `question` event, history dropped by the API): all caught.
 
 ### 2026-11-22: F4.1 streaming chat endpoint (Phase 4 started)
 - User gave the go-ahead for Phase 4.
@@ -678,6 +696,9 @@ Newest first.
 ---
 
 ## Known Issues / Open Questions
+
+- F3.5/F6: the stats views can't answer per-season poles (`v_driver_career` has career totals, `v_race_winners` only winners). Found in the F4.2 check: "How many poles did Ayrton Senna take in 1988?" answered 7 (the wins from pole; the data has 13). Add per-season driver stats (wins, poles, podiums, points) to the views, or a season-results view, and a golden-set question for it.
+- F4.2: the condense rewrite may add a name the conversation didn't contain (live: "the race director" → "Michael Masi"). Helpful for retrieval, and the answer stays grounded in the tools, but it can steer the answer wrong; score it on the golden set (F6). Requests that aren't questions ("shorter please", "as a table") are condensed like questions; the answering model never sees the earlier answer.
 
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5).
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
