@@ -79,9 +79,19 @@ def create_feedback(
     except SQLAlchemyError as exc:
         # The session is closed (and rolled back) by get_session.
         # The error class only: driver messages can include host details.
-        logger.warning("Feedback not saved: %s", type(exc).__name__)
+        logger.warning(
+            "Feedback not saved: %s",
+            type(exc).__name__,
+            extra={"event": "feedback", "outcome": "error",
+                   "error_type": type(exc).__name__},
+        )  # fmt: skip
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"detail": UNAVAILABLE},
         )
+    logger.info(
+        "Feedback saved",
+        extra={"event": "feedback", "outcome": "ok", "id": feedback_id,
+               "rating": body.rating, "provider": body.provider},
+    )  # fmt: skip
     return FeedbackResponse(id=feedback_id)

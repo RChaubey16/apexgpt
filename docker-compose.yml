@@ -82,6 +82,10 @@ services:
       RATE_LIMIT_FEEDBACK: ${RATE_LIMIT_FEEDBACK:-30/minute;500/day}
       ANSWER_CACHE_SIZE: ${ANSWER_CACHE_SIZE:-256}
       ANSWER_CACHE_TTL_SECONDS: ${ANSWER_CACHE_TTL_SECONDS:-86400}
+      # JSON-lines log, rotated by size (F4.5); data/logs/ on the host.
+      LOG_FILE: /app/logs/apexgpt.log
+      LOG_FILE_MAX_MB: ${LOG_FILE_MAX_MB:-10}
+      LOG_FILE_BACKUPS: ${LOG_FILE_BACKUPS:-5}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:
@@ -90,6 +94,7 @@ services:
       - ./backend/migrations:/app/migrations
       - ./backend/tests:/app/tests
       - ./data/models:/models
+      - ./data/logs:/app/logs
     depends_on:
       db:
         condition: service_healthy

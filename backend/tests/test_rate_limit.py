@@ -1,7 +1,5 @@
 """Per-IP rate limits (F4.4): parsing, the limiter, and the 429 on the routes."""
 
-import logging
-
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -99,7 +97,6 @@ def test_chat_is_limited_per_client(caplog) -> None:
     app = app_with(rate_limit_chat="2/minute")
     alice = TestClient(app, client=("203.0.113.1", 1000))
     bob = TestClient(app, client=("203.0.113.2", 1000))
-    logging.getLogger().addHandler(caplog.handler)
 
     codes = [
         alice.post("/api/chat", json={"question": "q"}).status_code for _ in range(3)

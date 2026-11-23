@@ -153,8 +153,6 @@ def test_required_fields(missing) -> None:
 )
 def test_a_database_failure_is_a_safe_503(error, caplog) -> None:
     client = client_with(FakeSession(error=error))
-    # create_app's basicConfig(force=True) removes pytest's capture handler.
-    logging.getLogger().addHandler(caplog.handler)
 
     response = client.post("/api/feedback", json=BODY)
 

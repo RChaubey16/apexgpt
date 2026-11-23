@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     app_name: str = "ApexGPT"
     environment: Environment = "development"
     log_level: LogLevel = "INFO"
+    # JSON-lines log file (F4.5), rotated by size; blank = console only. Docker
+    # compose writes data/logs/apexgpt.log; production mounts a volume (F7.1).
+    log_file: Path | None = None
+    log_file_max_mb: int = 10
+    log_file_backups: int = 5
     # Comma-separated in the environment, e.g. "http://localhost:3000,https://apexgpt.app"
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
     # Required. SecretStr keeps the password out of logs and reprs.
@@ -114,9 +119,34 @@ class Settings(BaseSettings):
             return None
         return SecretStr(normalise_database_url(value.get_secret_value()))
 
-    @field_validator("embedding_cache_dir", mode="before")
+    @field_validator("log_file")
     @classmethod
-    def _blank_cache_dir_is_unset(cls, value: object) -> object:
+    def _validate_log_file(cls, value: Path | None) -> Path | None:
+        try:
+            is_dir = value is not None and value.is_dir()
+        except OSError:  # e.g. a parent we can't read: configure_logging warns
+            is_dir = False
+        if is_dir:
+            raise ValueError("LOG_FILE must be a file path, not a directory")
+        return value
+
+    @field_validator("log_file_max_mb")
+    @classmethod
+    def _validate_log_file_max_mb(cls, value: int) -> int:
+        if not 1 <= value <= 100:
+            raise ValueError("LOG_FILE_MAX_MB must be between 1 and 100")
+        return value
+
+    @field_validator("log_file_backups")
+    @classmethod
+    def _validate_log_file_backups(cls, value: int) -> int:
+        if not 1 <= value <= 20:
+            raise ValueError("LOG_FILE_BACKUPS must be between 1 and 20")
+        return value
+
+    @field_validator("embedding_cache_dir", "log_file", mode="before")
+    @classmethod
+    def _blank_path_is_unset(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
         return value
