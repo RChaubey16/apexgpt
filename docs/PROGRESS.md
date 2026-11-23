@@ -14,18 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 4: Chat API (in progress) |
-| **Current feature** | F4.5 structured file logging (PR in review) |
-| **Current branch** | `feature/structured-logging` |
-| **Open PR** | F4.5 structured file logging |
+| **Current phase** | Phase 4 complete; Phase 5 not started |
+| **Current feature** | None (waiting for the go-ahead for Phase 5) |
+| **Current branch** | `feature/close-phase-4` |
+| **Open PR** | Phase 4 close-out docs |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-23 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F4.5 PR (the last Phase 4 feature).
-2. Close Phase 4: a small docs PR marking the phase done (as for Phase 3), then wait for the go-ahead for **Phase 5 (frontend MVP)**, starting with F5.1 `feature/chat-ui`.
+1. User merges the Phase 4 close-out PR.
+2. **Phase 5 waits for the user's go-ahead.** It starts with F5.1 `feature/chat-ui`: the streaming chat interface against `/api/chat` (SSE events incl. `question`, `tool`, `table`, `cached`; 429 with `Retry-After`).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -40,7 +40,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 1. Structured data | ✅ Done | 2026-11-13 | 2026-11-13 |
 | 2. Narrative corpus | ✅ Done | 2026-11-13 | 2026-11-17 |
 | 3. Retrieval + LLM | ✅ Done | 2026-11-21 | 2026-11-22 |
-| 4. Chat API | 🟡 In progress | 2026-11-22 | |
+| 4. Chat API | ✅ Done | 2026-11-22 | 2026-11-23 |
 | 5. Frontend MVP | ⬜ Not started | | |
 | 6. Eval + hardening | ⬜ Not started | | |
 | 7. Deployment | ⬜ Not started | | |
@@ -103,12 +103,13 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F3.7 `feature/answer-orchestrator`: tool-calling orchestrator · PR #30 merged
 - [x] **Phase done check:** the three CLI test questions are answered correctly (2026-11-22, live: `pytest -m llm tests/live/test_phase3_done_check.py` 3/3, and by hand with `python -m app.answer`)
 
-### Phase 4: Chat API
+### Phase 4: Chat API ✅
 - [x] F4.1 `feature/chat-endpoint`: streaming chat endpoint · PR #32 merged
 - [x] F4.2 `feature/conversation-memory`: follow-up handling · PR #33 merged
 - [x] F4.3 `feature/feedback-endpoint`: feedback endpoint · PR #34 merged
 - [x] F4.4 `feature/rate-limiting-cache`: rate limiting + cache · PR #35 merged
-- [ ] F4.5 `feature/structured-logging`: structured file logging · 🔍 PR raised
+- [x] F4.5 `feature/structured-logging`: structured file logging · PR #36 merged
+- [x] **Phase done check** (the plan's Phase 4 items, end to end on merged `main` in the dev container, 2026-11-23): streamed answer; follow-up condensed ("Who replaced him as race director?" → "Who replaced Michael Masi as race director?", answered by Gemini while Groq was rate limited); repeat served from the cache in 2 ms; feedback 201; 429 on the 4th request after 3 in the minute; one JSON log line per event. Caveat: "Explain Abu Dhabi 2021" came back without citations in this run (the model used only the stats tool; Known Issues, F6).
 
 ### Phase 5: Frontend MVP
 - [ ] F5.1 `feature/chat-ui`: streaming chat interface
@@ -234,6 +235,25 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-23: Phase 4 closed
+- PR #36 (F4.5) merged: **all Phase 4 features (F4.1–F4.5) are merged.**
+- Phase 4 delivers `POST /api/chat`:
+  - SSE events (token, citation, table, tool, question, done, error);
+  - follow-up condensing from client history;
+  - per-IP rate limits;
+  - an answer cache;
+  - one structured log event per request.
+
+  It also adds `POST /api/feedback` with 90-day retention, and JSON-lines file logging.
+- Done check run end to end on merged `main` (see the Phase 4 checklist). Backend unit tests 741 passing on `main`.
+- Plan change made with the user along the way: `limits` instead of slowapi's decorator (Decision Log).
+- Carried into later phases (Known Issues):
+  - narrative answers sometimes skip the knowledge search (F6);
+  - per-season stats missing from the views (F3.5/F6);
+  - the feedback purge in the weekly workflow (F7.3);
+  - the log volume, `FORWARDED_ALLOW_IPS` and the models in the image (F7.1).
+- Phase 5 not started; waiting for the user's go-ahead.
 
 ### 2026-11-23: F4.5 structured file logging
 - PR #35 (F4.4) merged.
