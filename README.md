@@ -257,6 +257,22 @@ data: {"question": "Explain Abu Dhabi 2021", "provider": "groq", "model": "opena
 - **Provider fallback mid-answer:** another provider gets the tool history as plain text. Gemini 3 rejects function calls without its own `thought_signature`, which is now kept and echoed back when Gemini continues its own answer.
 - Measured in the dev container: first event in ~0.9 s, first token in ~2–5 s depending on tool rounds, a narrative answer complete in ~5 s.
 
+### Feedback API
+
+`POST /api/feedback` stores a thumbs up or down on an answer ([`backend/app/api/routes/feedback.py`](backend/app/api/routes/feedback.py)); the frontend sends it from the answer actions (F5.5).
+
+```bash
+curl -X POST localhost:8000/api/feedback -H 'Content-Type: application/json' -d '{
+  "rating": "up", "question": "Explain Abu Dhabi 2021",
+  "answer": "The 2021 Abu Dhabi Grand Prix …", "provider": "groq", "model": "openai/gpt-oss-120b"}'
+# 201 {"id": 1}
+```
+
+- **Request:** `rating` (`up` / `down`), `question` (1–500 characters) and `answer` (1–8,000 characters) are required; `provider` and `model` (from the chat `done` event) are optional. Unknown fields are rejected (422).
+- **Stored:** the rating, the question, the first 500 characters of the answer (cut at a word), provider, model and time. No IP address or other user identifier. The LLM's read-only role can't read the table.
+- **Errors:** 422 for a bad body; 503 `{"detail": "..."}` (safe to show) when the database can't store it.
+- **Kept for 90 days:** every save deletes older rows in the same transaction, and `uv run python -m app.feedback purge` does it on its own (for the weekly scheduled job, F7.3).
+
 ### Ask ApexGPT (answer orchestrator)
 
 The whole Phase 3 pipeline from the command line ([`backend/app/answer/`](backend/app/answer/)):
