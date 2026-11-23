@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 4: Chat API (in progress) |
-| **Current feature** | F4.2 conversation memory (PR in review) |
-| **Current branch** | `feature/conversation-memory` |
-| **Open PR** | F4.2 follow-up question handling |
+| **Current feature** | F4.3 feedback endpoint (PR in review) |
+| **Current branch** | `feature/feedback-endpoint` |
+| **Open PR** | F4.3 answer feedback endpoint |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-23 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F4.2 PR.
-2. **F4.3 `feature/feedback-endpoint`**: `POST /api/feedback` stores thumbs up/down (question, answer excerpt ≤ 500 chars, rating), kept for 90 days.
+1. User reviews and merges the F4.3 PR.
+2. **F4.4 `feature/rate-limiting-cache`**: per-IP rate limiting (`slowapi`) on `/api/chat` and `/api/feedback`, plus an in-memory LRU cache for repeated questions.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -105,8 +105,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 4: Chat API
 - [x] F4.1 `feature/chat-endpoint`: streaming chat endpoint · PR #32 merged
-- [ ] F4.2 `feature/conversation-memory`: follow-up handling · 🔍 PR raised
-- [ ] F4.3 `feature/feedback-endpoint`: feedback endpoint
+- [x] F4.2 `feature/conversation-memory`: follow-up handling · PR #33 merged
+- [ ] F4.3 `feature/feedback-endpoint`: feedback endpoint · 🔍 PR raised
 - [ ] F4.4 `feature/rate-limiting-cache`: rate limiting + cache
 - [ ] F4.5 `feature/structured-logging`: structured file logging
 
@@ -218,6 +218,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-22 | SSE events: the plan's `token`, `citation`, `table`, `done`, `error`, plus `tool` (started/finished). Stream always ends with `done` or `error`; request body is strict (`extra="forbid"`) | Tool rounds take 1–4 s with nothing else to show; a strict body means `history` only works once F4.2 handles it |
 | 2026-11-23 | Follow-ups: `history` (≤ 20 messages, user/assistant only, ≤ 8,000 chars each) is used only to condense the question, in one request without tools (temperature 0, ≤ 400 output tokens); the standalone question then goes through the whole pipeline; the answering model never sees the history | Entity resolution and the tools need names, not "he"/"that year". Keeping the history out of the answer rounds saves tokens on every round (Groq's 8k/minute) and keeps client-supplied text out of the grounded prompt |
 | 2026-11-23 | Condense input: last 6 messages, assistant answers cut to 600 chars without `[S#]` markers; no condensing when the history has no user message; an LLM failure or unusable rewrite answers the question as asked (logged) | Bounded cost (~450 tokens, 0.4–0.9 s measured on Groq); the direct answer comes first in our answers; a literal answer beats an error. 400 output tokens because gpt-oss's reasoning counts against `max_tokens` (it used 64–212) |
+| 2026-11-23 | Feedback table (migration 0008): rating, question, answer excerpt (first 500 chars, cut at a word; the API accepts the full answer up to 8,000), optional provider/model, `created_at`; check constraints on every field; no IP or user identifier; not granted to the LLM role | Matches the plan's fields; provider/model let F6 score the fallback providers from real ratings; the server cuts the excerpt so the client can send the answer as it has it |
+| 2026-11-23 | 90-day retention = an indexed DELETE in the same transaction as every save, plus `python -m app.feedback purge` for a scheduled job (F7.3); 90 days is a constant, not a setting | No background timer that would wake Neon; rows still expire when no feedback arrives once the weekly job runs it |
+| 2026-11-23 | Feedback database errors → 503 with a fixed message (error class logged only) | Same rule as the chat errors: no host or driver details reach the client |
 | 2026-11-23 | New SSE event `question` (when the follow-up was rewritten) and `question` in `done` | The UI can show how a follow-up was understood, and the answer can be checked against it |
 
 ---
@@ -225,6 +228,17 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-23: F4.3 answer feedback endpoint
+- PR #33 (F4.2) merged.
+- **Built:**
+  - Migration 0008 and `app/db/models/feedback.py`: the `feedback` table with check constraints and a `created_at` index.
+  - `app/feedback/`: `save_feedback` (insert + purge, one transaction), `purge_expired`, `excerpt`, and CLI `python -m app.feedback purge`.
+  - `POST /api/feedback` (strict body → 201 `{"id"}`; 422; safe 503).
+- **Dev container:** migration 0008 ran at startup; 201 and 422 over HTTP; the purge CLI ran in the container (the test row was deleted afterwards).
+- **Tests:**
+  - Backend 677 unit (+31: the contract, 422s, 503 without details, excerpts, the purge statement, the CLI), 157 integration (+13: the endpoint on real Postgres, the 90-day boundary, purge on save and its rollback, constraints, the LLM role can't read it, downgrade; the model-vs-migration check covers the new table), 74 corpus, all passing. Ingestion 532 passing.
+  - Mutation checks (91-day retention, no purge on save, no word cut, only some database errors caught, extra fields allowed, migration drift, CLI without commit): all caught.
 
 ### 2026-11-23: F4.2 follow-up question handling
 - PR #32 (F4.1) merged.
@@ -697,6 +711,8 @@ Newest first.
 
 ## Known Issues / Open Questions
 
+- F7.3: add `python -m app.feedback purge` to the weekly scheduled workflow (with the backup), so feedback expires after 90 days even when none is submitted. Until then, rows are purged whenever new feedback is saved.
+- F4.4: `/api/feedback` has no rate limit yet (one insert per request); add it with the chat limit.
 - F3.5/F6: the stats views can't answer per-season poles (`v_driver_career` has career totals, `v_race_winners` only winners). Found in the F4.2 check: "How many poles did Ayrton Senna take in 1988?" answered 7 (the wins from pole; the data has 13). Add per-season driver stats (wins, poles, podiums, points) to the views, or a season-results view, and a golden-set question for it.
 - F4.2: the condense rewrite may add a name the conversation didn't contain (live: "the race director" → "Michael Masi"). Helpful for retrieval, and the answer stays grounded in the tools, but it can steer the answer wrong; score it on the golden set (F6). Requests that aren't questions ("shorter please", "as a table") are condensed like questions; the answering model never sees the earlier answer.
 

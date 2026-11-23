@@ -17,6 +17,7 @@ from app.db.models.f1 import (
     SprintResult,
     Status,
 )
+from app.db.models.feedback import Feedback
 from app.db.models.narrative import Chunk
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "Driver",
     "DriverAlias",
     "DriverStanding",
+    "Feedback",
     "PitStop",
     "Qualifying",
     "Race",
