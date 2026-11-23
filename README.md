@@ -225,19 +225,32 @@ event: citation
 data: {"id": "S1", "title": "2021 Abu Dhabi Grand Prix", "url": "https://en.wikipedia.org/wiki/2021_Abu_Dhabi_Grand_Prix", "section": null, "season": 2021}
 
 event: done
-data: {"provider": "groq", "model": "openai/gpt-oss-120b", "sources": ["S1", "S3"], "tools": [...], "latency_ms": 5292, "prompt_tokens": 6100, "completion_tokens": 700}
+data: {"question": "Explain Abu Dhabi 2021", "provider": "groq", "model": "openai/gpt-oss-120b", "sources": ["S1", "S3"], "tools": [...], "latency_ms": 5292, "prompt_tokens": 6100, "completion_tokens": 700}
 ```
 
 | Event | Data | When |
 |---|---|---|
+| `question` | `text` | a follow-up was rewritten; the standalone question being answered |
 | `tool` | `name`, `status` (`started` / `finished`), `ok` | a tool runs (so the UI can say "Searching…") |
 | `table` | `columns`, `rows`, optional `note` | a stats query returned rows |
 | `token` | `text` | the next piece of the answer (markdown) |
 | `citation` | `id`, `title`, `url`, `section`, `season` | a source is cited for the first time |
-| `done` | `provider`, `model`, `sources`, `tools`, `latency_ms`, `prompt_tokens`, `completion_tokens` | the answer is complete |
+| `done` | `question` (the one answered), `provider`, `model`, `sources`, `tools`, `latency_ms`, `prompt_tokens`, `completion_tokens` | the answer is complete |
 | `error` | `message` (safe to show) | no answer; the stream ends |
 
-- **Request:** `{"question": "..."}`, 1–500 characters. Unknown fields are rejected (422), so `history` arrives with F4.2.
+- **Request:** `{"question": "...", "history": [...]}`. The question is 1–500 characters. Unknown fields are rejected (422).
+- **Follow-ups:** `history` is optional: the recent conversation, oldest first, as `{"role": "user" | "assistant", "content": "..."}` (up to 20 messages of up to 8,000 characters). With history, one small LLM request rewrites the question as a standalone one ("How many poles did he get?" → "How many poles did Ayrton Senna get in 1988?"), and everything else (names, tools, answer) uses that.
+  - Only the last 6 messages are used; assistant answers are cut to 600 characters, without their `[S#]` markers.
+  - The answering model never sees the history. It is the client's text, so it is treated as data.
+  - If the rewrite fails or is unusable, the question is answered as asked.
+  - Cost: ~0.4–0.9 s and ~450 tokens per follow-up (Groq).
+
+  ```bash
+  curl -N -X POST localhost:8000/api/chat -H 'Content-Type: application/json' -d '{
+    "question": "How many races did he win that year?",
+    "history": [{"role": "user", "content": "Who won the 1988 championship?"},
+                {"role": "assistant", "content": "Ayrton Senna won the 1988 title with McLaren."}]}'
+  ```
 - **The stream always ends with `done` or `error`.** Headers turn off caching and proxy buffering (`X-Accel-Buffering: no`).
 - **Every round streams:** tool calls are collected silently, and text streams as it arrives.
 - **Citations are checked as they stream.** A possible marker is held back until it's complete, so an invalid `[S9]` never reaches the client.

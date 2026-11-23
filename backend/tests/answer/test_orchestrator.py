@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from app.answer import __main__ as cli
+from app.answer.followups import HistoryMessage
 from app.answer.orchestrator import (
     MAX_ANSWER_TOKENS,
     MAX_TOOL_ROUND_TOKENS,
@@ -690,3 +691,118 @@ def test_nested_list_indentation_survives() -> None:
     text, _ = clean_citations("- a\n    - b [S1]\n        - c", KNOWN)
 
     assert text == "- a\n    - b [S1]\n        - c"
+
+
+# --- follow-ups (F4.2) ---
+
+
+class CondensingLLM(ScriptedLLM):
+    """A scripted LLM that also answers the condense request (complete)."""
+
+    def __init__(self, rewrite: str | Exception, *responses) -> None:
+        super().__init__(*responses)
+        self.rewrite = rewrite
+        self.completions: list[list[dict]] = []
+
+    def complete(self, messages, **kwargs):
+        self.completions.append([dict(m) for m in messages])
+        if isinstance(self.rewrite, Exception):
+            raise self.rewrite
+        return reply(self.rewrite)
+
+
+class RecordingResolver(FakeResolver):
+    def __init__(self) -> None:
+        super().__init__()
+        self.questions: list[str] = []
+
+    def resolve(self, question: str) -> Resolution:
+        self.questions.append(question)
+        return super().resolve(question)
+
+
+FOLLOW_UP_HISTORY = (
+    HistoryMessage("user", "Who won the 1988 championship?"),
+    HistoryMessage("assistant", "Ayrton Senna [S1]."),
+)
+
+
+def test_a_follow_up_is_answered_as_its_standalone_question() -> None:
+    from app.answer.orchestrator import DoneEvent, QuestionEvent, TokenEvent
+
+    llm = CondensingLLM(
+        "How many poles did Ayrton Senna get in 1988?", reply("Senna took 13 poles.")
+    )
+    resolver = RecordingResolver()
+
+    events = list(
+        orchestrator(llm, resolver=resolver).stream(
+            "How many poles did he get?", FOLLOW_UP_HISTORY
+        )
+    )
+
+    assert events[0] == QuestionEvent("How many poles did Ayrton Senna get in 1988?")
+    assert isinstance(events[1], TokenEvent)
+    answer = events[-1].answer
+    assert isinstance(events[-1], DoneEvent)
+    assert answer.question == "How many poles did Ayrton Senna get in 1988?"
+    assert answer.asked == "How many poles did he get?"
+    # The names are resolved and the model asked with the standalone question;
+    # the history itself never reaches the answering model.
+    assert resolver.questions == ["How many poles did Ayrton Senna get in 1988?"]
+    (request,) = llm.requests
+    assert request["messages"][1]["content"] == answer.question
+    assert "1988 championship" not in json.dumps(request["messages"])
+    # The condense request counts.
+    assert (answer.llm_calls, answer.prompt_tokens, answer.completion_tokens) == (
+        2,
+        200,
+        40,
+    )
+
+
+def test_an_unchanged_follow_up_has_no_question_event() -> None:
+    from app.answer.orchestrator import QuestionEvent
+
+    llm = CondensingLLM("Who won in 2005?", reply("Fernando Alonso."))
+
+    events = list(orchestrator(llm).stream("Who won in 2005?", FOLLOW_UP_HISTORY))
+
+    assert not any(isinstance(e, QuestionEvent) for e in events)
+    answer = events[-1].answer
+    assert (answer.question, answer.asked, answer.llm_calls) == (
+        "Who won in 2005?",
+        None,
+        2,
+    )
+
+
+def test_without_history_nothing_is_condensed() -> None:
+    llm = CondensingLLM("unused", reply("Fernando Alonso."))
+
+    answer = orchestrator(llm).answer("Who won in 2005?")
+
+    assert llm.completions == []
+    assert (answer.asked, answer.llm_calls) == (None, 1)
+
+
+def test_a_failed_condense_still_answers_the_question_as_asked(caplog) -> None:
+    llm = CondensingLLM(LLMUnavailableError("down"), reply("Silverstone: Hamilton."))
+
+    answer = orchestrator(llm).answer("And at Silverstone?", FOLLOW_UP_HISTORY)
+
+    assert answer.text == "Silverstone: Hamilton."
+    assert (answer.question, answer.asked, answer.llm_calls) == (
+        "And at Silverstone?",
+        None,
+        1,
+    )
+    assert "Follow-up not condensed" in caplog.text
+
+
+def test_bad_history_fails_before_the_first_event() -> None:
+    llm = CondensingLLM("unused", reply("unused"))
+
+    with pytest.raises(ValueError, match="roles must be"):
+        orchestrator(llm).stream("q", [HistoryMessage("system", "x")])  # type: ignore[arg-type]
+    assert llm.completions == [] and llm.requests == []

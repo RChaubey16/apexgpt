@@ -1,40 +1,51 @@
 """`POST /api/chat`: a grounded, cited answer streamed as Server-Sent Events (F4.1).
 
-Request: `{"question": "..."}` (1-500 characters; unknown fields are rejected,
-so a client can't send something it thinks is used). A bad body is a normal
-422 before anything streams.
+Request: `{"question": "...", "history": [{"role": "user"|"assistant",
+"content": "..."}, ...]}`. The question is 1-500 characters; `history` (F4.2,
+optional) is the recent conversation, oldest first, up to 20 messages of up to
+8,000 characters, and is used only to turn a follow-up into a standalone
+question. Unknown fields are rejected, so a client can't send something it
+thinks is used. A bad body is a normal 422 before anything streams.
 
 Response: `text/event-stream`. Each event is `event: <type>` plus one JSON
 `data:` line:
 
 | event    | data                                                        | when |
 |----------|-------------------------------------------------------------|------|
-| tool     | {"name", "status": "started"/"finished", "ok"}               | a tool runs (so the UI can say "Searching…") |
+| question | {"text"}                                                     | a follow-up was rewritten; the question answered |
+| tool    | {"name", "status": "started"/"finished", "ok"}               | a tool runs (so the UI can say "Searching…") |
 | table    | {"columns": [...], "rows": [[...]], "note"?}                 | a stats query returned rows |
 | token    | {"text"}                                                     | the next piece of the answer (markdown) |
 | citation | {"id", "title", "url", "section", "season"}                 | a source is cited for the first time |
-| done     | {"provider", "model", "sources": [ids], "tools": [...],      | the answer is complete |
+| done     | {"question", "provider", "model", "sources": [ids], "tools", | the answer is complete |
 |          |  "latency_ms", "prompt_tokens", "completion_tokens"}         | |
 | error    | {"message"}                                                  | no answer (safe to show); the stream ends |
 
 The plan lists token/citation/table/done/error; `tool` is added because the
-tool rounds take 1-4 s with nothing else to show.
+tool rounds take 1-4 s with nothing else to show, and `question` so the UI can
+show how a follow-up was understood.
 """
 
 import json
 import logging
-from collections.abc import Iterator
-from typing import Annotated, Any
+from collections.abc import Iterator, Sequence
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.answer.followups import (
+    MAX_HISTORY_CHARS,
+    MAX_HISTORY_MESSAGES,
+    HistoryMessage,
+)
 from app.answer.orchestrator import (
     AnswerUnavailableError,
     CitationEvent,
     DoneEvent,
     Orchestrator,
+    QuestionEvent,
     TableEvent,
     TokenEvent,
     ToolEvent,
@@ -54,10 +65,23 @@ SSE_HEADERS = {
 GENERIC_ERROR = "Something went wrong while answering; please try again"
 
 
+class ChatMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=MAX_HISTORY_CHARS)
+
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     question: str = Field(min_length=1, max_length=MAX_QUERY_CHARS)
+    history: list[ChatMessage] = Field(
+        default_factory=list, max_length=MAX_HISTORY_MESSAGES
+    )
+
+    def history_messages(self) -> list[HistoryMessage]:
+        return [HistoryMessage(m.role, m.content) for m in self.history]
 
 
 def get_orchestrator(request: Request) -> Orchestrator:
@@ -68,10 +92,14 @@ def sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def event_frames(orchestrator: Orchestrator, question: str) -> Iterator[str]:
+def event_frames(
+    orchestrator: Orchestrator,
+    question: str,
+    history: Sequence[HistoryMessage] = (),
+) -> Iterator[str]:
     """SSE frames for one question; always ends with `done` or `error`."""
     try:
-        for event in orchestrator.stream(question):
+        for event in orchestrator.stream(question, history):
             if isinstance(event, TokenEvent):
                 yield sse("token", {"text": event.text})
             elif isinstance(event, CitationEvent):
@@ -94,11 +122,14 @@ def event_frames(orchestrator: Orchestrator, question: str) -> Iterator[str]:
                 if event.ok is not None:
                     data["ok"] = event.ok
                 yield sse("tool", data)
+            elif isinstance(event, QuestionEvent):
+                yield sse("question", {"text": event.text})
             elif isinstance(event, DoneEvent):
                 a = event.answer
                 yield sse(
                     "done",
                     {
+                        "question": a.question,
                         "provider": a.provider,
                         "model": a.model,
                         "sources": [s.id for s in a.sources],
@@ -131,7 +162,7 @@ def chat(
     # A sync generator: Starlette iterates it in a worker thread, and closes it
     # (ending the LLM stream) if the client disconnects.
     return StreamingResponse(
-        event_frames(orchestrator, body.question),
+        event_frames(orchestrator, body.question, body.history_messages()),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )
