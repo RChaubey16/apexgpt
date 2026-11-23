@@ -82,7 +82,14 @@ def rate_limit(scope: str) -> Callable[[Request], None]:
         rejection = limiter.hit(scope, client_key(request))
         if rejection is not None:
             # No client address in the log: rate limits are about volume.
-            logger.warning("Rate limited: %s (%s)", scope, rejection.limit)
+            logger.warning(
+                "Rate limited: %s (%s)",
+                scope,
+                rejection.limit,
+                extra={"event": "rate_limited", "scope": scope,
+                       "limit": rejection.limit,
+                       "retry_after": rejection.retry_after},
+            )  # fmt: skip
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(

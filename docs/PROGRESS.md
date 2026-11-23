@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 4: Chat API (in progress) |
-| **Current feature** | F4.4 rate limiting + answer cache (PR in review) |
-| **Current branch** | `feature/rate-limiting-cache` |
-| **Open PR** | F4.4 rate limiting and response cache |
+| **Current feature** | F4.5 structured file logging (PR in review) |
+| **Current branch** | `feature/structured-logging` |
+| **Open PR** | F4.5 structured file logging |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-23 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F4.4 PR.
-2. **F4.5 `feature/structured-logging`**: structured logging to rotated files (question, tools used, latency, provider, errors); replaces `basicConfig(force=True)`.
+1. User reviews and merges the F4.5 PR (the last Phase 4 feature).
+2. Close Phase 4: a small docs PR marking the phase done (as for Phase 3), then wait for the go-ahead for **Phase 5 (frontend MVP)**, starting with F5.1 `feature/chat-ui`.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -107,8 +107,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F4.1 `feature/chat-endpoint`: streaming chat endpoint · PR #32 merged
 - [x] F4.2 `feature/conversation-memory`: follow-up handling · PR #33 merged
 - [x] F4.3 `feature/feedback-endpoint`: feedback endpoint · PR #34 merged
-- [ ] F4.4 `feature/rate-limiting-cache`: rate limiting + cache · 🔍 PR raised
-- [ ] F4.5 `feature/structured-logging`: structured file logging
+- [x] F4.4 `feature/rate-limiting-cache`: rate limiting + cache · PR #35 merged
+- [ ] F4.5 `feature/structured-logging`: structured file logging · 🔍 PR raised
 
 ### Phase 5: Frontend MVP
 - [ ] F5.1 `feature/chat-ui`: streaming chat interface
@@ -221,6 +221,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-23 | Feedback table (migration 0008): rating, question, answer excerpt (first 500 chars, cut at a word; the API accepts the full answer up to 8,000), optional provider/model, `created_at`; check constraints on every field; no IP or user identifier; not granted to the LLM role | Matches the plan's fields; provider/model let F6 score the fallback providers from real ratings; the server cuts the excerpt so the client can send the answer as it has it |
 | 2026-11-23 | 90-day retention = an indexed DELETE in the same transaction as every save, plus `python -m app.feedback purge` for a scheduled job (F7.3); 90 days is a constant, not a setting | No background timer that would wake Neon; rows still expire when no feedback arrives once the weekly job runs it |
 | 2026-11-23 | Feedback database errors → 503 with a fixed message (error class logged only) | Same rule as the chat errors: no host or driver details reach the client |
+| 2026-11-23 | Logging: console stays text; `LOG_FILE` adds JSON lines via `RotatingFileHandler` (size-based, 10 MB × 5, settings); stdlib only, no new dependency; `configure_logging` replaces only its own handlers (fixes the `basicConfig(force=True)` Known Issue) | Size rotation bounds disk use on a small VPS; text on the console keeps `docker logs` readable; other handlers (pytest capture, uvicorn) survive |
+| 2026-11-23 | One `chat` event per request, logged by the route when the stream ends (`ok` / `error` / `disconnected`), plus `feedback` and `rate_limited` events; no client IPs in the file | The route is the only place that knows the outcome, including disconnects. Questions are what the plan asks to log; addresses aren't needed |
+| 2026-11-23 | An unwritable `LOG_FILE` → a console warning, the app keeps running (settings tolerate an unreadable path too) | Losing logs must not take the API down. Found in the image check: `Path.is_dir()` raised `PermissionError` in the settings validator and stopped startup |
 | 2026-11-23 | **Rate limits with `limits` (5.8, slowapi's engine) as a FastAPI dependency, not slowapi's decorator** (changes the plan's library) | slowapi's `@limiter.limit` needs a module-level limiter, created before `create_app` reads settings, so every app in a process shares one limiter's counters (tests leak into each other). A per-app limiter from settings is ~60 lines; `limits` was already what slowapi would install (+1 dependency, 49 ms import) |
 | 2026-11-23 | Per-IP moving windows in memory; defaults chat `6/minute;100/day`, feedback `30/minute;500/day` (settings, blank = off); 429 + `Retry-After` (exposed via CORS) before the endpoint runs, invalid bodies count too; key = `request.client.host`, never `X-Forwarded-For` directly | One uvicorn worker, so no shared store. Groq's free tier is ~8k tokens/minute for everyone (~2 answers), so a per-IP cap is about stopping scripts, not fairness. uvicorn already resolves the client from trusted proxies only |
 | 2026-11-23 | Answer cache: LRU of recorded events (tokens merged), 256 entries / 24 h (settings), keyed by the folded standalone question; stored only when every tool was available and every call worked; stored before `done` is yielded; `done.cached`, and tokens/calls in `done` are the request's own | Data covers finished seasons, so a day loses little. Keying after condensing lets follow-ups hit. A degraded answer (stats DB down) must not be repeated for a day. `answer()` stops at `done`, which would have skipped a write placed after it (found by the tests) |
@@ -231,6 +234,20 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-23: F4.5 structured file logging
+- PR #35 (F4.4) merged.
+- **Built:**
+  - `app/core/logging.py`: `JsonFormatter` (`ts`/level/logger/message, `extra` fields, `error` + `traceback`, repr for values JSON can't hold) and `configure_logging` (console + optional rotating JSON file, only its own handlers replaced, warns if the file can't be opened).
+  - The `chat` event in `/api/chat` (outcome, question, standalone question, history size, tools, provider, model, sources, tokens, calls, cache, latency); `feedback` and `rate_limited` events.
+  - Settings `LOG_FILE`, `LOG_FILE_MAX_MB`, `LOG_FILE_BACKUPS`; docker compose writes `data/logs/`; the runtime image has `/app/logs` owned by `app`.
+  - Tests no longer re-add pytest's capture handler (the old workaround): it survives `create_app` now.
+- **Bug found in the image check, fixed:** an unreadable `LOG_FILE` path (`/root/...` as user `app`) crashed settings validation (`Path.is_dir()` raises `PermissionError`), so the app didn't start. Now it warns and runs.
+- **Dev container:** a fresh and a cached chat answer and a feedback save each wrote one JSON line to `data/logs/apexgpt.log`, with no client addresses. The test feedback row was deleted.
+- **Runtime image:** writes `/app/logs/apexgpt.log` as `app`; 694 MB.
+- **Tests:**
+  - Backend 741 unit (+21: format, extras, exceptions, handlers kept and replaced, rotation, unwritable and unreadable paths, settings, the chat event's fields and outcomes incl. disconnect, the file end to end with no client address), 157 integration, 74 corpus, live `pytest -m llm` 22/22, all passing. Ingestion 532 passing.
+  - Mutation checks (11: removing all handlers, handlers piling up, extras dropped, only missing directories tolerated, multi-line JSON, no rotation, no `disconnected` outcome, no log on disconnect, standalone question dropped, the settings crash, `LOG_FILE` ignored): all caught.
 
 ### 2026-11-23: F4.4 rate limiting and answer cache
 - PR #34 (F4.3) merged.
@@ -741,7 +758,7 @@ Newest first.
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5).
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
 - F4.4/F7.1: one answer holds a worker thread for its whole stream (~2–8 s); the single uvicorn worker's thread pool (40) bounds concurrent answers. Fine at MVP traffic; the F6.4 load test should confirm.
-- F4.5: `configure_logging` uses `basicConfig(force=True)`, which removes other handlers (pytest's log capture too); replace it when structured file logging lands.
+- F7.1: mount a volume at `/app/logs` in production (and set `LOG_FILE`), or logs are lost on every deploy. Logs hold questions; rotation bounds them by size (10 MB × 5), not by age. If a time limit is wanted (like feedback's 90 days), add a time-based rotation.
 - F6: fallback answers (Gemini lite, nemotron) are less polished than gpt-oss-120b's; the golden set should score each provider. Gemini 3.x flash previews and newer flash models were overloaded when tested; revisit the default.
 - F3.7/F6: the `query_stats` description is ~1,000 tokens and goes with every request that offers the tool. On Groq's free tier, 8 quick text-to-SQL requests hit the per-minute token limit (429); with no Gemini/OpenRouter key there is no fallback. The orchestrator should offer tools only when needed and keep prompts small; adding the fallback keys helps.
 - F3.4: an everyday-word surname in an all-lowercase question isn't found ("pace" for Carlos Pace); write it capitalised or use the full name. When new drivers or teams are loaded, check whether any new single-word alias is an everyday word and add it to `COMMON_WORDS` in `app/retrieval/entities.py`.

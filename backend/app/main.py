@@ -22,7 +22,12 @@ from app.db.session import create_db_engine
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(
+        settings.log_level,
+        log_file=settings.log_file,
+        max_bytes=settings.log_file_max_mb * 1024 * 1024,
+        backups=settings.log_file_backups,
+    )
 
     engine = create_db_engine(settings)
 

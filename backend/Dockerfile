@@ -44,6 +44,8 @@ COPY app ./app
 #   docker run --rm -e DATABASE_URL=... <image> alembic upgrade head
 COPY alembic.ini ./
 COPY migrations ./migrations
+# For LOG_FILE (F4.5); mount a volume here to keep logs across deploys.
+RUN mkdir /app/logs && chown app:app /app/logs
 
 USER app
 

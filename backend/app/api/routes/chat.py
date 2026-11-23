@@ -33,6 +33,7 @@ show how a follow-up was understood.
 
 import json
 import logging
+import time
 from collections.abc import Iterator, Sequence
 from typing import Annotated, Any, Literal
 
@@ -98,12 +99,26 @@ def sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _log_chat(record: dict[str, Any]) -> None:
+    """The one structured `chat` event of a request (see app/core/logging)."""
+    outcome = record["outcome"]
+    level = logging.WARNING if outcome == "error" else logging.INFO
+    logger.log(level, "Chat %s", outcome, extra={"event": "chat", **record})
+
+
 def event_frames(
     orchestrator: Orchestrator,
     question: str,
     history: Sequence[HistoryMessage] = (),
 ) -> Iterator[str]:
-    """SSE frames for one question; always ends with `done` or `error`."""
+    """SSE frames for one question; always ends with `done` or `error`. Logs
+    one `chat` event when the stream ends (or the client goes away)."""
+    started = time.perf_counter()
+    record: dict[str, Any] = {
+        "outcome": "disconnected",  # unless the stream reaches done or error
+        "question": question,
+        "history_messages": len(history),
+    }
     try:
         for event in orchestrator.stream(question, history):
             if isinstance(event, TokenEvent):
@@ -129,9 +144,23 @@ def event_frames(
                     data["ok"] = event.ok
                 yield sse("tool", data)
             elif isinstance(event, QuestionEvent):
+                record["standalone_question"] = event.text
                 yield sse("question", {"text": event.text})
             elif isinstance(event, DoneEvent):
                 a = event.answer
+                tools = [{"name": c.name, "ok": c.ok} for c in a.tool_calls]
+                record.update(
+                    outcome="ok",
+                    provider=a.provider,
+                    model=a.model,
+                    tools=tools,
+                    sources=len(a.sources),
+                    answer_chars=len(a.text),
+                    prompt_tokens=a.prompt_tokens,
+                    completion_tokens=a.completion_tokens,
+                    llm_calls=a.llm_calls,
+                    cached=a.cached,
+                )
                 yield sse(
                     "done",
                     {
@@ -139,7 +168,7 @@ def event_frames(
                         "provider": a.provider,
                         "model": a.model,
                         "sources": [s.id for s in a.sources],
-                        "tools": [{"name": c.name, "ok": c.ok} for c in a.tool_calls],
+                        "tools": tools,
                         "latency_ms": a.latency_ms,
                         "prompt_tokens": a.prompt_tokens,
                         "completion_tokens": a.completion_tokens,
@@ -147,14 +176,22 @@ def event_frames(
                     },
                 )
     except AnswerUnavailableError as exc:
+        record.update(outcome="error", error=str(exc))
         yield sse("error", {"message": str(exc)})
     except (
         ValueError
     ) as exc:  # the question failed normalisation (e.g. only control chars)
+        record.update(outcome="error", error=str(exc))
         yield sse("error", {"message": str(exc)})
-    except Exception:  # never a traceback in the stream
+    except Exception as exc:  # never a traceback in the stream
         logger.exception("Chat stream failed")
+        record.update(
+            outcome="error", error=GENERIC_ERROR, error_type=type(exc).__name__
+        )
         yield sse("error", {"message": GENERIC_ERROR})
+    finally:
+        record["latency_ms"] = round((time.perf_counter() - started) * 1000)
+        _log_chat(record)
 
 
 @router.post(

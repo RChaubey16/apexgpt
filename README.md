@@ -278,6 +278,25 @@ curl -X POST localhost:8000/api/feedback -H 'Content-Type: application/json' -d 
 - **Errors:** 422 for a bad body; 503 `{"detail": "..."}` (safe to show) when the database can't store it.
 - **Kept for 90 days:** every save deletes older rows in the same transaction, and `uv run python -m app.feedback purge` does it on its own (for the weekly scheduled job, F7.3).
 
+### Logging
+
+The console gets readable lines; with `LOG_FILE` set, the backend also writes **JSON lines** to a size-rotated file (`LOG_FILE_MAX_MB` × `LOG_FILE_BACKUPS`, default 10 MB × 5). It never goes to the database, so logging never wakes Neon ([`backend/app/core/logging.py`](backend/app/core/logging.py)). Docker compose writes `data/logs/apexgpt.log`.
+
+```json
+{"ts": "2026-11-23T07:46:07.317+00:00", "level": "INFO", "logger": "app.api.routes.chat", "message": "Chat ok", "event": "chat", "outcome": "ok", "question": "Who has the most wins at Monza?", "history_messages": 0, "provider": "groq", "model": "openai/gpt-oss-120b", "tools": [{"name": "query_stats", "ok": true}], "sources": 0, "answer_chars": 211, "prompt_tokens": 3733, "completion_tokens": 392, "llm_calls": 2, "cached": false, "latency_ms": 3290}
+```
+
+- **Events:**
+  - `chat`: one per request, written when the stream ends. Fields: question, standalone question, tools, provider/model, tokens, cache, latency, and outcome (`ok`, `error` with the message the client saw, or `disconnected`).
+  - `feedback` and `rate_limited`.
+- **Other records:** warnings and errors go to the file as well. Exceptions carry `error` (the class) and `traceback`.
+- **What's not logged:** the file holds questions, but no IP addresses or other client identifiers; uvicorn's access log stays on the console.
+- **If the file can't be opened,** the backend warns and keeps running, logging to the console only.
+
+```bash
+jq -c 'select(.event == "chat") | {question, outcome, provider, latency_ms, cached}' data/logs/apexgpt.log
+```
+
 ### Ask ApexGPT (answer orchestrator)
 
 The whole Phase 3 pipeline from the command line ([`backend/app/answer/`](backend/app/answer/)):

@@ -131,12 +131,9 @@ def test_no_answer_is_an_error_event() -> None:
 
 
 def test_an_unexpected_failure_is_a_generic_error_without_details(caplog) -> None:
-    import logging
 
     fake = FakeOrchestrator([], RuntimeError("db.internal:5432 password=x"))
     client = client_with(fake)
-    # create_app's basicConfig(force=True) removes pytest's capture handler.
-    logging.getLogger().addHandler(caplog.handler)
 
     response = client.post("/api/chat", json={"question": "q"})
 
