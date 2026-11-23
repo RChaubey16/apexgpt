@@ -14,18 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 4 complete; Phase 5 not started |
-| **Current feature** | None (waiting for the go-ahead for Phase 5) |
-| **Current branch** | `feature/close-phase-4` |
-| **Open PR** | Phase 4 close-out docs |
+| **Current phase** | Phase 5: Frontend MVP (in progress) |
+| **Current feature** | F5.1 streaming chat interface (PR in review) |
+| **Current branch** | `feature/chat-ui` |
+| **Open PR** | F5.1 streaming chat interface |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-23 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User merges the Phase 4 close-out PR.
-2. **Phase 5 waits for the user's go-ahead.** It starts with F5.1 `feature/chat-ui`: the streaming chat interface against `/api/chat` (SSE events incl. `question`, `tool`, `table`, `cached`; 429 with `Retry-After`).
+1. User reviews and merges the F5.1 PR.
+2. **F5.2 `feature/answer-rendering`**: markdown answers, stats tables (from `table` events) and citation chips (from `citation` events, linked to Wikipedia).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -41,7 +41,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 2. Narrative corpus | ✅ Done | 2026-11-13 | 2026-11-17 |
 | 3. Retrieval + LLM | ✅ Done | 2026-11-21 | 2026-11-22 |
 | 4. Chat API | ✅ Done | 2026-11-22 | 2026-11-23 |
-| 5. Frontend MVP | ⬜ Not started | | |
+| 5. Frontend MVP | 🟡 In progress | 2026-11-23 | |
 | 6. Eval + hardening | ⬜ Not started | | |
 | 7. Deployment | ⬜ Not started | | |
 
@@ -112,7 +112,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check** (the plan's Phase 4 items, end to end on merged `main` in the dev container, 2026-11-23): streamed answer; follow-up condensed ("Who replaced him as race director?" → "Who replaced Michael Masi as race director?", answered by Gemini while Groq was rate limited); repeat served from the cache in 2 ms; feedback 201; 429 on the 4th request after 3 in the minute; one JSON log line per event. Caveat: "Explain Abu Dhabi 2021" came back without citations in this run (the model used only the stats tool; Known Issues, F6).
 
 ### Phase 5: Frontend MVP
-- [ ] F5.1 `feature/chat-ui`: streaming chat interface
+- [ ] F5.1 `feature/chat-ui`: streaming chat interface · 🔍 PR raised
 - [ ] F5.2 `feature/answer-rendering`: markdown, tables, citations
 - [ ] F5.3 `feature/starter-questions`: starter question cards
 - [ ] F5.4 `feature/chat-history`: local conversation history
@@ -222,6 +222,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-23 | Feedback table (migration 0008): rating, question, answer excerpt (first 500 chars, cut at a word; the API accepts the full answer up to 8,000), optional provider/model, `created_at`; check constraints on every field; no IP or user identifier; not granted to the LLM role | Matches the plan's fields; provider/model let F6 score the fallback providers from real ratings; the server cuts the excerpt so the client can send the answer as it has it |
 | 2026-11-23 | 90-day retention = an indexed DELETE in the same transaction as every save, plus `python -m app.feedback purge` for a scheduled job (F7.3); 90 days is a constant, not a setting | No background timer that would wake Neon; rows still expire when no feedback arrives once the weekly job runs it |
 | 2026-11-23 | Feedback database errors → 503 with a fixed message (error class logged only) | Same rule as the chat errors: no host or driver details reach the client |
+| 2026-11-23 | Chat client: `fetch` POST + our own SSE parser (not `EventSource`, not a library); every event validated against the backend contract; unknown event types skipped; typed `ChatError` kinds (rate_limited, invalid_request, unreachable, http_error, bad_response, interrupted, answer_error); an abort rethrown as AbortError | `EventSource` is GET-only; the parser is ~40 lines and is tested over 1–64-byte chunks, split UTF-8 and CRLF. Skipping unknown events lets the backend add events without breaking deployed frontends |
+| 2026-11-23 | UI state is a pure reducer (`conversation.ts`); `history` = finished exchanges only (failed/stopped/empty answers left out), last 20 messages, each ≤ 8,000 chars | Testable without React; a half answer would mislead the follow-up rewrite |
+| 2026-11-23 | After a 429 the Send button stays disabled for `Retry-After` seconds; no automatic retry | An automatic retry would spend the user's next request without them asking |
 | 2026-11-23 | Logging: console stays text; `LOG_FILE` adds JSON lines via `RotatingFileHandler` (size-based, 10 MB × 5, settings); stdlib only, no new dependency; `configure_logging` replaces only its own handlers (fixes the `basicConfig(force=True)` Known Issue) | Size rotation bounds disk use on a small VPS; text on the console keeps `docker logs` readable; other handlers (pytest capture, uvicorn) survive |
 | 2026-11-23 | One `chat` event per request, logged by the route when the stream ends (`ok` / `error` / `disconnected`), plus `feedback` and `rate_limited` events; no client IPs in the file | The route is the only place that knows the outcome, including disconnects. Questions are what the plan asks to log; addresses aren't needed |
 | 2026-11-23 | An unwritable `LOG_FILE` → a console warning, the app keeps running (settings tolerate an unreadable path too) | Losing logs must not take the API down. Found in the image check: `Path.is_dir()` raised `PermissionError` in the settings validator and stopped startup |
@@ -235,6 +238,26 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-23: F5.1 streaming chat interface (Phase 5 started)
+- User gave the go-ahead for Phase 5. PR #37 (Phase 4 close-out) merged.
+- **Built** (`frontend/src/`):
+  - `lib/chat.ts`: `streamChat`, `parseFrame`, `readFrames`, event validation, and `ChatError`.
+  - `lib/conversation.ts`: the reducer, `historyFor` and `isAnswering`.
+  - `components/Chat.tsx`:
+    - the message log (`role="log"`, polite live region) and composer (Enter / Shift+Enter, counter, limit);
+    - Stop; tool status; "Answering: …"; error and rate-limit handling; "Answered from cache";
+    - abort on unmount.
+  - `app/page.tsx`: a compact header with the status pill (still calls `/health/ready` on load) above the chat.
+- **Real backend:**
+  - The browser tools weren't available in this session, so the real `streamChat` and reducer ran under Node against the dev stack.
+  - "Who won the 1988 championship?" fresh in 2.0 s. The follow-up "How many races did he win that year?" sent 2 history messages and was rewritten to "How many races did Ayrton Senna win in 1988?" (2.8 s).
+  - On the rerun, both came from the cache (1 ms; 0.57 s for the follow-up, which is the rewrite request).
+  - The CORS preflight from `http://localhost:3000` allows POST + Content-Type.
+  - **Not yet looked at in a real browser.**
+- **Production image:** `next build` passes; the frontend image builds (330 MB).
+- **Tests:** frontend 84 (+54: the client over every chunk size, CRLF, split UTF-8, each HTTP outcome, malformed events, aborts before and during the stream; the reducer and history rules; the component: streaming, follow-up history, Stop, errors, the rate-limit block, the counter, no double send, cached, misconfigured, abort on unmount). Lint, typecheck and prettier clean.
+  - Mutation checks (11: UTF-8 not streamed, split CRLF, unknown events fatal, abort reported as unreachable, early end accepted, failed answers in history, history unbounded, late events applied, no rate-limit block, no abort on unmount, no history sent): all caught.
 
 ### 2026-11-23: Phase 4 closed
 - PR #36 (F4.5) merged: **all Phase 4 features (F4.1–F4.5) are merged.**
