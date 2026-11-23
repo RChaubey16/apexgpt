@@ -5,7 +5,11 @@ Request: `{"question": "...", "history": [{"role": "user"|"assistant",
 optional) is the recent conversation, oldest first, up to 20 messages of up to
 8,000 characters, and is used only to turn a follow-up into a standalone
 question. Unknown fields are rejected, so a client can't send something it
-thinks is used. A bad body is a normal 422 before anything streams.
+thinks is used. A bad body is a normal 422 before anything streams, and a
+client over its rate limit (RATE_LIMIT_CHAT, F4.4) gets a 429 with Retry-After.
+
+A repeated question may be answered from the cache (F4.4): the same events,
+with `cached: true` in `done` (and the tokens this request spent, usually 0).
 
 Response: `text/event-stream`. Each event is `event: <type>` plus one JSON
 `data:` line:
@@ -18,7 +22,8 @@ Response: `text/event-stream`. Each event is `event: <type>` plus one JSON
 | token    | {"text"}                                                     | the next piece of the answer (markdown) |
 | citation | {"id", "title", "url", "section", "season"}                 | a source is cited for the first time |
 | done     | {"question", "provider", "model", "sources": [ids], "tools", | the answer is complete |
-|          |  "latency_ms", "prompt_tokens", "completion_tokens"}         | |
+|          |  "latency_ms", "prompt_tokens", "completion_tokens",         | |
+|          |  "cached"}                                                   | |
 | error    | {"message"}                                                  | no answer (safe to show); the stream ends |
 
 The plan lists token/citation/table/done/error; `tool` is added because the
@@ -50,6 +55,7 @@ from app.answer.orchestrator import (
     TokenEvent,
     ToolEvent,
 )
+from app.core.rate_limit import rate_limit
 from app.retrieval.search import MAX_QUERY_CHARS
 
 logger = logging.getLogger(__name__)
@@ -137,6 +143,7 @@ def event_frames(
                         "latency_ms": a.latency_ms,
                         "prompt_tokens": a.prompt_tokens,
                         "completion_tokens": a.completion_tokens,
+                        "cached": a.cached,
                     },
                 )
     except AnswerUnavailableError as exc:
@@ -153,7 +160,8 @@ def event_frames(
 @router.post(
     "/chat",
     response_class=StreamingResponse,
-    responses={200: {"content": {"text/event-stream": {}}}},
+    responses={200: {"content": {"text/event-stream": {}}}, 429: {}},
+    dependencies=[Depends(rate_limit("chat"))],
 )
 def chat(
     body: ChatRequest,

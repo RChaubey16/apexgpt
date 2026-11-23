@@ -8,6 +8,7 @@ Try it: `uv run python -m app.answer "question"`.
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.answer.cache import AnswerCache
 from app.answer.orchestrator import (
     Answer,
     AnswerUnavailableError,
@@ -33,6 +34,11 @@ def build_orchestrator(
         with session_factory() as session:
             return load_entity_index(session)
 
+    cache = (
+        AnswerCache(settings.answer_cache_size, settings.answer_cache_ttl_seconds)
+        if settings.answer_cache_size
+        else None
+    )
     return Orchestrator(
         build_llm_client(settings),
         [
@@ -40,6 +46,7 @@ def build_orchestrator(
             build_knowledge_tool(settings, session_factory),
         ],
         EntityResolver(load_index),
+        cache=cache,
     )
 
 

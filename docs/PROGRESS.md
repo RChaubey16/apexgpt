@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 4: Chat API (in progress) |
-| **Current feature** | F4.3 feedback endpoint (PR in review) |
-| **Current branch** | `feature/feedback-endpoint` |
-| **Open PR** | F4.3 answer feedback endpoint |
+| **Current feature** | F4.4 rate limiting + answer cache (PR in review) |
+| **Current branch** | `feature/rate-limiting-cache` |
+| **Open PR** | F4.4 rate limiting and response cache |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-23 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F4.3 PR.
-2. **F4.4 `feature/rate-limiting-cache`**: per-IP rate limiting (`slowapi`) on `/api/chat` and `/api/feedback`, plus an in-memory LRU cache for repeated questions.
+1. User reviews and merges the F4.4 PR.
+2. **F4.5 `feature/structured-logging`**: structured logging to rotated files (question, tools used, latency, provider, errors); replaces `basicConfig(force=True)`.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -106,8 +106,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 4: Chat API
 - [x] F4.1 `feature/chat-endpoint`: streaming chat endpoint · PR #32 merged
 - [x] F4.2 `feature/conversation-memory`: follow-up handling · PR #33 merged
-- [ ] F4.3 `feature/feedback-endpoint`: feedback endpoint · 🔍 PR raised
-- [ ] F4.4 `feature/rate-limiting-cache`: rate limiting + cache
+- [x] F4.3 `feature/feedback-endpoint`: feedback endpoint · PR #34 merged
+- [ ] F4.4 `feature/rate-limiting-cache`: rate limiting + cache · 🔍 PR raised
 - [ ] F4.5 `feature/structured-logging`: structured file logging
 
 ### Phase 5: Frontend MVP
@@ -221,6 +221,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-23 | Feedback table (migration 0008): rating, question, answer excerpt (first 500 chars, cut at a word; the API accepts the full answer up to 8,000), optional provider/model, `created_at`; check constraints on every field; no IP or user identifier; not granted to the LLM role | Matches the plan's fields; provider/model let F6 score the fallback providers from real ratings; the server cuts the excerpt so the client can send the answer as it has it |
 | 2026-11-23 | 90-day retention = an indexed DELETE in the same transaction as every save, plus `python -m app.feedback purge` for a scheduled job (F7.3); 90 days is a constant, not a setting | No background timer that would wake Neon; rows still expire when no feedback arrives once the weekly job runs it |
 | 2026-11-23 | Feedback database errors → 503 with a fixed message (error class logged only) | Same rule as the chat errors: no host or driver details reach the client |
+| 2026-11-23 | **Rate limits with `limits` (5.8, slowapi's engine) as a FastAPI dependency, not slowapi's decorator** (changes the plan's library) | slowapi's `@limiter.limit` needs a module-level limiter, created before `create_app` reads settings, so every app in a process shares one limiter's counters (tests leak into each other). A per-app limiter from settings is ~60 lines; `limits` was already what slowapi would install (+1 dependency, 49 ms import) |
+| 2026-11-23 | Per-IP moving windows in memory; defaults chat `6/minute;100/day`, feedback `30/minute;500/day` (settings, blank = off); 429 + `Retry-After` (exposed via CORS) before the endpoint runs, invalid bodies count too; key = `request.client.host`, never `X-Forwarded-For` directly | One uvicorn worker, so no shared store. Groq's free tier is ~8k tokens/minute for everyone (~2 answers), so a per-IP cap is about stopping scripts, not fairness. uvicorn already resolves the client from trusted proxies only |
+| 2026-11-23 | Answer cache: LRU of recorded events (tokens merged), 256 entries / 24 h (settings), keyed by the folded standalone question; stored only when every tool was available and every call worked; stored before `done` is yielded; `done.cached`, and tokens/calls in `done` are the request's own | Data covers finished seasons, so a day loses little. Keying after condensing lets follow-ups hit. A degraded answer (stats DB down) must not be repeated for a day. `answer()` stops at `done`, which would have skipped a write placed after it (found by the tests) |
 | 2026-11-23 | New SSE event `question` (when the follow-up was rewritten) and `question` in `done` | The UI can show how a follow-up was understood, and the answer can be checked against it |
 
 ---
@@ -228,6 +231,23 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-23: F4.4 rate limiting and answer cache
+- PR #34 (F4.3) merged.
+- **Plan change:** `limits` as a dependency instead of slowapi's decorator. slowapi 0.1.10 is current and light, but needs a module-level limiter, so apps and tests would share counters (Decision Log).
+- **Built:**
+  - `app/core/rate_limit.py`: `parse_limits`, a per-app `RateLimiter` (moving windows, memory), and the `rate_limit(scope)` dependency (429 + `Retry-After`).
+  - Applied to `/api/chat` and `/api/feedback`; CORS exposes `Retry-After`.
+  - `app/answer/cache.py`: `cache_key`, `coalesce`, and the thread-safe `AnswerCache` (LRU + TTL).
+  - Orchestrator: lookup after condensing; record and store worthwhile answers; replay with `cached`. `done.cached`.
+  - Settings: `RATE_LIMIT_CHAT`, `RATE_LIMIT_FEEDBACK`, `ANSWER_CACHE_SIZE`, `ANSWER_CACHE_TTL_SECONDS` (validated at startup), in `.env.example` and docker compose.
+- **Bug found by the tests, fixed before commit:** the cache write ran after `done` was yielded, so `answer()` (and any caller stopping at `done`) never stored anything.
+- **Docker:** the runtime image builds (694 MB, +3 MB) and imports the new modules.
+- **Dev container, real HTTP:** "Who has the most wins at Monza?" took 3.3 s fresh, and "who has the most wins at monza" took **6 ms** from the cache (0 tokens). The 7th request in a minute got a 429 with `Retry-After: 57`; `/health` was unaffected; 125 MB.
+- **Tests:**
+  - Backend 720 unit (+43: keys, LRU, TTL, threads, merging, what is and isn't cached, replays incl. follow-ups and tables; limits parsing, windows, per-client, per-scope, blank = off, forwarded headers ignored, CORS), 157 integration, 74 corpus, all passing. Ingestion 532 passing.
+  - Live `pytest -m llm`: 21/22 passing in each of the first two full runs. The narrative test failed 2 of the 9 times it ran (the model used only the stats tool; Known Issues). That isn't from this change: a fresh answer runs the same code, and the test builds a new app (empty cache, fresh limiter). It passed 7 of 9, including 4/4 in a row at the end.
+  - Mutation checks (11: caching everything, ignoring missing tools, the cached flag, keying on the raw follow-up, LRU, TTL, NFKC, the limiter, trusting `X-Forwarded-For`, feedback unlimited, `Retry-After` hidden): all caught.
 
 ### 2026-11-23: F4.3 answer feedback endpoint
 - PR #33 (F4.2) merged.
@@ -711,8 +731,10 @@ Newest first.
 
 ## Known Issues / Open Questions
 
+- F6: gpt-oss sometimes answers a narrative question with the stats tool only (live: 2 of 9 runs of "Explain Abu Dhabi 2021" during F4.4: two `query_stats` calls, no knowledge search, so no citations). The F4.1 live test fails when it happens. Tune the tool descriptions/prompt against the golden set.
+- F4.4: the answer cache is per process and isn't cleared by a data reload; reloaded data shows once entries expire (24 h) or on restart. Fine while the data covers finished seasons.
+- F7.1: the rate limits key on the client address, so `FORWARDED_ALLOW_IPS` must be the proxy's address in production, or every visitor shares the proxy's limit.
 - F7.3: add `python -m app.feedback purge` to the weekly scheduled workflow (with the backup), so feedback expires after 90 days even when none is submitted. Until then, rows are purged whenever new feedback is saved.
-- F4.4: `/api/feedback` has no rate limit yet (one insert per request); add it with the chat limit.
 - F3.5/F6: the stats views can't answer per-season poles (`v_driver_career` has career totals, `v_race_winners` only winners). Found in the F4.2 check: "How many poles did Ayrton Senna take in 1988?" answered 7 (the wins from pole; the data has 13). Add per-season driver stats (wins, poles, podiums, points) to the views, or a season-results view, and a golden-set question for it.
 - F4.2: the condense rewrite may add a name the conversation didn't contain (live: "the race director" → "Michael Masi"). Helpful for retrieval, and the answer stays grounded in the tools, but it can steer the answer wrong; score it on the golden set (F6). Requests that aren't questions ("shorter please", "as a table") are condensed like questions; the answering model never sees the earlier answer.
 
