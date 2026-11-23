@@ -14,18 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 3 complete; Phase 4 not started |
-| **Current feature** | None (waiting for the go-ahead for Phase 4) |
-| **Current branch** | `feature/close-phase-3` |
-| **Open PR** | Phase 3 close-out docs |
+| **Current phase** | Phase 4: Chat API (in progress) |
+| **Current feature** | F4.1 streaming chat endpoint (PR in review) |
+| **Current branch** | `feature/chat-endpoint` |
+| **Open PR** | F4.1 chat endpoint |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-21 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User merges the Phase 3 close-out PR.
-2. **Phase 4 waits for the user's go-ahead.** It starts with F4.1 `feature/chat-endpoint`: `POST /api/chat` over SSE. See Known Issues: streaming after tool calls.
+1. User reviews and merges the F4.1 PR.
+2. **F4.2 `feature/conversation-memory`**: the client sends recent history, and the backend condenses follow-ups into standalone questions (adds `history` to the `/api/chat` request).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -40,7 +40,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 1. Structured data | ✅ Done | 2026-11-13 | 2026-11-13 |
 | 2. Narrative corpus | ✅ Done | 2026-11-13 | 2026-11-17 |
 | 3. Retrieval + LLM | ✅ Done | 2026-11-21 | 2026-11-22 |
-| 4. Chat API | ⬜ Not started | | |
+| 4. Chat API | 🟡 In progress | 2026-11-22 | |
 | 5. Frontend MVP | ⬜ Not started | | |
 | 6. Eval + hardening | ⬜ Not started | | |
 | 7. Deployment | ⬜ Not started | | |
@@ -104,7 +104,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check:** the three CLI test questions are answered correctly (2026-11-22, live: `pytest -m llm tests/live/test_phase3_done_check.py` 3/3, and by hand with `python -m app.answer`)
 
 ### Phase 4: Chat API
-- [ ] F4.1 `feature/chat-endpoint`: streaming chat endpoint
+- [ ] F4.1 `feature/chat-endpoint`: streaming chat endpoint · 🔍 PR raised
 - [ ] F4.2 `feature/conversation-memory`: follow-up handling
 - [ ] F4.3 `feature/feedback-endpoint`: feedback endpoint
 - [ ] F4.4 `feature/rate-limiting-cache`: rate limiting + cache
@@ -212,12 +212,36 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-22 | Citations normalised before checking (`【S3】`, `[S3†L2]`, `[S1, S2]` → `[S3]`, `[S1][S2]`); unknown ids removed; `Answer.sources` = the cited sources in order | gpt-oss writes full-width, suffixed citations; without this the Hunt/Lauda answer listed no sources |
 | 2026-11-22 | Output reservations 900 (tool rounds) / 1,000 (final); stats description omits `*_id` and `wikipedia_url` columns; client waits once (≤ `LLM_RATE_LIMIT_WAIT_SECONDS`, default 20) when every provider is rate limited | Groq's free tier: 8,000 tokens/minute for gpt-oss-120b, counting `max_tokens`. One narrative answer was ~8.5k tokens with 1,500-token reservations |
 | 2026-11-22 | Fallback defaults changed: Gemini `gemini-3.1-flash-lite`, OpenRouter `nvidia/nemotron-3-ultra-550b-a55b:free` | Live checks once the keys were added: `gemini-2.5-flash` is closed to new users (404), `gpt-oss-120b:free` is gone (404). Newer Gemini flash models were overloaded (503, timeouts, 19–34 s); lite made a correct tool call in 2 s, nemotron in 1.3 s |
+| 2026-11-22 | Every round is streamed with the tools offered (`LLMClient.stream_turn`): tool calls are collected inside the attempt (fallback still possible), text streams; `stream()` is a wrapper over it | No second request to stream the final answer (the free tier can't afford it); all three providers stream tool calls and usage (measured) |
+| 2026-11-22 | Tool calls keep provider extras and are echoed back; tool history from another provider is flattened to text (`prepare_messages`) | Gemini 3 rejects function calls without its own `thought_signature` (400), even its own when the field was dropped; flattened text works everywhere (measured). Fixed a latent F3.3/F3.7 bug: multi-round answers on Gemini failed |
+| 2026-11-22 | `CitationFilter` checks citations while streaming: hold from `[`/`【` to the closing bracket (≤ 40 chars), normalise or drop, then release; whitespace is only touched where a marker was dropped | An invalid `[S9]` never reaches the client; the old cleaner also collapsed all double spaces, which broke nested markdown lists |
+| 2026-11-22 | SSE events: the plan's `token`, `citation`, `table`, `done`, `error`, plus `tool` (started/finished). Stream always ends with `done` or `error`; request body is strict (`extra="forbid"`) | Tool rounds take 1–4 s with nothing else to show; a strict body means `history` only works once F4.2 handles it |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-22: F4.1 streaming chat endpoint (Phase 4 started)
+- User gave the go-ahead for Phase 4.
+- **Measured first, on all three providers:**
+  - streaming with tools works, and the tool-call deltas carry ids;
+  - `stream_options.include_usage` works;
+  - a final request with tool messages but no tools works on Groq/OpenRouter, but **Gemini returned 400** ("missing thought_signature").
+  - Gemini also rejected its *own* call once the signature field was dropped. The full echo and flattened text both worked.
+- **Built:**
+  - `LLMClient.stream_turn` (`Turn`, tool-call fragment assembly, usage, text-then-tools); `stream()` rebuilt on it.
+  - `ToolCall.extra` (provider fields, echoed back) and `prepare_messages` (cross-provider history as text).
+  - `Orchestrator.stream()` events (tool / table / token / citation / done), with `answer()` collecting them.
+  - `CitationFilter` (streaming); `Orchestrator.close()`.
+  - `POST /api/chat` (SSE, strict request, error events), wired into `create_app` (built once; lazy).
+- **Dev container, real HTTP via uvicorn:**
+  - "Explain Abu Dhabi 2021" streamed incrementally: first event 0.86 s, first token 4.8 s, done 5.3 s, 4 citations.
+  - Groq was rate limited, so **Gemini ran both rounds**: its own tool call was echoed back with the signature. That would have failed before this change.
+- **Tests:**
+  - Backend 608 unit (+73: `stream_turn`, flattening, extras; orchestrator events; the citation filter in 1/2/3/7-char chunks; the SSE contract, errors, 422s), 143 integration (+2: `/api/chat` with the real stats tool as the read-only role), 74 corpus, all passing; live `pytest -m llm` (`/api/chat` + the done check). Ingestion 532 passing.
+  - Mutation checks (flattening, stream extras, echoed extras, streamed tool validation, marker lookahead, held markers, error event): all caught. The lookahead one needed new chunk-boundary tests first.
 
 ### 2026-11-22: Phase 3 closed
 - PR #30 (F3.7) merged: **all Phase 3 features (F3.1–F3.7) are merged, and the done check passes** (the three CLI questions, by hand and live).
@@ -657,7 +681,8 @@ Newest first.
 
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5).
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
-- F4.1: answers are built non-streaming (tool rounds, then a final reply). For SSE, stream only the final reply (`LLMClient.stream` with the tool messages so far). Check that every provider accepts tool messages in a request without tools; Gemini lite, the current fallback, did in F3.7's final round.
+- F4.4/F7.1: one answer holds a worker thread for its whole stream (~2–8 s); the single uvicorn worker's thread pool (40) bounds concurrent answers. Fine at MVP traffic; the F6.4 load test should confirm.
+- F4.5: `configure_logging` uses `basicConfig(force=True)`, which removes other handlers (pytest's log capture too); replace it when structured file logging lands.
 - F6: fallback answers (Gemini lite, nemotron) are less polished than gpt-oss-120b's; the golden set should score each provider. Gemini 3.x flash previews and newer flash models were overloaded when tested; revisit the default.
 - F3.7/F6: the `query_stats` description is ~1,000 tokens and goes with every request that offers the tool. On Groq's free tier, 8 quick text-to-SQL requests hit the per-minute token limit (429); with no Gemini/OpenRouter key there is no fallback. The orchestrator should offer tools only when needed and keep prompts small; adding the fallback keys helps.
 - F3.4: an everyday-word surname in an all-lowercase question isn't found ("pace" for Carlos Pace); write it capitalised or use the full name. When new drivers or teams are loaded, check whether any new single-word alias is an everyday word and add it to `COMMON_WORDS` in `app/retrieval/entities.py`.

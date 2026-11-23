@@ -205,6 +205,45 @@ Re-run it to rotate the password.
 
 Poles use `grid = 1` (qualifying data starts in 1994), fastest laps are only recorded from 2004, and starts are approximate (see `docs/DATA-STRATEGY.md`).
 
+### Chat API
+
+`POST /api/chat` streams a grounded, cited answer as Server-Sent Events ([`backend/app/api/routes/chat.py`](backend/app/api/routes/chat.py)). It's what the frontend (Phase 5) consumes.
+
+```bash
+curl -N -X POST localhost:8000/api/chat -H 'Content-Type: application/json' \
+  -d '{"question": "Explain Abu Dhabi 2021"}'
+```
+
+```
+event: tool
+data: {"name": "search_f1_knowledge", "status": "started"}
+
+event: token
+data: {"text": "The 2021 Abu Dhabi Grand Prix was the final round"}
+
+event: citation
+data: {"id": "S1", "title": "2021 Abu Dhabi Grand Prix", "url": "https://en.wikipedia.org/wiki/2021_Abu_Dhabi_Grand_Prix", "section": null, "season": 2021}
+
+event: done
+data: {"provider": "groq", "model": "openai/gpt-oss-120b", "sources": ["S1", "S3"], "tools": [...], "latency_ms": 5292, "prompt_tokens": 6100, "completion_tokens": 700}
+```
+
+| Event | Data | When |
+|---|---|---|
+| `tool` | `name`, `status` (`started` / `finished`), `ok` | a tool runs (so the UI can say "Searching…") |
+| `table` | `columns`, `rows`, optional `note` | a stats query returned rows |
+| `token` | `text` | the next piece of the answer (markdown) |
+| `citation` | `id`, `title`, `url`, `section`, `season` | a source is cited for the first time |
+| `done` | `provider`, `model`, `sources`, `tools`, `latency_ms`, `prompt_tokens`, `completion_tokens` | the answer is complete |
+| `error` | `message` (safe to show) | no answer; the stream ends |
+
+- **Request:** `{"question": "..."}`, 1–500 characters. Unknown fields are rejected (422), so `history` arrives with F4.2.
+- **The stream always ends with `done` or `error`.** Headers turn off caching and proxy buffering (`X-Accel-Buffering: no`).
+- **Every round streams:** tool calls are collected silently, and text streams as it arrives.
+- **Citations are checked as they stream.** A possible marker is held back until it's complete, so an invalid `[S9]` never reaches the client.
+- **Provider fallback mid-answer:** another provider gets the tool history as plain text. Gemini 3 rejects function calls without its own `thought_signature`, which is now kept and echoed back when Gemini continues its own answer.
+- Measured in the dev container: first event in ~0.9 s, first token in ~2–5 s depending on tool rounds, a narrative answer complete in ~5 s.
+
 ### Ask ApexGPT (answer orchestrator)
 
 The whole Phase 3 pipeline from the command line ([`backend/app/answer/`](backend/app/answer/)):

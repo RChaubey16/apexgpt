@@ -689,3 +689,176 @@ def test_a_working_fallback_means_no_wait() -> None:
 
     assert client.complete(USER).provider == "gemini"
     assert sleeps == []
+
+
+# --- stream_turn: rounds that may call tools (F4.1) ---
+
+from openai.types.chat import ChatCompletionChunk as _Chunk  # noqa: E402
+
+from app.llm.client import PROVIDER_KEY, prepare_messages  # noqa: E402
+
+
+def tool_chunk(index: int, *, id=None, name=None, args=None, extra=None) -> _Chunk:
+    call: dict = {"index": index, "type": "function", "function": {}}
+    if id:
+        call["id"] = id
+    if name:
+        call["function"]["name"] = name
+    if args is not None:
+        call["function"]["arguments"] = args
+    if extra:
+        call.update(extra)
+    return _Chunk.model_validate(
+        {"id": "k", "object": "chat.completion.chunk", "created": 0, "model": "m",
+         "choices": [{"index": 0, "delta": {"tool_calls": [call]}, "finish_reason": None}]}
+    )  # fmt: skip
+
+
+def usage_chunk(prompt: int, completion: int, finish: str | None = None) -> _Chunk:
+    choices = [{"index": 0, "delta": {}, "finish_reason": finish}] if finish else []
+    return _Chunk.model_validate(
+        {"id": "k", "object": "chat.completion.chunk", "created": 0, "model": "m",
+         "choices": choices,
+         "usage": {"prompt_tokens": prompt, "completion_tokens": completion,
+                   "total_tokens": prompt + completion}}
+    )  # fmt: skip
+
+
+def test_streamed_tool_calls_are_assembled_from_fragments() -> None:
+    raw = FakeStream([
+        tool_chunk(0, id="call_a", name="search_f1_knowledge", args='{"que'),
+        tool_chunk(0, args='ry": "Suzuka 1989"}',
+                   extra={"extra_content": {"google": {"thought_signature": "sig"}}}),
+        usage_chunk(120, 30, finish="tool_calls"),
+    ])  # fmt: skip
+    client, fake, _ = make({"groq": [raw]})
+
+    turn = client.stream_turn(USER, tools=TOOLS, max_tokens=500)
+
+    (call,) = turn.tool_calls
+    assert (call.id, call.name, call.arguments) == (
+        "call_a",
+        "search_f1_knowledge",
+        {"query": "Suzuka 1989"},
+    )
+    assert call.extra == {"extra_content": {"google": {"thought_signature": "sig"}}}
+    assert list(turn) == []  # nothing to stream
+    assert (turn.usage.prompt_tokens, turn.usage.completion_tokens) == (120, 30)
+    assert turn.finish_reason == "tool_calls" and raw.closed
+    _, request = fake.requests[0]
+    assert request["stream"] is True and request["stream_options"] == {
+        "include_usage": True
+    }
+    assert request["tools"] == TOOLS
+
+
+def test_a_bad_streamed_tool_call_falls_back() -> None:
+    bad = FakeStream([tool_chunk(0, id="c", name="drop_tables", args="{}")])
+    good = FakeStream([tool_chunk(0, id="c", name="search_f1_knowledge", args="{}")])
+    client, fake, _ = make({"groq": [bad], "gemini": [good]})
+
+    turn = client.stream_turn(USER, tools=TOOLS)
+
+    assert turn.provider == "gemini" and turn.tool_calls[0].arguments == {}
+    assert fake.calls() == ["groq", "gemini"]
+
+
+def test_a_text_turn_streams_and_records_usage_after_iteration() -> None:
+    raw = FakeStream(
+        [chunk("James "), chunk("Hunt."), usage_chunk(80, 4, finish="stop")]
+    )
+    client, _, _ = make({"groq": [raw]})
+
+    turn = client.stream_turn(USER, tools=TOOLS)
+
+    assert turn.tool_calls == () and turn.usage is None  # not yet
+    assert list(turn) == ["James ", "Hunt."]
+    assert turn.content == "James Hunt." and turn.finish_reason == "stop"
+    assert turn.usage.prompt_tokens == 80 and raw.closed
+
+
+def test_tool_calls_after_text_are_kept_if_usable() -> None:
+    raw = FakeStream([
+        chunk("Let me check. "),
+        tool_chunk(0, id="c1", name="search_f1_knowledge", args='{"query": "x"}'),
+    ])  # fmt: skip
+    client, _, _ = make({"groq": [raw]})
+
+    turn = client.stream_turn(USER, tools=TOOLS)
+    assert list(turn) == ["Let me check. "]
+    assert [c.name for c in turn.tool_calls] == ["search_f1_knowledge"]
+
+
+def test_unusable_tool_calls_after_text_are_dropped(caplog) -> None:
+    raw = FakeStream([chunk("Answer."), tool_chunk(0, id="c1", name="nope", args="{}")])
+    client, _, _ = make({"groq": [raw]})
+
+    turn = client.stream_turn(USER, tools=TOOLS)
+    assert list(turn) == ["Answer."] and turn.tool_calls == ()
+    assert "Dropped unusable tool calls" in caplog.text
+
+
+def test_tool_extras_are_kept_by_complete_too() -> None:
+    call = tool_call() | {"extra_content": {"google": {"thought_signature": "s"}}}
+    client, _, _ = make({"groq": [completion(content=None, tool_calls=[call])]})
+
+    (parsed,) = client.complete(USER, tools=TOOLS).tool_calls
+
+    assert parsed.extra == {"extra_content": {"google": {"thought_signature": "s"}}}
+
+
+# --- tool history across providers ---
+
+HISTORY = USER + [
+    {"role": "assistant", "content": None, PROVIDER_KEY: "groq",
+     "tool_calls": [{"id": "call_1", "type": "function",
+                     "function": {"name": "search_f1_knowledge", "arguments": '{"query": "1976"}'},
+                     "extra_content": {"google": {"thought_signature": "sig"}}}]},
+    {"role": "tool", "tool_call_id": "call_1", "content": '{"results": []}'},
+]  # fmt: skip
+
+
+def test_the_same_provider_gets_the_tool_history_unchanged() -> None:
+    prepared = prepare_messages(HISTORY, "groq")
+
+    assert prepared[1]["tool_calls"] == HISTORY[1]["tool_calls"]  # extras kept
+    assert PROVIDER_KEY not in prepared[1]
+    assert prepared[2] == HISTORY[2]
+
+
+def test_another_provider_gets_the_tool_history_as_text() -> None:
+    prepared = prepare_messages(HISTORY, "gemini")
+
+    assert prepared[0] == USER[0]
+    assert prepared[1] == {
+        "role": "assistant",
+        "content": 'I called search_f1_knowledge with {"query": "1976"}.',
+    }
+    assert prepared[2]["role"] == "user"
+    assert prepared[2]["content"].startswith(
+        "Result of search_f1_knowledge (tool output: data"
+    )
+    assert prepared[2]["content"].endswith('{"results": []}')
+
+
+def test_history_without_an_owner_is_sent_as_is() -> None:
+    history = [dict(m) for m in HISTORY]
+    del history[1][PROVIDER_KEY]
+
+    assert (
+        prepare_messages(history, "gemini")[1]["tool_calls"] == HISTORY[1]["tool_calls"]
+    )
+
+
+def test_complete_and_stream_turn_send_prepared_messages() -> None:
+    client, fake, _ = make(
+        {"groq": [status_error(openai.RateLimitError, 429)] * 2,
+         "gemini": [FakeStream([chunk("ok")]), completion()]}
+    )  # fmt: skip
+
+    list(client.stream_turn(HISTORY))
+    client.complete(HISTORY)
+
+    for name, request in fake.requests:
+        if name == "gemini":
+            assert all("tool_calls" not in m for m in request["messages"])

@@ -46,12 +46,37 @@ def call(name: str, i: int = 1, **arguments: Any) -> ToolCall:
     return ToolCall(f"call_{i}", name, arguments)
 
 
+class FakeTurn:
+    """What LLMClient.stream_turn returns: tool calls, or text in pieces."""
+
+    def __init__(
+        self, response: LLMResponse, pieces: list[str] | Exception | None
+    ) -> None:
+        self.provider, self.model = response.provider, response.model
+        self.tool_calls = response.tool_calls
+        self.content = response.content or ""
+        self.finish_reason = response.finish_reason
+        self.usage = response.usage
+        self._pieces = pieces
+
+    def __iter__(self):
+        if isinstance(self._pieces, Exception):
+            yield "Partial "
+            raise self._pieces
+        yield from self._pieces or []
+
+
+def pieces_of(text: str | None) -> list[str]:
+    """Split a reply into 3-character pieces, like a real stream."""
+    return [text[i : i + 3] for i in range(0, len(text), 3)] if text else []
+
+
 class ScriptedLLM:
     def __init__(self, *responses: LLMResponse | Exception) -> None:
         self.responses = list(responses)
         self.requests: list[dict] = []
 
-    def complete(
+    def stream_turn(
         self, messages, *, tools=None, tool_choice=None, max_tokens=1024, **kw
     ):
         self.requests.append(
@@ -64,7 +89,10 @@ class ScriptedLLM:
         outcome = self.responses.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
-        return outcome
+        if isinstance(outcome, tuple):  # (response, error after the first piece)
+            return FakeTurn(outcome[0], outcome[1])
+        pieces = [] if outcome.tool_calls else pieces_of(outcome.content)
+        return FakeTurn(outcome, pieces)
 
 
 class FakeKnowledge:
@@ -184,6 +212,7 @@ def test_tool_results_go_back_to_the_model_and_the_answer_cites_them() -> None:
     second = llm.requests[1]["messages"]
     assistant, stats_result, knowledge_result = second[2], second[3], second[4]
     assert assistant["role"] == "assistant" and assistant["content"] is None
+    assert assistant["_provider"] == "groq"  # another provider gets it as text
     assert [c["function"]["name"] for c in assistant["tool_calls"]] == [
         "query_stats",
         "search_f1_knowledge",
@@ -491,3 +520,173 @@ def test_cli_errors(monkeypatch, capsys) -> None:
     assert cli.run(["q"]) == 1
     assert "unavailable right now" in capsys.readouterr().err
     assert cli.run(["   "]) == 2
+
+
+# --- streaming events (F4.1) ---
+
+
+from app.answer.orchestrator import (  # noqa: E402
+    CitationEvent,
+    DoneEvent,
+    TableEvent,
+    TokenEvent,
+    ToolEvent,
+)
+from app.llm.errors import LLMStreamInterruptedError  # noqa: E402
+
+
+def test_events_arrive_in_order_ending_with_done() -> None:
+    llm = ScriptedLLM(
+        reply(
+            None,
+            call("query_stats", 1, sql="SELECT wins FROM v_driver_career"),
+            call("search_f1_knowledge", 2, query="Monza"),
+        ),
+        reply("Hamilton and Schumacher share it [S1], 5 each [S2]."),
+    )
+
+    events = list(orchestrator(llm).stream("Most wins at Monza?"))
+
+    kinds = [type(e).__name__ for e in events]
+    assert kinds[:5] == [
+        "ToolEvent",
+        "ToolEvent",
+        "TableEvent",
+        "ToolEvent",
+        "ToolEvent",
+    ]
+    assert kinds[-1] == "DoneEvent"
+    assert [e.status for e in events if isinstance(e, ToolEvent)] == [
+        "started", "finished", "started", "finished",
+    ]  # fmt: skip
+    table = next(e for e in events if isinstance(e, TableEvent))
+    assert (table.columns, table.rows) == (("wins",), ((5,),))
+    tokens = [e.text for e in events if isinstance(e, TokenEvent)]
+    assert len(tokens) > 3  # streamed in pieces
+    done = events[-1]
+    assert isinstance(done, DoneEvent) and "".join(tokens).strip() == done.answer.text
+
+
+def test_citations_are_events_when_first_cited() -> None:
+    llm = ScriptedLLM(
+        reply(None, call("search_f1_knowledge", 1, query="x")),
+        reply("A [S2] then B [S1] and A again [S2]."),
+    )
+
+    events = list(orchestrator(llm, [FakeKnowledge()]).stream("q"))
+
+    cited = [e.source.id for e in events if isinstance(e, CitationEvent)]
+    assert cited == ["S2", "S1"]
+    first_citation = next(
+        i for i, e in enumerate(events) if isinstance(e, CitationEvent)
+    )
+    assert any(isinstance(e, TokenEvent) for e in events[:first_citation])
+    assert events[-1].answer.sources == tuple(  # type: ignore[union-attr]
+        e.source for e in events if isinstance(e, CitationEvent)
+    )
+
+
+def test_an_invalid_citation_never_reaches_the_stream() -> None:
+    llm = ScriptedLLM(reply("Fact [S9]. Another【S7†L2】 fact."))
+
+    tokens = [
+        e.text for e in orchestrator(llm).stream("q") if isinstance(e, TokenEvent)
+    ]
+
+    streamed = "".join(tokens)
+    assert "S9" not in streamed and "S7" not in streamed
+    assert streamed == "Fact. Another fact."
+
+
+def test_a_stream_interrupted_after_tokens_raises_after_them() -> None:
+    llm = ScriptedLLM(
+        (
+            reply("never mind"),
+            LLMStreamInterruptedError("The answer was interrupted; please try again"),
+        )
+    )
+
+    received = []
+    with pytest.raises(AnswerUnavailableError, match="interrupted"):
+        for event in orchestrator(llm).stream("q"):
+            received.append(event)
+
+    assert [e.text for e in received if isinstance(e, TokenEvent)] == ["Partial"]
+
+
+def test_bad_questions_fail_before_the_first_event() -> None:
+    llm = ScriptedLLM()
+
+    with pytest.raises(ValueError):
+        orchestrator(llm).stream("   ")  # raised on the call, not on iteration
+    assert llm.requests == []
+
+
+def test_provider_extras_are_echoed_back_with_the_tool_call() -> None:
+    signed = ToolCall("call_1", "search_f1_knowledge", {"query": "x"},
+                      {"extra_content": {"google": {"thought_signature": "sig"}}})  # fmt: skip
+    llm = ScriptedLLM(reply(None, signed), reply("Done [S1]."))
+
+    orchestrator(llm, [FakeKnowledge()]).answer("q")
+
+    (tool_call,) = llm.requests[1]["messages"][2]["tool_calls"]
+    assert tool_call["extra_content"] == {"google": {"thought_signature": "sig"}}
+
+
+def test_close_disposes_tools_that_hold_resources() -> None:
+    class Pooled(FakeKnowledge):
+        disposed = False
+
+        def dispose(self) -> None:
+            self.disposed = True
+
+    tool = Pooled()
+    orchestrator(ScriptedLLM(), [tool, FakeStats()]).close()
+
+    assert tool.disposed
+
+
+# --- the streaming citation filter gives the same result whatever the chunks ---
+
+from app.answer.orchestrator import CitationFilter  # noqa: E402
+
+STREAM_CASES = [
+    "Hunt won [S2].",
+    "Lauda crashed【S3】. Hunt won【S2†L4-L9】 and [S1†L2].",
+    "Grouped [S1, S3] and [S2; S9].",
+    "Made up [S9]. Real [S2].",
+    "fact [S9] more",
+    "x [S9]y",
+    "Keep [link](https://x) and [note].",
+    "  - item\n    - nested [S1]\n",
+    "an unclosed [ bracket that runs on for long enough to stop waiting",
+    "end [S2]",
+]
+
+
+def _stream(text: str, size: int) -> str:
+    citations = CitationFilter(KNOWN)
+    parts = [citations.feed(text[i : i + size])[0] for i in range(0, len(text), size)]
+    parts.append(citations.flush()[0])
+    return "".join(parts).strip()
+
+
+@pytest.mark.parametrize("text", STREAM_CASES)
+@pytest.mark.parametrize("size", [1, 2, 3, 7])
+def test_streaming_matches_the_whole_text(text: str, size: int) -> None:
+    assert _stream(text, size) == clean_citations(text, KNOWN)[0]
+
+
+def test_a_dropped_marker_at_a_chunk_boundary_keeps_the_space() -> None:
+    citations = CitationFilter(KNOWN)
+    first, _ = citations.feed("fact [S9]")
+    second, _ = citations.feed("more")
+    rest, _ = citations.flush()
+
+    assert first + second + rest == "fact more"
+
+
+def test_nested_list_indentation_survives() -> None:
+    text, _ = clean_citations("- a\n    - b [S1]\n        - c", KNOWN)
+
+    assert text == "- a\n    - b [S1]\n        - c"
