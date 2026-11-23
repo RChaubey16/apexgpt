@@ -91,6 +91,15 @@ class Settings(BaseSettings):
     # seconds, wait once and retry (free tiers limit tokens per minute). 0 = off.
     llm_rate_limit_wait_seconds: float = 20.0
 
+    # Per-IP limits (F4.4), "N/period" joined by ";" (periods: second, minute,
+    # hour, day). Blank = no limit. Chat answers spend free-tier LLM tokens
+    # (Groq: 8,000/minute for everyone), so its limit is the tight one.
+    rate_limit_chat: str = "6/minute;100/day"
+    rate_limit_feedback: str = "30/minute;500/day"
+    # In-memory answer cache (F4.4): entries (0 = off) and seconds each lives.
+    answer_cache_size: int = 256
+    answer_cache_ttl_seconds: int = 86_400
+
     @field_validator("database_url")
     @classmethod
     def _validate_database_url(cls, value: SecretStr) -> SecretStr:
@@ -156,6 +165,30 @@ class Settings(BaseSettings):
     def _validate_llm_retries(cls, value: int) -> int:
         if not 0 <= value <= 3:
             raise ValueError("LLM_MAX_RETRIES must be between 0 and 3")
+        return value
+
+    @field_validator("rate_limit_chat", "rate_limit_feedback")
+    @classmethod
+    def _validate_rate_limit(cls, value: str) -> str:
+        from app.core.rate_limit import parse_limits
+
+        parse_limits(value)
+        return value.strip()
+
+    @field_validator("answer_cache_size")
+    @classmethod
+    def _validate_answer_cache_size(cls, value: int) -> int:
+        if not 0 <= value <= 10_000:
+            raise ValueError("ANSWER_CACHE_SIZE must be between 0 and 10000")
+        return value
+
+    @field_validator("answer_cache_ttl_seconds")
+    @classmethod
+    def _validate_answer_cache_ttl(cls, value: int) -> int:
+        if not 60 <= value <= 7 * 86_400:
+            raise ValueError(
+                "ANSWER_CACHE_TTL_SECONDS must be between 60 and 604800 (7 days)"
+            )
         return value
 
     @field_validator("onnx_threads")

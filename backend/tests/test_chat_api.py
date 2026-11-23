@@ -102,7 +102,7 @@ def test_the_answer_streams_as_typed_events() -> None:
                       "section": "Race", "season": 1976}),
         ("done", {"question": "q", "provider": "groq", "model": "openai/gpt-oss-120b", "sources": ["S1"],
                   "tools": [{"name": "query_stats", "ok": True}], "latency_ms": 2100,
-                  "prompt_tokens": 900, "completion_tokens": 80}),
+                  "prompt_tokens": 900, "completion_tokens": 80, "cached": False}),
     ]  # fmt: skip
 
 

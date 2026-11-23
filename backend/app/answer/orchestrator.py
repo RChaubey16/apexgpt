@@ -11,6 +11,8 @@
    If it fails, the question goes on without hints.
 0. With conversation history, a follow-up is first condensed into a
    standalone question (app/answer/followups, F4.2); everything below uses it.
+   If the answer cache (F4.4) has that question, its events are replayed and
+   nothing below runs; a fresh answer worth repeating is stored.
 2. Every round is streamed with the tools offered (LLMClient.stream_turn): tool
    calls are collected and run, text streams to the caller as it arrives. Up to
    MAX_ROUNDS rounds and MAX_TOOL_CALLS calls; every outcome (rows, passages
@@ -32,9 +34,10 @@ import logging
 import re
 import time
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
+from app.answer.cache import AnswerCache, cache_key, coalesce
 from app.answer.followups import HistoryMessage, condense, validate_history
 from app.answer.prompts import FINAL_ROUND_NOTE, SYSTEM_PROMPT, user_message
 from app.llm.client import PROVIDER_KEY, LLMClient, Turn
@@ -90,6 +93,8 @@ class Answer:
     llm_calls: int = field(default=0)
     # The question as asked, when a follow-up was condensed into `question`.
     asked: str | None = None
+    # Replayed from the answer cache (F4.4): no tools ran, no tokens spent on it.
+    cached: bool = False
 
 
 # --- events ---
@@ -279,8 +284,10 @@ class Orchestrator:
         *,
         max_rounds: int = MAX_ROUNDS,
         max_tool_calls: int = MAX_TOOL_CALLS,
+        cache: AnswerCache | None = None,
     ) -> None:
         self._llm = llm
+        self._cache = cache
         self._tools = {tool.name: tool for tool in tools}
         self._resolver = resolver
         self._max_rounds = max_rounds
@@ -374,6 +381,73 @@ class Orchestrator:
             if condensed.rewritten:
                 logger.info("Follow-up condensed (%d history messages)", len(history))
                 yield QuestionEvent(question)
+
+        spent = (prompt_tokens, completion_tokens, llm_calls)
+        key = cache_key(question) if self._cache is not None else None
+        if self._cache is not None and key is not None:
+            hit = self._cache.get(key)
+            if hit is not None:
+                yield from self._replay(hit, question, asked, started, spent)
+                return
+        recorded: list[AnswerEvent] = []
+        for event in self._fresh(question, asked, started, spent):
+            recorded.append(event)
+            # Stored before DoneEvent is yielded: a caller may stop at it
+            # (answer() does), and then nothing after the yield runs.
+            if (
+                isinstance(event, DoneEvent)
+                and self._cache is not None
+                and key is not None
+                and self._cacheable(event.answer)
+            ):
+                self._cache.put(key, coalesce(recorded, TokenEvent))
+            yield event
+
+    def _cacheable(self, answer: Answer) -> bool:
+        """Worth repeating: every tool was available and every call worked
+        (an answer given while the stats database was down is not)."""
+        return len(self._tool_definitions()) == len(self._tools) and all(
+            call.ok for call in answer.tool_calls
+        )
+
+    def _replay(
+        self,
+        events: tuple[AnswerEvent, ...],
+        question: str,
+        asked: str,
+        started: float,
+        spent: tuple[int, int, int],
+    ) -> Iterator[AnswerEvent]:
+        """A cached answer's events. Its DoneEvent keeps who wrote the answer
+        and which tools it used; tokens and calls are this request's own."""
+        prompt_tokens, completion_tokens, llm_calls = spent
+        for event in events:
+            if not isinstance(event, DoneEvent):
+                yield event
+                continue
+            latency = round((time.perf_counter() - started) * 1000)
+            logger.info("Answered from cache: latency_ms=%d", latency)
+            yield DoneEvent(
+                replace(
+                    event.answer,
+                    question=question,
+                    asked=asked if question != asked else None,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    llm_calls=llm_calls,
+                    latency_ms=latency,
+                    cached=True,
+                )
+            )
+
+    def _fresh(
+        self,
+        question: str,
+        asked: str,
+        started: float,
+        spent: tuple[int, int, int],
+    ) -> Iterator[AnswerEvent]:
+        prompt_tokens, completion_tokens, llm_calls = spent
         resolution = self._resolve(question)
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},

@@ -16,6 +16,7 @@ from app.api.routes import chat, feedback, health
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.rate_limit import RateLimiter, parse_limits
 from app.db.session import create_db_engine
 
 
@@ -45,6 +46,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Built once and shared: models, connections and the entity index load on
     # first use, so startup stays fast and works without the database.
     app.state.orchestrator = build_orchestrator(settings, app.state.session_factory)
+    app.state.rate_limiter = RateLimiter(
+        {
+            "chat": parse_limits(settings.rate_limit_chat),
+            "feedback": parse_limits(settings.rate_limit_feedback),
+        }
+    )
     app.dependency_overrides[get_settings] = lambda: settings
 
     app.add_middleware(
@@ -52,6 +59,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
+        # So the browser can read when to retry after a 429.
+        expose_headers=["Retry-After"],
     )
     register_exception_handlers(app)
     app.include_router(health.router)

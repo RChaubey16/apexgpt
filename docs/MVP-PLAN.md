@@ -180,7 +180,7 @@ Follows the rules in [DATA-STRATEGY.md](./DATA-STRATEGY.md).
 - `POST /api/chat` streams over **SSE** with typed events: `token`, `citation`, `table`, `done`, `error`.
 - Conversation memory: the client sends recent history, and the backend condenses follow-ups into standalone questions.
 - `POST /api/feedback` stores thumbs up/down (question, answer excerpt ≤500 chars, rating), kept for 90 days.
-- Rate limiting per IP (`slowapi`), plus an **in-memory** LRU cache for repeated questions.
+- Rate limiting per IP (`limits`, slowapi's engine; see the Decision Log), plus an **in-memory** LRU cache for repeated questions.
 - Structured logging to rotated **files** (not the DB): question, tools used, latency, provider, errors.
 - Unit tests for the tools and an integration test for `/chat`.
 
@@ -302,7 +302,7 @@ Each feature has an ID, a branch name and the commit message to use. Features ru
 | F4.1 | `feature/chat-endpoint` | `POST /api/chat`, SSE events (`token`, `citation`, `table`, `done`, `error`) | `feat: add streaming chat endpoint` |
 | F4.2 | `feature/conversation-memory` | Follow-up condensing from client-sent history | `feat: add follow-up question handling` |
 | F4.3 | `feature/feedback-endpoint` | `POST /api/feedback`, feedback table, 90-day retention job | `feat: add answer feedback endpoint` |
-| F4.4 | `feature/rate-limiting-cache` | `slowapi` per-IP limits, in-memory LRU response cache | `feat: add rate limiting and response cache` |
+| F4.4 | `feature/rate-limiting-cache` | Per-IP limits (`limits`), in-memory LRU response cache | `feat: add rate limiting and response cache` |
 | F4.5 | `feature/structured-logging` | JSON logs to rotated files (question, tools, latency, provider, errors) | `feat: add structured file logging` |
 
 ### Phase 5: Frontend MVP

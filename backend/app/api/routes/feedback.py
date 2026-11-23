@@ -8,8 +8,9 @@ Request (unknown fields are rejected):
      "provider": "groq",         # optional, from the chat `done` event
      "model": "openai/gpt-oss-120b"}
 
-Response: 201 `{"id": <int>}`. 422 for a bad body; 503 when the database
-can't store it (the message is safe to show). Kept for 90 days.
+Response: 201 `{"id": <int>}`. 422 for a bad body; 429 with Retry-After over
+the per-IP limit (RATE_LIMIT_FEEDBACK, F4.4); 503 when the database can't
+store it (the message is safe to show). Kept for 90 days.
 """
 
 import logging
@@ -22,6 +23,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.answer.followups import MAX_HISTORY_CHARS
+from app.core.rate_limit import rate_limit
 from app.db.models.feedback import (
     MAX_MODEL_CHARS,
     MAX_PROVIDER_CHARS,
@@ -62,7 +64,8 @@ class ErrorResponse(BaseModel):
     "/feedback",
     status_code=status.HTTP_201_CREATED,
     response_model=FeedbackResponse,
-    responses={503: {"model": ErrorResponse}},
+    responses={429: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+    dependencies=[Depends(rate_limit("feedback"))],
 )
 def create_feedback(
     body: FeedbackRequest, session: Annotated[Session, Depends(get_session)]

@@ -235,10 +235,15 @@ data: {"question": "Explain Abu Dhabi 2021", "provider": "groq", "model": "opena
 | `table` | `columns`, `rows`, optional `note` | a stats query returned rows |
 | `token` | `text` | the next piece of the answer (markdown) |
 | `citation` | `id`, `title`, `url`, `section`, `season` | a source is cited for the first time |
-| `done` | `question` (the one answered), `provider`, `model`, `sources`, `tools`, `latency_ms`, `prompt_tokens`, `completion_tokens` | the answer is complete |
+| `done` | `question` (the one answered), `provider`, `model`, `sources`, `tools`, `latency_ms`, `prompt_tokens`, `completion_tokens`, `cached` | the answer is complete |
 | `error` | `message` (safe to show) | no answer; the stream ends |
 
 - **Request:** `{"question": "...", "history": [...]}`. The question is 1–500 characters. Unknown fields are rejected (422).
+- **Rate limit:** per client IP, `RATE_LIMIT_CHAT` (default `6/minute;100/day`). Over it: 429 `{"detail": "..."}` with `Retry-After`, before any LLM work. `/api/feedback` has its own (`RATE_LIMIT_FEEDBACK`, `30/minute;500/day`); `/health` is never limited.
+  - Counted in memory (one worker; a restart resets them), keyed by the client address uvicorn sets. Behind the proxy that comes from `X-Forwarded-For` only for proxies in `FORWARDED_ALLOW_IPS`; the header itself is never read, so a client can't pick its own key.
+- **Answer cache:** a repeated question (same standalone question, ignoring case, spacing and trailing punctuation) replays the stored events in a few ms, with `cached: true` in `done` and no tokens spent. `ANSWER_CACHE_SIZE` entries (default 256, 0 = off), each kept `ANSWER_CACHE_TTL_SECONDS` (default a day).
+  - Only answers where every tool was available and worked are stored, so a reply given while the stats database was down isn't repeated.
+  - A follow-up is condensed first, then looked up, so it can hit the cache too.
 - **Follow-ups:** `history` is optional: the recent conversation, oldest first, as `{"role": "user" | "assistant", "content": "..."}` (up to 20 messages of up to 8,000 characters). With history, one small LLM request rewrites the question as a standalone one ("How many poles did he get?" → "How many poles did Ayrton Senna get in 1988?"), and everything else (names, tools, answer) uses that.
   - Only the last 6 messages are used; assistant answers are cut to 600 characters, without their `[S#]` markers.
   - The answering model never sees the history. It is the client's text, so it is treated as data.
