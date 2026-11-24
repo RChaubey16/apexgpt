@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
+import { AnswerContent } from "@/components/AnswerContent";
 import { ChatError, MAX_QUESTION_CHARS, streamChat } from "@/lib/chat";
 import {
   conversationReducer,
@@ -219,11 +220,12 @@ function AnswerView({ answer }: { answer: AssistantMessage }) {
       {answer.standaloneQuestion && (
         <p className="text-xs text-zinc-500">Answering: {answer.standaloneQuestion}</p>
       )}
-      {answer.content && (
-        <div className="whitespace-pre-wrap leading-relaxed text-zinc-100">
-          {answer.content}
-        </div>
-      )}
+      <AnswerContent
+        text={answer.content}
+        citations={answer.citations}
+        tables={answer.tables}
+        complete={answer.status !== "streaming"}
+      />
       {status && (
         <p className="flex items-center gap-2 text-sm text-zinc-400" role="status">
           <span

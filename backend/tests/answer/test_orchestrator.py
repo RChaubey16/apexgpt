@@ -466,6 +466,14 @@ KNOWN = {f"S{i}": Source(f"S{i}", f"T{i}", f"https://x/{i}") for i in range(1, 4
             ["S3", "S2"],
         ),
         ("Suffix [S1†L2].", "Suffix [S1].", ["S1"]),
+        # gpt-oss wraps ids in zero-width spaces (seen live, F5.2).
+        (
+            "Won [\u200bS1\u200b][\u200bS3\u200b] and [\u2060S2\ufeff].",
+            "Won [S1][S3] and [S2].",
+            ["S1", "S3", "S2"],
+        ),
+        ("Invented [\u200bS9\u200b].", "Invented.", []),
+        ("Soft [S\u00ad1].", "Soft [S1].", ["S1"]),
         ("No citations here.", "No citations here.", []),
         (
             "Keep [link](https://x) and [note].",
@@ -662,6 +670,7 @@ STREAM_CASES = [
     "  - item\n    - nested [S1]\n",
     "an unclosed [ bracket that runs on for long enough to stop waiting",
     "end [S2]",
+    "Won [\u200bS1\u200b][\u200bS3\u200b] and [\u200bS9\u200b].",
 ]
 
 

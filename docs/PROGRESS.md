@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 5: Frontend MVP (in progress) |
-| **Current feature** | F5.1 streaming chat interface (PR in review) |
-| **Current branch** | `feature/chat-ui` |
-| **Open PR** | F5.1 streaming chat interface |
+| **Current feature** | F5.2 answer rendering (PR in review) |
+| **Current branch** | `feature/answer-rendering` |
+| **Open PR** | F5.2 markdown, table and citation rendering |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-23 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F5.1 PR.
-2. **F5.2 `feature/answer-rendering`**: markdown answers, stats tables (from `table` events) and citation chips (from `citation` events, linked to Wikipedia).
+1. User reviews and merges the F5.2 PR (includes a backend citation fix).
+2. **F5.3 `feature/starter-questions`**: starter question cards on an empty chat.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -112,8 +112,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check** (the plan's Phase 4 items, end to end on merged `main` in the dev container, 2026-11-23): streamed answer; follow-up condensed ("Who replaced him as race director?" → "Who replaced Michael Masi as race director?", answered by Gemini while Groq was rate limited); repeat served from the cache in 2 ms; feedback 201; 429 on the 4th request after 3 in the minute; one JSON log line per event. Caveat: "Explain Abu Dhabi 2021" came back without citations in this run (the model used only the stats tool; Known Issues, F6).
 
 ### Phase 5: Frontend MVP
-- [ ] F5.1 `feature/chat-ui`: streaming chat interface · 🔍 PR raised
-- [ ] F5.2 `feature/answer-rendering`: markdown, tables, citations
+- [x] F5.1 `feature/chat-ui`: streaming chat interface · PR #38 merged
+- [ ] F5.2 `feature/answer-rendering`: markdown, tables, citations · 🔍 PR raised
 - [ ] F5.3 `feature/starter-questions`: starter question cards
 - [ ] F5.4 `feature/chat-history`: local conversation history
 - [ ] F5.5 `feature/answer-actions`: copy + feedback actions
@@ -222,6 +222,10 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-23 | Feedback table (migration 0008): rating, question, answer excerpt (first 500 chars, cut at a word; the API accepts the full answer up to 8,000), optional provider/model, `created_at`; check constraints on every field; no IP or user identifier; not granted to the LLM role | Matches the plan's fields; provider/model let F6 score the fallback providers from real ratings; the server cuts the excerpt so the client can send the answer as it has it |
 | 2026-11-23 | 90-day retention = an indexed DELETE in the same transaction as every save, plus `python -m app.feedback purge` for a scheduled job (F7.3); 90 days is a constant, not a setting | No background timer that would wake Neon; rows still expire when no feedback arrives once the weekly job runs it |
 | 2026-11-23 | Feedback database errors → 503 with a fixed message (error class logged only) | Same rule as the chat errors: no host or driver details reach the client |
+| 2026-11-24 | Markdown with `react-markdown` 10.1 + `remark-gfm` 4.0 (pinned); no raw HTML, unsafe URLs dropped (default transform, plus our own `cite:` scheme); per-element Tailwind classes instead of the typography plugin | Answers carry paraphrased Wikipedia text, so HTML must never render. The model writes markdown tables itself. +~156 KB raw client JS |
+| 2026-11-24 | Citation chips: `[S3]` → a numbered chip linking to the source, only for ids the backend sent as `citation` events (the text can't forge one); a Sources list (title › section) with the CC BY-SA note once the answer is complete | Chips stay honest: an invented id is plain text. The list doubles as the Wikipedia attribution |
+| 2026-11-24 | `table` events behind a collapsed "Show the data (N rows)" disclosure, not a second table | Seen live: the model already writes its own table into the text (sometimes cut with "…"); the exact rows stay one click away without showing everything twice |
+| 2026-11-24 | Citation markers with zero-width/format characters (U+200B–U+200F, U+2060–U+2064, U+FEFF, soft hyphen) are recognised (backend `fix:` commit on this branch) | Seen live: gpt-oss wrote `[\u200bS1\u200b]`, so sources were dropped. The chips depend on it, so it shipped with F5.2 as its own commit |
 | 2026-11-23 | Chat client: `fetch` POST + our own SSE parser (not `EventSource`, not a library); every event validated against the backend contract; unknown event types skipped; typed `ChatError` kinds (rate_limited, invalid_request, unreachable, http_error, bad_response, interrupted, answer_error); an abort rethrown as AbortError | `EventSource` is GET-only; the parser is ~40 lines and is tested over 1–64-byte chunks, split UTF-8 and CRLF. Skipping unknown events lets the backend add events without breaking deployed frontends |
 | 2026-11-23 | UI state is a pure reducer (`conversation.ts`); `history` = finished exchanges only (failed/stopped/empty answers left out), last 20 messages, each ≤ 8,000 chars | Testable without React; a half answer would mislead the follow-up rewrite |
 | 2026-11-23 | After a 429 the Send button stays disabled for `Retry-After` seconds; no automatic retry | An automatic retry would spend the user's next request without them asking |
@@ -238,6 +242,26 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-24: F5.2 markdown, table and citation rendering
+- PR #38 (F5.1) merged.
+- **Looked at real answers first:**
+  - The model writes its own markdown tables (so `table` events would duplicate them).
+  - Citations: "Explain Abu Dhabi 2021" streamed **no citation events** although the knowledge search ran. The text had `[\u200bS1\u200b]`: zero-width spaces inside the marker, which the backend's filter didn't match.
+- **Backend fix** (separate `fix:` commit): the citation filter strips zero-width/format characters inside markers. +3 test cases and a streaming case; reverting the fix fails 3 tests. Live after the fix: 5 citation events, clean `[S1]` markers.
+- **Built** (`frontend/src/components/AnswerContent.tsx`):
+  - Markdown + GFM via react-markdown (no raw HTML, safe URLs, external links in a new tab with `noopener noreferrer nofollow`), scrollable tables.
+  - Citation chips for known ids, and the Sources list with the CC BY-SA note.
+  - The "Show the data" disclosure (column labels, number formatting, notes).
+  - Used by `Chat.tsx` in place of the plain text.
+- **Real answers rendered through the components** (jsdom; the browser tools weren't available):
+  - Abu Dhabi 2021: 3 sources, 6 chips, the model's 2 tables, no leftover `[S#]` or `**`.
+  - Monza: its table, plus 5 exact rows behind the disclosure, and no citations (stats only).
+- **Dev stack:** the frontend container was rebuilt with the new packages and the page serves 200. Not yet looked at in a real browser.
+- **Tests:**
+  - Frontend 100 (+16: markdown, GFM tables, chips, unknown and late citations, sources only when complete, the disclosure, raw HTML, `javascript:`/`data:` links, external link attributes, forged chips, a real answer, helpers). Lint, typecheck, prettier and `next build` clean.
+  - Backend 748 unit passing.
+  - Mutation checks (8 frontend: unknown ids linked, no URL sanitising, forged chips, opener kept, no GFM, sources while streaming, row count, raw column names): all caught.
 
 ### 2026-11-23: F5.1 streaming chat interface (Phase 5 started)
 - User gave the go-ahead for Phase 5. PR #37 (Phase 4 close-out) merged.
@@ -791,7 +815,7 @@ Newest first.
 
 ## Known Issues / Open Questions
 
-- F6: gpt-oss sometimes answers a narrative question with the stats tool only (live: 2 of 9 runs of "Explain Abu Dhabi 2021" during F4.4: two `query_stats` calls, no knowledge search, so no citations). The F4.1 live test fails when it happens. Tune the tool descriptions/prompt against the golden set.
+- F6: gpt-oss sometimes answers a narrative question with the stats tool only (live: 2 of 9 runs of "Explain Abu Dhabi 2021" during F4.4: two `query_stats` calls, no knowledge search, so no citations). The F4.1 live test fails when it happens. Tune the tool descriptions/prompt against the golden set. **Update (F5.2):** some "no citations" answers were a backend bug, not the model: gpt-oss wrote markers as `[\u200bS1\u200b]` (zero-width spaces), which the citation filter didn't recognise, so the sources were dropped even though the knowledge search ran. Fixed; the stats-only case remains.
 - F4.4: the answer cache is per process and isn't cleared by a data reload; reloaded data shows once entries expire (24 h) or on restart. Fine while the data covers finished seasons.
 - F7.1: the rate limits key on the client address, so `FORWARDED_ALLOW_IPS` must be the proxy's address in production, or every visitor shares the proxy's limit.
 - F7.3: add `python -m app.feedback purge` to the weekly scheduled workflow (with the backup), so feedback expires after 90 days even when none is submitted. Until then, rows are purged whenever new feedback is saved.

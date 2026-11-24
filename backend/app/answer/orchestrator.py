@@ -61,6 +61,9 @@ MAX_MARKER_CHARS = 40
 _OPENERS = "[【"
 _CLOSERS = "]】"
 _SOURCE_ID = re.compile(r"^S\d+$")
+# Invisible characters gpt-oss puts inside markers ("[\u200bS1\u200b]"): zero-width
+# space/non-joiner/joiner, word joiner, BOM, and other format characters.
+_INVISIBLE = re.compile(r"[\u200b-\u200f\u2060-\u2064\ufeff\u00ad]")
 _AFTER_DROPPED = set(" \t\n.,;:!?)")
 
 
@@ -151,7 +154,8 @@ class CitationFilter:
 
     Text is released as soon as it can't be part of a citation; from a '[' or
     '【' it is held until the closing bracket (or MAX_MARKER_CHARS), then:
-    - "[S3]", "【S3】", "[S3†L2]", "[S1, S2]" → "[S3]", "[S1][S2]" for known ids;
+    - "[S3]", "【S3】", "[S3†L2]", "[S1, S2]", "[\u200bS3\u200b]" (zero-width
+      characters) → "[S3]", "[S1][S2]" for known ids;
     - a marker naming only unknown ids is dropped with the space before it;
     - anything else in brackets ("[link](url)", "[note]") is left alone.
     Whitespace before a held marker is held with it, so "fact [S9]." → "fact.".
@@ -178,7 +182,7 @@ class CitationFilter:
     def _marker(self, marker: str, new: list[Source]) -> str | None:
         """Normalised replacement for a bracketed marker, or None if it isn't
         a citation."""
-        inner = marker[1:-1].split("†", 1)[0]
+        inner = _INVISIBLE.sub("", marker[1:-1]).split("†", 1)[0]
         ids = [part.strip() for part in re.split(r"[,;]", inner)]
         if not ids or not all(_SOURCE_ID.match(i) for i in ids):
             return None
