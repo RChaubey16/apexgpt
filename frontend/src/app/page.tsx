@@ -1,5 +1,5 @@
 import { BackendStatus } from "@/components/BackendStatus";
-import { Chat } from "@/components/Chat";
+import { ChatApp } from "@/components/ChatApp";
 import { ConfigError, getApiBaseUrl } from "@/lib/config";
 
 function resolveApiBaseUrl(): string | null {
@@ -19,8 +19,8 @@ export default function Home() {
   const apiBaseUrl = resolveApiBaseUrl();
 
   return (
-    <main className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-background/95 px-4 py-3 backdrop-blur">
+    <main className="flex h-dvh flex-col overflow-hidden">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-background px-4 py-3">
         <div className="flex items-baseline gap-3">
           <h1 className="text-xl font-bold tracking-tight">
             Apex<span className="text-red-500">GPT</span>
@@ -32,7 +32,7 @@ export default function Home() {
         {/* Calls /health/ready on load, which also wakes a suspended database. */}
         <BackendStatus apiBaseUrl={apiBaseUrl} />
       </header>
-      <Chat apiBaseUrl={apiBaseUrl} />
+      <ChatApp apiBaseUrl={apiBaseUrl} />
     </main>
   );
 }

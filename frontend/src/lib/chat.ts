@@ -80,10 +80,11 @@ export class ChatError extends Error {
 
 type Json = Record<string, unknown>;
 
-const isObject = (v: unknown): v is Json =>
+export const isObject = (v: unknown): v is Json =>
   typeof v === "object" && v !== null && !Array.isArray(v);
-const isString = (v: unknown): v is string => typeof v === "string";
-const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+export const isString = (v: unknown): v is string => typeof v === "string";
+export const isNumber = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v);
 const isNullableString = (v: unknown) => v === null || v === undefined || isString(v);
 const isNullableNumber = (v: unknown) => v === null || v === undefined || isNumber(v);
 

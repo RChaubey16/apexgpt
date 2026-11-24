@@ -2,67 +2,14 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  ChatError,
-  type ChatEvent,
-  type ChatRequest,
-  type DoneInfo,
-  type streamChat,
-} from "@/lib/chat";
+import { ChatError } from "@/lib/chat";
+import { FakeStream, INFO } from "@/test/stream";
+
+import type { Message } from "@/lib/conversation";
 
 import { Chat } from "./Chat";
 
 const BASE = "http://backend.test";
-const INFO: DoneInfo = {
-  question: "q",
-  provider: "groq",
-  model: "m",
-  sources: [],
-  tools: [],
-  latencyMs: 1,
-  promptTokens: 1,
-  completionTokens: 1,
-  cached: false,
-};
-
-/** A controllable fake of streamChat: the test pushes events or ends it. */
-class FakeStream {
-  requests: ChatRequest[] = [];
-  signals: AbortSignal[] = [];
-  private queue: (ChatEvent | Error)[] = [];
-  private wake: (() => void) | null = null;
-
-  push(...items: (ChatEvent | Error)[]) {
-    this.queue.push(...items);
-    this.wake?.();
-  }
-
-  readonly fn = ((
-    _base: string,
-    request: ChatRequest,
-    options?: { signal?: AbortSignal },
-  ) => {
-    this.requests.push(request);
-    const signal = options?.signal ?? new AbortController().signal;
-    this.signals.push(signal);
-    signal.addEventListener("abort", () => this.wake?.());
-    return this.events(signal);
-  }) as unknown as typeof streamChat;
-
-  private async *events(signal: AbortSignal): AsyncGenerator<ChatEvent> {
-    while (true) {
-      if (signal.aborted) throw new DOMException("aborted", "AbortError");
-      const item = this.queue.shift();
-      if (item === undefined) {
-        await new Promise<void>((resolve) => (this.wake = resolve));
-        continue;
-      }
-      if (item instanceof Error) throw item;
-      yield item;
-      if (item.type === "done") return;
-    }
-  }
-}
 
 function setup(apiBaseUrl: string | null = BASE) {
   const fake = new FakeStream();
@@ -295,5 +242,90 @@ describe("Chat", () => {
     unmount();
 
     expect(fake.signals[0].aborted).toBe(true);
+  });
+});
+
+describe("Chat with a saved conversation", () => {
+  const saved: Message[] = [
+    { id: "q1", role: "user", content: "Who won 1976?" },
+    {
+      id: "a1",
+      role: "assistant",
+      status: "done",
+      content: "James Hunt.",
+      tables: [],
+      citations: [],
+    },
+  ];
+
+  function mount(initialMessages?: Message[]) {
+    const fake = new FakeStream();
+    const reports: Message[][] = [];
+    const user = userEvent.setup();
+    const view = render(
+      <Chat
+        apiBaseUrl={BASE}
+        stream={fake.fn}
+        initialMessages={initialMessages}
+        onMessagesChange={(m) => reports.push(m)}
+      />,
+    );
+    return { fake, reports, user, view, input: screen.getByLabelText("Your question") };
+  }
+
+  it("shows the saved messages and continues the conversation", async () => {
+    const { fake, user, input, reports } = mount(saved);
+
+    expect(screen.getByText("James Hunt.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "Starter questions" }),
+    ).not.toBeInTheDocument();
+    expect(reports).toEqual([]); // nothing changed yet
+
+    await user.type(input, "By how much?{Enter}");
+
+    expect(fake.requests[0].history).toEqual([
+      { role: "user", content: "Who won 1976?" },
+      { role: "assistant", content: "James Hunt." },
+    ]);
+  });
+
+  it("reports the question and the finished answer, not every token", async () => {
+    const { fake, user, input, reports } = mount();
+
+    await user.type(input, "Who won 1976?{Enter}");
+    expect(reports).toHaveLength(1);
+    expect(reports[0].map((m) => m.role)).toEqual(["user", "assistant"]);
+
+    act(() =>
+      fake.push({ type: "token", text: "James " }, { type: "token", text: "Hunt." }),
+    );
+    await screen.findByText("James Hunt.");
+    expect(reports).toHaveLength(1);
+
+    act(() => fake.push({ type: "done", info: INFO }));
+    await waitFor(() => expect(reports).toHaveLength(2));
+    expect(reports[1][1]).toMatchObject({ status: "done", content: "James Hunt." });
+  });
+
+  it("reports what had arrived when it unmounts mid-answer, and stops the answer", async () => {
+    const { fake, user, input, reports, view } = mount();
+    await user.type(input, "Who won 1976?{Enter}");
+    act(() => fake.push({ type: "token", text: "James" }));
+    await screen.findByText("James");
+
+    view.unmount();
+
+    expect(fake.signals[0].aborted).toBe(true);
+    expect(reports).toHaveLength(2);
+    expect(reports[1][1]).toMatchObject({ status: "streaming", content: "James" });
+  });
+
+  it("doesn't report on unmount when nothing changed", () => {
+    const { reports, view } = mount(saved);
+
+    view.unmount();
+
+    expect(reports).toEqual([]);
   });
 });
