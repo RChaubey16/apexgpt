@@ -58,12 +58,12 @@ export function StarterQuestions({ onPick, disabled = false }: StarterQuestionsP
             type="button"
             onClick={() => onPick(s.question)}
             disabled={disabled}
-            className="flex h-full w-full flex-col gap-0.5 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 text-left transition-colors hover:border-red-600/70 hover:bg-zinc-900 focus-visible:border-red-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-zinc-800"
+            className="flex h-full w-full flex-col gap-1 rounded-xl border border-line border-l-accent border-l-2 bg-surface px-4 py-3 text-left transition-colors hover:border-accent hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line disabled:hover:border-l-accent disabled:hover:bg-surface"
           >
-            <span className="text-xs font-semibold uppercase tracking-wider text-red-400">
+            <span className="text-xs font-bold tracking-wider text-accent-text uppercase">
               {s.title}
             </span>
-            <span className="text-sm text-zinc-200">{s.question}</span>
+            <span className="text-sm text-soft">{s.question}</span>
           </button>
         </li>
       ))}

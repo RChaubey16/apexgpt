@@ -20,17 +20,21 @@ export default function Home() {
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-background px-4 py-3">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-xl font-bold tracking-tight">
-            Apex<span className="text-red-500">GPT</span>
-          </h1>
-          <p className="hidden text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 sm:block">
-            Formula 1 · 1950–2025
-          </p>
+      <header className="shrink-0 bg-surface pt-[env(safe-area-inset-top)]">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
+          <div className="flex items-center gap-3">
+            <span className="speed-stripes h-5 w-7 -skew-x-12" aria-hidden="true" />
+            <h1 className="text-xl font-black italic tracking-tight uppercase">
+              Apex<span className="text-accent-text">GPT</span>
+            </h1>
+            <p className="hidden border-l border-line pl-3 text-xs font-semibold tracking-[0.2em] text-muted uppercase sm:block">
+              Formula 1 · 1950–2025
+            </p>
+          </div>
+          {/* Calls /health/ready on load, which also wakes a suspended database. */}
+          <BackendStatus apiBaseUrl={apiBaseUrl} />
         </div>
-        {/* Calls /health/ready on load, which also wakes a suspended database. */}
-        <BackendStatus apiBaseUrl={apiBaseUrl} />
+        <div className="checkered h-1.5 opacity-80" aria-hidden="true" />
       </header>
       <ChatApp apiBaseUrl={apiBaseUrl} />
     </main>
