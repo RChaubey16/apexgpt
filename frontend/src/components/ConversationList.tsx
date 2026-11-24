@@ -36,7 +36,7 @@ export function ConversationList({
       <button
         type="button"
         onClick={onNew}
-        className="rounded-lg border border-zinc-700 px-3 py-2 text-left text-sm font-medium text-zinc-200 hover:border-red-600/70 hover:bg-zinc-900"
+        className="min-h-10 rounded-lg border border-control px-3 text-left text-sm font-semibold text-foreground hover:border-accent hover:bg-raised"
       >
         + New chat
       </button>
@@ -54,7 +54,7 @@ export function ConversationList({
           ))}
         </ul>
       )}
-      <p className="px-1 text-xs text-zinc-600">
+      <p className="px-1 text-xs text-muted">
         {available
           ? "Chats are saved in this browser only."
           : "This browser can't save chats, so they're lost when you leave or start a new one."}
@@ -72,7 +72,7 @@ interface RowProps {
 }
 
 const iconButton =
-  "rounded px-1.5 py-1 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200";
+  "min-h-8 rounded px-1.5 text-xs text-muted hover:bg-hover hover:text-foreground";
 
 function ConversationRow({
   conversation,
@@ -107,7 +107,7 @@ function ConversationRow({
             if (e.key === "Escape") finish(false);
           }}
           onBlur={() => finish(true)}
-          className="w-full rounded-lg border border-red-600 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:outline-none"
+          className="w-full rounded-lg border border-accent bg-raised px-3 py-1.5 text-base text-foreground focus-visible:outline-none md:text-sm"
         />
       </li>
     );
@@ -115,14 +115,14 @@ function ConversationRow({
 
   if (mode === "confirm-delete") {
     return (
-      <li className="flex items-center gap-1 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm">
-        <span className="min-w-0 flex-1 truncate text-zinc-300">
+      <li className="flex items-center gap-1 rounded-lg bg-raised px-3 py-1 text-sm">
+        <span className="min-w-0 flex-1 truncate text-soft">
           Delete “{conversation.title}”?
         </span>
         <button
           type="button"
           onClick={() => onDelete(id)}
-          className="rounded px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-950"
+          className="min-h-8 rounded px-2 text-xs font-semibold text-danger-text hover:bg-danger-bg"
         >
           Delete
         </button>
@@ -135,14 +135,14 @@ function ConversationRow({
 
   return (
     <li
-      className={`group flex items-center gap-1 rounded-lg pr-1 ${active ? "bg-zinc-800" : "hover:bg-zinc-900"}`}
+      className={`group flex items-center gap-1 rounded-lg pr-1 ${active ? "bg-raised shadow-[inset_2px_0_0_var(--color-accent)]" : "hover:bg-raised"}`}
     >
       <button
         type="button"
         onClick={() => onSelect(id)}
         aria-current={active ? "page" : undefined}
         title={conversation.title}
-        className={`min-w-0 flex-1 truncate px-3 py-1.5 text-left text-sm ${active ? "text-white" : "text-zinc-300"}`}
+        className={`min-h-9 min-w-0 flex-1 truncate px-3 text-left text-sm ${active ? "font-medium text-foreground" : "text-soft"}`}
       >
         {conversation.title}
       </button>

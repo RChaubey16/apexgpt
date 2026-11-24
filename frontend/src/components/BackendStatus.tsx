@@ -7,20 +7,20 @@ import { checkReadiness, type ReadinessState } from "@/lib/api";
 type DisplayState = ReadinessState | "checking" | "misconfigured";
 
 const MESSAGES: Record<DisplayState, { label: string; tone: string }> = {
-  checking: { label: "Connecting to the pit wall…", tone: "bg-zinc-500" },
-  ready: { label: "All systems go", tone: "bg-emerald-500" },
+  checking: { label: "Connecting to the pit wall…", tone: "bg-muted" },
+  ready: { label: "All systems go", tone: "bg-success" },
   database_unavailable: {
     label: "Backend is up, but the database is unavailable",
-    tone: "bg-amber-500",
+    tone: "bg-warning",
   },
-  unreachable: { label: "Can't reach the backend", tone: "bg-red-500" },
+  unreachable: { label: "Can't reach the backend", tone: "bg-accent" },
   unexpected_response: {
     label: "Backend sent an unexpected response",
-    tone: "bg-red-500",
+    tone: "bg-accent",
   },
   misconfigured: {
     label: "Frontend is misconfigured (backend URL missing or invalid)",
-    tone: "bg-red-500",
+    tone: "bg-accent",
   },
 };
 
@@ -58,7 +58,7 @@ export function BackendStatus({ apiBaseUrl }: BackendStatusProps) {
 
   return (
     <div
-      className="flex items-center gap-3 rounded-full border border-zinc-800 bg-zinc-900/60 px-4 py-2 text-sm"
+      className="flex items-center gap-2.5 rounded-full border border-line bg-background px-3 py-1.5 text-xs text-soft sm:text-sm"
       role="status"
       aria-live="polite"
     >
@@ -73,7 +73,7 @@ export function BackendStatus({ apiBaseUrl }: BackendStatusProps) {
         <button
           type="button"
           onClick={retry}
-          className="ml-1 rounded-full border border-zinc-700 px-3 py-0.5 text-xs text-zinc-300 hover:border-zinc-500 hover:text-white"
+          className="ml-1 rounded-full border border-control px-3 py-0.5 text-xs text-soft hover:border-foreground hover:text-foreground"
         >
           Retry
         </button>

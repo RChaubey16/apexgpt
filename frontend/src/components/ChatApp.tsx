@@ -136,7 +136,7 @@ export function ChatApp({ apiBaseUrl, storage: storageOverride, stream }: ChatAp
 
   return (
     <div className="flex min-h-0 flex-1">
-      <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-zinc-800 p-3 md:block">
+      <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-line bg-surface p-3 md:block lg:w-72">
         {list}
       </aside>
 
@@ -151,21 +151,21 @@ export function ChatApp({ apiBaseUrl, storage: storageOverride, stream }: ChatAp
             type="button"
             aria-label="Close chats"
             onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-black/70"
           />
-          <div className="absolute inset-y-0 left-0 w-72 max-w-[85%] overflow-y-auto border-r border-zinc-800 bg-background p-3">
+          <div className="absolute inset-y-0 left-0 w-72 max-w-[85%] overflow-y-auto border-r border-line bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))]">
             {list}
           </div>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between gap-2 border-b border-zinc-800 px-4 py-2 md:hidden">
+        <div className="flex items-center justify-between gap-2 border-b border-line px-2 py-1 md:hidden">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-expanded={drawerOpen}
-            className="rounded-lg px-2 py-1 text-sm text-zinc-300 hover:bg-zinc-900"
+            className="min-h-10 rounded-lg px-3 text-sm text-soft hover:bg-raised hover:text-foreground"
           >
             ☰ Chats{conversations.length > 0 && ` (${conversations.length})`}
           </button>
@@ -173,7 +173,7 @@ export function ChatApp({ apiBaseUrl, storage: storageOverride, stream }: ChatAp
             <button
               type="button"
               onClick={startNew}
-              className="rounded-lg px-2 py-1 text-sm text-zinc-300 hover:bg-zinc-900"
+              className="min-h-10 rounded-lg px-3 text-sm text-soft hover:bg-raised hover:text-foreground"
             >
               + New chat
             </button>
@@ -182,7 +182,7 @@ export function ChatApp({ apiBaseUrl, storage: storageOverride, stream }: ChatAp
         {saveFailed && (
           <p
             role="status"
-            className="border-b border-amber-900/60 bg-amber-950/30 px-4 py-1.5 text-center text-xs text-amber-300"
+            className="border-b border-warning/40 bg-warning-bg px-4 py-1.5 text-center text-xs text-warning-text"
           >
             This chat couldn&apos;t be saved in the browser (its storage may be full).
           </p>

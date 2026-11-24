@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 5: Frontend MVP (in progress) |
-| **Current feature** | F5.5 answer actions (PR in review) |
-| **Current branch** | `feature/answer-actions` |
-| **Open PR** | F5.5 copy and feedback actions |
+| **Current feature** | F5.6 UI theme (PR in review) |
+| **Current branch** | `feature/ui-theme` |
+| **Open PR** | F5.6 responsive F1 dark theme |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-24 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F5.5 PR (and tries Copy and 👍/👎 in a browser).
-2. **F5.6 `feature/ui-theme`**: responsive F1-themed dark UI polish (the last Phase 5 feature, then the Phase 5 close-out).
+1. User reviews and merges the F5.6 PR (and looks at it in a browser, on a phone too if possible).
+2. **Phase 5 close-out**: the phase done check end to end on merged `main` (the plan's Phase 5 items), then Phase 6 on the user's go-ahead.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -116,8 +116,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F5.2 `feature/answer-rendering`: markdown, tables, citations · PR #39 merged
 - [x] F5.3 `feature/starter-questions`: starter question cards · PR #40 merged
 - [x] F5.4 `feature/chat-history`: local conversation history · PR #41 merged
-- [ ] F5.5 `feature/answer-actions`: copy + feedback actions · 🔍 PR raised
-- [ ] F5.6 `feature/ui-theme`: responsive F1 dark theme
+- [x] F5.5 `feature/answer-actions`: copy + feedback actions · PR #42 merged
+- [ ] F5.6 `feature/ui-theme`: responsive F1 dark theme · 🔍 PR raised
 
 ### Phase 6: Evaluation & Hardening
 - [ ] F6.1 `feature/golden-eval-set`: golden question set
@@ -240,12 +240,23 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-23 | Per-IP moving windows in memory; defaults chat `6/minute;100/day`, feedback `30/minute;500/day` (settings, blank = off); 429 + `Retry-After` (exposed via CORS) before the endpoint runs, invalid bodies count too; key = `request.client.host`, never `X-Forwarded-For` directly | One uvicorn worker, so no shared store. Groq's free tier is ~8k tokens/minute for everyone (~2 answers), so a per-IP cap is about stopping scripts, not fairness. uvicorn already resolves the client from trusted proxies only |
 | 2026-11-23 | Answer cache: LRU of recorded events (tokens merged), 256 entries / 24 h (settings), keyed by the folded standalone question; stored only when every tool was available and every call worked; stored before `done` is yielded; `done.cached`, and tokens/calls in `done` are the request's own | Data covers finished seasons, so a day loses little. Keying after condensing lets follow-ups hit. A degraded answer (stats DB down) must not be repeated for a day. `answer()` stops at `done`, which would have skipped a write placed after it (found by the tests) |
 | 2026-11-23 | New SSE event `question` (when the follow-up was rewritten) and `question` in `done` | The UI can show how a follow-up was understood, and the answer can be checked against it |
+| 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
 
 ## Session Log
 
 Newest first.
+
+### 2026-11-24: F5.6 responsive F1 dark theme
+- PR #42 (F5.5) merged.
+- **Built:**
+  - `globals.css`: theme tokens in Tailwind's `@theme` (surfaces `background`/`surface`/`raised`/`hover`, `line`/`control`, text `foreground`/`soft`/`muted`, F1 red `accent`/`accent-strong`/`accent-text`, success/warning/danger), `checkered` and `speed-stripes` utilities, one global `:focus-visible` ring, dark scrollbars, `color-scheme: dark`, and reduced motion.
+  - Every component moved from raw `zinc`/`red`/`amber` classes to the tokens. Header: racing-stripe mark, italic wordmark, checkered band. Empty chat: a "Lights out" heading over the starter cards (red-edged). Answers: a rail that is red while streaming, uppercase table headers. Send: a slanted red button. Active chat: a red stripe.
+  - Layout `viewport`: `themeColor` (the page background), `colorScheme: dark`, `viewportFit: cover`; the header, composer and drawer pad themselves clear of safe areas. Larger touch targets (chat list, answer actions, mobile bar); 16 px inputs on phones.
+- **Contrast fix:** the old muted text (`zinc-500` ≈ 4.1:1, `zinc-600` ≈ 2.6:1 on the page) was below WCAG AA; all text tokens now meet 4.5:1 on every surface.
+- **Tests:** frontend 217 (+36 in `theme.test.ts`: the contrast formula, every text/surface pair, the 3:1 UI colours, the browser bar colour, and no default-palette classes in components). Mutation checks (4): a dimmer muted colour, a dimmer control border, a `text-zinc-500` in a component and a different `themeColor` all fail it. Lint, typecheck, prettier and `next build` clean; the built CSS has every new utility.
+- **Looked at (headless Chrome on the rebuilt dev stack):** desktop 1400×900 empty and with a live answer (2023 wins, tables, actions); phone 390 and 320 wide (no sideways scroll, header wraps), and the phone drawer. The Next.js dev indicator ("N") overlaps the composer only in dev.
 
 ### 2026-11-24: F5.5 copy and feedback actions
 - PR #41 (F5.4) merged.

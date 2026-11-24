@@ -48,7 +48,7 @@ function CitationChip({ source }: { source: Source }) {
       rel="noopener noreferrer"
       title={sourceLabel(source)}
       aria-label={`Source ${sourceNumber(source.id)}: ${sourceLabel(source)}`}
-      className="mx-0.5 inline-flex h-5 min-w-5 -translate-y-0.5 items-center justify-center rounded-full bg-zinc-800 px-1.5 align-middle text-[0.7rem] font-semibold text-red-300 no-underline hover:bg-red-900/60 hover:text-white"
+      className="mx-0.5 inline-flex h-5 min-w-5 -translate-y-0.5 items-center justify-center rounded-full bg-raised px-1.5 align-middle text-[0.7rem] font-semibold text-accent-text no-underline hover:bg-accent hover:text-on-accent"
     >
       {sourceNumber(source.id)}
     </a>
@@ -68,7 +68,7 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
           href={href}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          className="text-red-300 underline underline-offset-2 hover:text-red-200"
+          className="text-accent-text underline underline-offset-2 hover:text-foreground"
         >
           {children}
         </a>
@@ -78,44 +78,44 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
       <p className="my-2 leading-relaxed first:mt-0 last:mb-0">{children}</p>
     ),
     strong: ({ children }) => (
-      <strong className="font-semibold text-white">{children}</strong>
+      <strong className="font-semibold text-foreground">{children}</strong>
     ),
     ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-6">{children}</ul>,
     ol: ({ children }) => (
       <ol className="my-2 list-decimal space-y-1 pl-6">{children}</ol>
     ),
     li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-    h1: ({ children }) => <h3 className="mt-4 mb-2 text-lg font-semibold">{children}</h3>,
-    h2: ({ children }) => <h3 className="mt-4 mb-2 text-lg font-semibold">{children}</h3>,
+    h1: ({ children }) => <h3 className="mt-4 mb-2 text-lg font-bold">{children}</h3>,
+    h2: ({ children }) => <h3 className="mt-4 mb-2 text-lg font-bold">{children}</h3>,
     h3: ({ children }) => <h4 className="mt-3 mb-1.5 font-semibold">{children}</h4>,
     h4: ({ children }) => <h4 className="mt-3 mb-1.5 font-semibold">{children}</h4>,
     blockquote: ({ children }) => (
-      <blockquote className="my-2 border-l-2 border-zinc-700 pl-3 text-zinc-300">
+      <blockquote className="my-2 border-l-2 border-accent pl-3 text-soft">
         {children}
       </blockquote>
     ),
     code: ({ children }) => (
-      <code className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-[0.85em]">
+      <code className="rounded bg-raised px-1 py-0.5 font-mono text-[0.85em]">
         {children}
       </code>
     ),
     pre: ({ children }) => (
-      <pre className="my-2 overflow-x-auto rounded-lg bg-zinc-900 p-3 text-sm">
+      <pre className="my-2 overflow-x-auto rounded-lg bg-surface p-3 text-sm">
         {children}
       </pre>
     ),
-    hr: () => <hr className="my-4 border-zinc-800" />,
+    hr: () => <hr className="my-4 border-line" />,
     table: ({ children }) => <ScrollTable>{children}</ScrollTable>,
     th: ({ children, style }) => (
       <th
         style={style}
-        className="border-b border-zinc-700 px-3 py-1.5 text-left font-semibold"
+        className="border-b border-control bg-surface px-3 py-1.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-soft uppercase"
       >
         {children}
       </th>
     ),
     td: ({ children, style }) => (
-      <td style={style} className="border-b border-zinc-800/70 px-3 py-1.5">
+      <td style={style} className="border-b border-line px-3 py-1.5">
         {children}
       </td>
     ),
@@ -124,8 +124,10 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
 
 function ScrollTable({ children }: { children: ReactNode }) {
   return (
-    <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-zinc-800">
-      <table className="w-full border-collapse text-sm tabular-nums">{children}</table>
+    <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-line">
+      <table className="w-full border-collapse text-sm tabular-nums [&_tbody_tr:hover]:bg-surface [&_tbody_tr:last-child_td]:border-b-0">
+        {children}
+      </table>
     </div>
   );
 }
@@ -153,7 +155,7 @@ function DataTable({ table }: { table: Table }) {
             {table.columns.map((c) => (
               <th
                 key={c}
-                className="border-b border-zinc-700 px-3 py-1.5 text-left font-semibold"
+                className="border-b border-control bg-surface px-3 py-1.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-soft uppercase"
               >
                 {columnLabel(c)}
               </th>
@@ -164,7 +166,7 @@ function DataTable({ table }: { table: Table }) {
           {table.rows.map((row, i) => (
             <tr key={i}>
               {table.columns.map((c, j) => (
-                <td key={c} className="border-b border-zinc-800/70 px-3 py-1.5">
+                <td key={c} className="border-b border-line px-3 py-1.5">
                   {cellText(row[j])}
                 </td>
               ))}
@@ -172,7 +174,7 @@ function DataTable({ table }: { table: Table }) {
           ))}
         </tbody>
       </ScrollTable>
-      {table.note && <p className="text-xs text-zinc-500">{table.note}</p>}
+      {table.note && <p className="text-xs text-muted">{table.note}</p>}
     </div>
   );
 }
@@ -180,28 +182,28 @@ function DataTable({ table }: { table: Table }) {
 function Sources({ sources }: { sources: Source[] }) {
   return (
     <section aria-label="Sources" className="mt-1">
-      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+      <h4 className="mb-1.5 text-xs font-semibold tracking-wider text-muted uppercase">
         Sources
       </h4>
       <ol className="flex flex-col gap-1 text-sm">
         {sources.map((s) => (
           <li key={s.id} className="flex items-baseline gap-2">
-            <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-zinc-800 px-1.5 text-[0.7rem] font-semibold text-red-300">
+            <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-raised px-1.5 text-[0.7rem] font-semibold text-accent-text">
               {sourceNumber(s.id)}
             </span>
             <a
               href={s.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="min-w-0 break-words text-zinc-300 hover:text-white hover:underline"
+              className="min-w-0 break-words text-soft hover:text-foreground hover:underline"
             >
               {s.title}
-              {s.section && <span className="text-zinc-500"> › {s.section}</span>}
+              {s.section && <span className="text-muted"> › {s.section}</span>}
             </a>
           </li>
         ))}
       </ol>
-      <p className="mt-1.5 text-[0.7rem] text-zinc-600">
+      <p className="mt-1.5 text-[0.7rem] text-muted">
         Text from Wikipedia, licensed under CC BY-SA 4.0.
       </p>
     </section>
@@ -222,7 +224,7 @@ export function AnswerContent({ text, citations, tables, complete }: AnswerConte
   return (
     <>
       {text && (
-        <div className="text-zinc-100" data-testid="answer-text">
+        <div className="min-w-0 break-words text-foreground" data-testid="answer-text">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             urlTransform={urlTransform}
@@ -235,7 +237,7 @@ export function AnswerContent({ text, citations, tables, complete }: AnswerConte
       {complete && citations.length > 0 && <Sources sources={citations} />}
       {complete && rows > 0 && (
         <details className="group text-sm">
-          <summary className="cursor-pointer select-none text-xs text-zinc-500 hover:text-zinc-300">
+          <summary className="cursor-pointer select-none text-xs text-muted hover:text-foreground">
             Show the data ({rows} {rows === 1 ? "row" : "rows"} from the stats database)
           </summary>
           <div className="mt-1 flex flex-col gap-2">

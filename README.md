@@ -482,6 +482,10 @@ npm test && npm run lint && npm run typecheck
 - **Answer actions (F5.5)** ([`src/components/AnswerActions.tsx`](frontend/src/components/AnswerActions.tsx), [`src/lib/feedback.ts`](frontend/src/lib/feedback.ts)):
   - **Copy** puts the answer's markdown on the clipboard, with its sources listed after it (`[S1] Title › Section — URL`).
   - **👍/👎** sends `POST /api/feedback` with the question the backend answered, the answer and the model. One rating per answer; it's kept with the saved chat, so a reload can't vote twice. A failed send shows why and can be retried. Stopped answers can be copied but not rated.
+- **Theme (F5.6)** ([`src/app/globals.css`](frontend/src/app/globals.css)):
+  - Dark carbon greys with F1 red, a checkered-flag band under the header, and racing-stripe branding. Components use the theme's tokens (`bg-surface`, `text-muted`, `border-line`, `bg-accent`, …), never Tailwind's default palette, so colours change in one place.
+  - Accessible: all text meets WCAG AA contrast (4.5:1) on every surface, controls and the focus ring meet 3:1, every control has a visible keyboard focus ring, and motion is cut when the system asks for reduced motion. [`src/app/theme.test.ts`](frontend/src/app/theme.test.ts) checks the ratios and the token-only rule.
+  - Responsive from 320 px phones up: the chat list becomes a drawer below `md`, the page keeps clear of notches and the home bar (safe areas), touch targets are larger, and the text fields use 16 px text so iOS doesn't zoom in.
 
 ## Development Workflow
 

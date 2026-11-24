@@ -1,20 +1,108 @@
 @import "tailwindcss";
 
-/* Dark-first theme; the full F1 theme arrives in F5.6. */
-:root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+/*
+ * ApexGPT theme: dark, carbon greys with F1 racing red.
+ *
+ * Components use these tokens (bg-surface, text-muted, border-line, …), not
+ * Tailwind's default palette, so the look is set here in one place
+ * (src/app/theme.test.ts checks both). Text colours meet WCAG AA (4.5:1) on
+ * every surface they sit on; `accent` and `control` are for non-text UI
+ * (buttons, focus rings, input borders) and meet 3:1. theme.test.ts checks
+ * the ratios, so change a colour there and here together.
+ */
+@theme {
+  /* Surfaces, darkest first. */
+  --color-background: #0b0b0f;
+  --color-surface: #141419;
+  --color-raised: #1e1e25;
+  --color-hover: #26262f;
+
+  /* Lines: dividers, then form-control borders (3:1 on the page). */
+  --color-line: #2a2a33;
+  --color-control: #6b6b78;
+
+  /* Text, strongest first. */
+  --color-foreground: #f2f2f5;
+  --color-soft: #c8c8d2;
+  --color-muted: #9b9ba8;
+
+  /* F1 red: fills and rings (accent), and red text on dark (accent-text). */
+  --color-accent: #e10600;
+  --color-accent-strong: #c80500;
+  --color-accent-text: #ff6b63;
+  --color-on-accent: #ffffff;
+
+  /* Status. */
+  --color-success: #22c55e;
+  --color-warning: #f5a524;
+  --color-warning-text: #fbbf54;
+  --color-warning-bg: #2a1f0a;
+  --color-danger-text: #ff8f87;
+  --color-danger-bg: #2a0f0f;
+  --color-danger-line: #6b1a17;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* The checkered-flag band under the header. */
+@utility checkered {
+  background-image: repeating-conic-gradient(
+    var(--color-foreground) 0 25%,
+    var(--color-background) 0 50%
+  );
+  background-size: 8px 8px;
+}
+
+/* Racing stripes for the logo mark. */
+@utility speed-stripes {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-accent) 0 30%,
+    transparent 30% 42%,
+    var(--color-accent) 42% 64%,
+    transparent 64% 76%,
+    var(--color-accent) 76%
+  );
+}
+
+html {
+  color-scheme: dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-background);
+  color: var(--color-foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  color: var(--color-on-accent);
+}
+
+/* One visible focus ring for keyboard users, everywhere. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Thin, dark scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-hover) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

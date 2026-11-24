@@ -40,7 +40,7 @@ interface AnswerActionsProps {
 }
 
 const actionButton =
-  "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:hover:bg-transparent";
+  "inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-md px-2 text-xs text-muted hover:bg-raised hover:text-foreground disabled:cursor-not-allowed disabled:hover:bg-transparent";
 
 export function AnswerActions({
   answer,
@@ -114,25 +114,25 @@ export function AnswerActions({
               disabled={sending !== null || rated !== undefined}
               aria-pressed={rated === rating}
               aria-label={rating === "up" ? "Good answer" : "Bad answer"}
-              className={`${actionButton} ${rated === rating ? "bg-zinc-800 text-zinc-100" : ""} ${rated && rated !== rating ? "opacity-40" : ""}`}
+              className={`${actionButton} ${rated === rating ? "bg-raised text-foreground" : ""} ${rated && rated !== rating ? "opacity-40" : ""}`}
             >
               <span aria-hidden="true">{rating === "up" ? "👍" : "👎"}</span>
             </button>
           ))}
           {rated && (
-            <span className="text-xs text-zinc-500" role="status">
+            <span className="text-xs text-muted" role="status">
               Thanks for the feedback.
             </span>
           )}
           {sending && (
-            <span className="text-xs text-zinc-500" role="status">
+            <span className="text-xs text-muted" role="status">
               Sending…
             </span>
           )}
         </>
       )}
       {error && (
-        <span className="text-xs text-red-400" role="alert">
+        <span className="text-xs text-danger-text" role="alert">
           {error}
         </span>
       )}
