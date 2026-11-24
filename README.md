@@ -470,7 +470,10 @@ npm test && npm run lint && npm run typecheck
 - **Code:**
   - [`src/lib/chat.ts`](frontend/src/lib/chat.ts): the streaming client. It uses `fetch` POST, since `EventSource` can't POST, parses SSE across any chunking, validates every event, and returns typed errors.
   - [`src/lib/conversation.ts`](frontend/src/lib/conversation.ts): message state and the `history` sent with follow-ups (finished exchanges only, within the backend's limits).
-- Answers are plain text for now: markdown, tables and citation chips arrive in F5.2.
+- **Answers (F5.2)** ([`src/components/AnswerContent.tsx`](frontend/src/components/AnswerContent.tsx)):
+  - Markdown with GFM tables (react-markdown: no raw HTML, unsafe links dropped, external links open in a new tab).
+  - `[S3]` becomes a numbered chip linking to that Wikipedia source, but only for sources the backend actually cited. Once the answer is complete, a Sources list (title › section) follows, with the CC BY-SA note.
+  - The exact rows from the stats database are behind "Show the data (N rows)". The model writes its own table into the text, so they aren't shown twice.
 
 ## Development Workflow
 
