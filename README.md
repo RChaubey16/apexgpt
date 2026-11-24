@@ -475,6 +475,10 @@ npm test && npm run lint && npm run typecheck
   - `[S3]` becomes a numbered chip linking to that Wikipedia source, but only for sources the backend actually cited. Once the answer is complete, a Sources list (title › section) follows, with the CC BY-SA note.
   - The exact rows from the stats database are behind "Show the data (N rows)". The model writes its own table into the text, so they aren't shown twice.
 - **Starter questions (F5.3)** ([`src/components/StarterQuestions.tsx`](frontend/src/components/StarterQuestions.tsx)): six cards on an empty chat. Picking one asks it at once and leaves any typed draft alone. They cover both the stats and the F1 history tools, and each was checked against the live backend. Keep new ones to questions the data answers well.
+- **Chat history (F5.4)** ([`src/lib/history.ts`](frontend/src/lib/history.ts), [`src/components/ChatApp.tsx`](frontend/src/components/ChatApp.tsx)):
+  - Chats are saved in this browser's `localStorage` only (no login): a sidebar on wide screens, a "☰ Chats" drawer on phones. New chat, open, rename and delete.
+  - A visit opens on a new chat. A chat is saved with its first question and again as each answer ends; leaving one mid-answer stops the answer and keeps what had arrived.
+  - At most 50 chats. If the browser's storage is full, the oldest are dropped; if the chat still doesn't fit, a notice says it isn't being saved. Saved data is validated when read back, and two tabs don't overwrite each other's chats.
 
 ## Development Workflow
 

@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 5: Frontend MVP (in progress) |
-| **Current feature** | F5.3 starter questions (PR in review) |
-| **Current branch** | `feature/starter-questions` |
-| **Open PR** | F5.3 starter question cards |
+| **Current feature** | F5.4 chat history (PR in review) |
+| **Current branch** | `feature/chat-history` |
+| **Open PR** | F5.4 local conversation history |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-24 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F5.3 PR.
-2. **F5.4 `feature/chat-history`**: conversations in `localStorage` (new, rename, delete).
+1. User reviews and merges the F5.4 PR (and checks the sidebar and the phone drawer in a browser).
+2. **F5.5 `feature/answer-actions`**: copy an answer, and 👍/👎 feedback (`POST /api/feedback`).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -114,8 +114,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 5: Frontend MVP
 - [x] F5.1 `feature/chat-ui`: streaming chat interface · PR #38 merged
 - [x] F5.2 `feature/answer-rendering`: markdown, tables, citations · PR #39 merged
-- [ ] F5.3 `feature/starter-questions`: starter question cards · 🔍 PR raised
-- [ ] F5.4 `feature/chat-history`: local conversation history
+- [x] F5.3 `feature/starter-questions`: starter question cards · PR #40 merged
+- [ ] F5.4 `feature/chat-history`: local conversation history · 🔍 PR raised
 - [ ] F5.5 `feature/answer-actions`: copy + feedback actions
 - [ ] F5.6 `feature/ui-theme`: responsive F1 dark theme
 
@@ -225,6 +225,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-24 | Markdown with `react-markdown` 10.1 + `remark-gfm` 4.0 (pinned); no raw HTML, unsafe URLs dropped (default transform, plus our own `cite:` scheme); per-element Tailwind classes instead of the typography plugin | Answers carry paraphrased Wikipedia text, so HTML must never render. The model writes markdown tables itself. +~156 KB raw client JS |
 | 2026-11-24 | Citation chips: `[S3]` → a numbered chip linking to the source, only for ids the backend sent as `citation` events (the text can't forge one); a Sources list (title › section) with the CC BY-SA note once the answer is complete | Chips stay honest: an invented id is plain text. The list doubles as the Wikipedia attribution |
 | 2026-11-24 | `table` events behind a collapsed "Show the data (N rows)" disclosure, not a second table | Seen live: the model already writes its own table into the text (sometimes cut with "…"); the exact rows stay one click away without showing everything twice |
+| 2026-11-24 | Chat history: one versioned `localStorage` key (`apexgpt.conversations`, `version: 1`), at most 50 chats; every write re-reads the key and changes one chat; what is read back is validated (a bad chat is dropped alone; source links must be http(s)); on a full quota the oldest other chats are dropped, else the chat carries on unsaved with a notice | No login in the MVP. Re-reading keeps two tabs from wiping each other's chats; validation because storage can hold anything (old versions, edits, corruption) |
+| 2026-11-24 | A visit opens on a new chat (saved ones listed beside it); a chat is saved with its first question and as answers end, not per token; leaving mid-answer stops it and keeps the text as "stopped" | Reloading mid-answer can't resume a stream anyway; saving per token would rewrite the whole key dozens of times a second |
+| 2026-11-24 | The page is a fixed-height app (`h-dvh`): sidebar and conversation scroll separately, composer pinned at the bottom; on phones the chats are a drawer | A sidebar beside a page-scrolling chat needs sticky offsets tied to the header height; internal scrolling doesn't |
 | 2026-11-24 | Citation markers with zero-width/format characters (U+200B–U+200F, U+2060–U+2064, U+FEFF, soft hyphen) are recognised (backend `fix:` commit on this branch) | Seen live: gpt-oss wrote `[\u200bS1\u200b]`, so sources were dropped. The chips depend on it, so it shipped with F5.2 as its own commit |
 | 2026-11-23 | Chat client: `fetch` POST + our own SSE parser (not `EventSource`, not a library); every event validated against the backend contract; unknown event types skipped; typed `ChatError` kinds (rate_limited, invalid_request, unreachable, http_error, bad_response, interrupted, answer_error); an abort rethrown as AbortError | `EventSource` is GET-only; the parser is ~40 lines and is tested over 1–64-byte chunks, split UTF-8 and CRLF. Skipping unknown events lets the backend add events without breaking deployed frontends |
 | 2026-11-23 | UI state is a pure reducer (`conversation.ts`); `history` = finished exchanges only (failed/stopped/empty answers left out), last 20 messages, each ≤ 8,000 chars | Testable without React; a half answer would mislead the follow-up rewrite |
@@ -242,6 +245,19 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-24: F5.4 local conversation history
+- PR #40 (F5.3) merged.
+- **Built:**
+  - `src/lib/history.ts`: the stored chats (versioned key, validation on read, 50 at most, quota handling, re-read before every write so tabs don't clobber each other, titles from the first question, rename/delete).
+  - `src/lib/useStoredConversations.ts`: the list as React state through `useSyncExternalStore` (empty on the server, so hydration matches; re-reads on this tab's writes and on the `storage` event).
+  - `src/components/ConversationList.tsx`: New chat, open, inline rename (Enter/Escape) and inline delete confirmation (no browser dialogs).
+  - `src/components/ChatApp.tsx`: the sidebar (a drawer on phones) beside `<Chat key>`; saving, the "couldn't be saved" notice, and "this browser can't save chats".
+  - `Chat.tsx`: `initialMessages` and `onMessagesChange` (on each question, when an answer ends, and on unmount if changed; not per token). The page became a fixed-height layout.
+- **Build fix during the feature:** `next build` (Cache Components) refused `Date.now()` during render (the first chat id). A new chat now has no id until its first save, which runs in an effect; `Chat`'s key is a counter, so getting an id doesn't remount it.
+- **Tests:** frontend 152 (+46: storage 26, Chat reporting 4, ChatApp flows 16, incl. tab sync, quota, no storage, delete while answering, the drawer). The shared test fakes moved to `src/test/`. Lint, typecheck, prettier and `next build` clean.
+- **Mutation checks (26):** all caught after adding tests for 4 survivors (the write-side 50 cap, a renamed title kept on later saves, New chat on an empty chat keeping the draft, the blur after Escape). One more "survivor" had only edited a comment (the real line is caught by 5 tests), and an id map that no test could reach was removed instead.
+- **Dev stack:** the frontend container was rebuilt and serves the new layout. Not yet looked at in a real browser.
 
 ### 2026-11-24: F5.3 starter question cards
 - PR #39 (F5.2) merged.
@@ -823,6 +839,7 @@ Newest first.
 ## Known Issues / Open Questions
 
 - F6: gpt-oss sometimes answers a narrative question with the stats tool only (live: 2 of 9 runs of "Explain Abu Dhabi 2021" during F4.4: two `query_stats` calls, no knowledge search, so no citations). The F4.1 live test fails when it happens. Tune the tool descriptions/prompt against the golden set. **Update (F5.2):** some "no citations" answers were a backend bug, not the model: gpt-oss wrote markers as `[\u200bS1\u200b]` (zero-width spaces), which the citation filter didn't recognise, so the sources were dropped even though the knowledge search ran. Fixed; the stats-only case remains.
+- F5.4: two tabs with the **same** chat open: each tab's save replaces that chat with its own copy (last write wins); other chats are safe. A deleted chat still open in another tab comes back if that tab saves it. Fine for a no-login MVP.
 - F4.4: the answer cache is per process and isn't cleared by a data reload; reloaded data shows once entries expire (24 h) or on restart. Fine while the data covers finished seasons.
 - F7.1: the rate limits key on the client address, so `FORWARDED_ALLOW_IPS` must be the proxy's address in production, or every visitor shares the proxy's limit.
 - F7.3: add `python -m app.feedback purge` to the weekly scheduled workflow (with the backup), so feedback expires after 90 days even when none is submitted. Until then, rows are purged whenever new feedback is saved.
