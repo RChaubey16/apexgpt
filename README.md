@@ -479,6 +479,9 @@ npm test && npm run lint && npm run typecheck
   - Chats are saved in this browser's `localStorage` only (no login): a sidebar on wide screens, a "☰ Chats" drawer on phones. New chat, open, rename and delete.
   - A visit opens on a new chat. A chat is saved with its first question and again as each answer ends; leaving one mid-answer stops the answer and keeps what had arrived.
   - At most 50 chats. If the browser's storage is full, the oldest are dropped; if the chat still doesn't fit, a notice says it isn't being saved. Saved data is validated when read back, and two tabs don't overwrite each other's chats.
+- **Answer actions (F5.5)** ([`src/components/AnswerActions.tsx`](frontend/src/components/AnswerActions.tsx), [`src/lib/feedback.ts`](frontend/src/lib/feedback.ts)):
+  - **Copy** puts the answer's markdown on the clipboard, with its sources listed after it (`[S1] Title › Section — URL`).
+  - **👍/👎** sends `POST /api/feedback` with the question the backend answered, the answer and the model. One rating per answer; it's kept with the saved chat, so a reload can't vote twice. A failed send shows why and can be retried. Stopped answers can be copied but not rated.
 
 ## Development Workflow
 
