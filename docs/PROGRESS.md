@@ -14,18 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 5: Frontend MVP (in progress) |
-| **Current feature** | F5.6 UI theme (PR in review) |
-| **Current branch** | `feature/ui-theme` |
-| **Open PR** | F5.6 responsive F1 dark theme |
+| **Current phase** | Phase 5 complete; Phase 6 not started |
+| **Current feature** | None (waiting for the go-ahead for Phase 6) |
+| **Current branch** | `feature/close-phase-5` |
+| **Open PR** | Phase 5 close-out docs |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-24 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F5.6 PR (and looks at it in a browser, on a phone too if possible).
-2. **Phase 5 close-out**: the phase done check end to end on merged `main` (the plan's Phase 5 items), then Phase 6 on the user's go-ahead.
+1. User merges the Phase 5 close-out PR.
+2. **Phase 6 waits for the user's go-ahead.** It starts with F6.1 `feature/golden-eval-set`: ~100 golden questions across stats, seasons, races, crashes, rivalries, multi-hop, trick and out-of-scope (the Known Issues for F6 belong in it).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -41,7 +41,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 2. Narrative corpus | ✅ Done | 2026-11-13 | 2026-11-17 |
 | 3. Retrieval + LLM | ✅ Done | 2026-11-21 | 2026-11-22 |
 | 4. Chat API | ✅ Done | 2026-11-22 | 2026-11-23 |
-| 5. Frontend MVP | 🟡 In progress | 2026-11-23 | |
+| 5. Frontend MVP | ✅ Done | 2026-11-23 | 2026-11-24 |
 | 6. Eval + hardening | ⬜ Not started | | |
 | 7. Deployment | ⬜ Not started | | |
 
@@ -111,13 +111,14 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F4.5 `feature/structured-logging`: structured file logging · PR #36 merged
 - [x] **Phase done check** (the plan's Phase 4 items, end to end on merged `main` in the dev container, 2026-11-23): streamed answer; follow-up condensed ("Who replaced him as race director?" → "Who replaced Michael Masi as race director?", answered by Gemini while Groq was rate limited); repeat served from the cache in 2 ms; feedback 201; 429 on the 4th request after 3 in the minute; one JSON log line per event. Caveat: "Explain Abu Dhabi 2021" came back without citations in this run (the model used only the stats tool; Known Issues, F6).
 
-### Phase 5: Frontend MVP
+### Phase 5: Frontend MVP ✅
 - [x] F5.1 `feature/chat-ui`: streaming chat interface · PR #38 merged
 - [x] F5.2 `feature/answer-rendering`: markdown, tables, citations · PR #39 merged
 - [x] F5.3 `feature/starter-questions`: starter question cards · PR #40 merged
 - [x] F5.4 `feature/chat-history`: local conversation history · PR #41 merged
 - [x] F5.5 `feature/answer-actions`: copy + feedback actions · PR #42 merged
-- [ ] F5.6 `feature/ui-theme`: responsive F1 dark theme · 🔍 PR raised
+- [x] F5.6 `feature/ui-theme`: responsive F1 dark theme · PR #43 merged
+- [x] **Phase done check** (the plan's Phase 5 items, end to end on merged `main` in the dev stack, headless Chrome against the live backend, 2026-11-24): backend status "All systems go"; six starter cards; the "Abu Dhabi 2021" card streamed a cited answer (3 chips, Sources list); a follow-up ("Who was his team-mate that year?") shown as "Answering: Who was Max Verstappen's team-mate in 2021?" with its stats table ("Sergio Pérez."); Copy → "✓ Copied" and the clipboard held the answer with its Sources; 👍 → pressed, "Thanks for the feedback.", backend 201; the chat survived a reload with its rating, was renamed, a new chat opened empty, and the delete left 0 chats in the list and in storage; 360 px wide with no sideways scroll; `theme-color` #0b0b0f. Caveat: in one earlier run the same follow-up came back as a clarifying question (Known Issues, F6).
 
 ### Phase 6: Evaluation & Hardening
 - [ ] F6.1 `feature/golden-eval-set`: golden question set
@@ -247,6 +248,24 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-24: Phase 5 closed
+- PR #43 (F5.6) merged: **all Phase 5 features (F5.1–F5.6) are merged.**
+- Phase 5 delivers the Next.js chat UI:
+  - streamed answers with markdown, stats tables and citation chips with a Sources list;
+  - starter question cards;
+  - chats saved in `localStorage` (new, open, rename, delete; a drawer on phones);
+  - Copy and 👍/👎 feedback;
+  - a responsive F1 dark theme with WCAG AA text contrast.
+- Done check run end to end on merged `main` (see the Phase 5 checklist), in headless Chrome driven over the DevTools protocol against the live dev backend. Frontend tests 217 passing on `main`.
+- Found in the check: the follow-up condenser can return a clarifying question (Known Issues, F6). Not fixed here; this PR is docs only.
+- Carried into later phases (Known Issues):
+  - narrative answers sometimes skip the knowledge search (F6);
+  - the condenser's clarifying questions (F6);
+  - per-season stats missing from the views (F3.5/F6);
+  - the feedback purge in the weekly workflow (F7.3);
+  - the log volume, `FORWARDED_ALLOW_IPS` and the models in the image (F7.1).
+- Phase 6 not started; waiting for the user's go-ahead.
 
 ### 2026-11-24: F5.6 responsive F1 dark theme
 - PR #42 (F5.5) merged.
@@ -862,6 +881,7 @@ Newest first.
 ## Known Issues / Open Questions
 
 - F6: gpt-oss sometimes answers a narrative question with the stats tool only (live: 2 of 9 runs of "Explain Abu Dhabi 2021" during F4.4: two `query_stats` calls, no knowledge search, so no citations). The F4.1 live test fails when it happens. Tune the tool descriptions/prompt against the golden set. **Update (F5.2):** some "no citations" answers were a backend bug, not the model: gpt-oss wrote markers as `[\u200bS1\u200b]` (zero-width spaces), which the citation filter didn't recognise, so the sources were dropped even though the knowledge search ran. Fixed; the stats-only case remains.
+- F6: the follow-up condenser sometimes answers an ambiguous follow-up with a clarifying question instead of a rewrite (live, Phase 5 done check: "Who was his team-mate that year?" after the Abu Dhabi 2021 answer → "Could you specify which driver and season you're referring to?" in 1 of 2 runs). That text becomes the standalone question, so the UI shows "Answering: Could you specify…" and the answer repeats it. `CONDENSE_PROMPT` (`backend/app/answer/followups.py`) doesn't say what to do when a reference can't be resolved: tell it to return the message unchanged then (and add the case to the golden set), or treat a rewrite that ends in a question to the user as unusable.
 - F5.4: two tabs with the **same** chat open: each tab's save replaces that chat with its own copy (last write wins); other chats are safe. A deleted chat still open in another tab comes back if that tab saves it. Fine for a no-login MVP.
 - F4.4: the answer cache is per process and isn't cleared by a data reload; reloaded data shows once entries expire (24 h) or on restart. Fine while the data covers finished seasons.
 - F7.1: the rate limits key on the client address, so `FORWARDED_ALLOW_IPS` must be the proxy's address in production, or every visitor shares the proxy's limit.
