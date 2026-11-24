@@ -158,6 +158,27 @@ describe("parseStore", () => {
   });
 });
 
+describe("ratings", () => {
+  it("keeps an answer's rating through a save", () => {
+    const storage = new MemoryStorage();
+    const rated = chat("a", 1, {
+      messages: [{ id: "q", role: "user", content: "q" }, answer({ feedback: "up" })],
+    });
+
+    saveConversation(storage, rated);
+
+    expect((loadConversations(storage)[0].messages[1] as AssistantMessage).feedback).toBe(
+      "up",
+    );
+  });
+
+  it("drops a conversation with an unknown rating", () => {
+    const bad = { ...chat("x", 1), messages: [{ ...answer(), feedback: "meh" }] };
+
+    expect(parseStore(store([bad, chat("ok", 1)])).map((c) => c.id)).toEqual(["ok"]);
+  });
+});
+
 describe("storedMessages", () => {
   it("keeps a streaming answer as stopped, without live-only fields", () => {
     const [m] = storedMessages([

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatError } from "@/lib/chat";
+import type { sendFeedback } from "@/lib/feedback";
 import { FakeStream, INFO } from "@/test/stream";
 
 import type { Message } from "@/lib/conversation";
@@ -327,5 +328,71 @@ describe("Chat with a saved conversation", () => {
     view.unmount();
 
     expect(reports).toEqual([]);
+  });
+});
+
+describe("Chat answer actions", () => {
+  it("rates a finished answer once, and reports the rating to be saved", async () => {
+    const fake = new FakeStream();
+    const send = vi.fn<typeof sendFeedback>(async () => 1);
+    const reports: Message[][] = [];
+    const user = userEvent.setup();
+    render(
+      <Chat
+        apiBaseUrl={BASE}
+        stream={fake.fn}
+        feedback={send}
+        onMessagesChange={(m) => reports.push(m)}
+      />,
+    );
+    await user.type(screen.getByLabelText("Your question"), "Who won 1976?{Enter}");
+    expect(screen.queryByRole("button", { name: "Good answer" })).not.toBeInTheDocument();
+    act(() =>
+      fake.push(
+        { type: "token", text: "James Hunt." },
+        { type: "done", info: { ...INFO, question: "Who won the 1976 title?" } },
+      ),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Good answer" }));
+
+    expect(send).toHaveBeenCalledExactlyOnceWith(BASE, {
+      rating: "up",
+      question: "Who won the 1976 title?",
+      answer: "James Hunt.",
+      provider: INFO.provider,
+      model: INFO.model,
+    });
+    expect(await screen.findByText("Thanks for the feedback.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Good answer" })).toBeDisabled();
+    await waitFor(() =>
+      expect(reports.at(-1)![1]).toMatchObject({ status: "done", feedback: "up" }),
+    );
+  });
+
+  it("passes the user's own question when the answer has no details", async () => {
+    const send = vi.fn<typeof sendFeedback>(async () => 1);
+    const user = userEvent.setup();
+    render(
+      <Chat
+        apiBaseUrl={BASE}
+        feedback={send}
+        initialMessages={[
+          { id: "q1", role: "user", content: "Who won 1988?" },
+          {
+            id: "a1",
+            role: "assistant",
+            status: "done",
+            content: "Ayrton Senna.",
+            tables: [],
+            citations: [],
+          },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Bad answer" }));
+
+    expect(send.mock.calls[0][1]).toMatchObject({ question: "Who won 1988?" });
   });
 });

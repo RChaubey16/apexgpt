@@ -2,7 +2,7 @@
  * Conversation state: the messages on screen, built from chat events.
  *
  * Pure functions, so the UI's behaviour is testable without React:
- * - `conversationReducer` applies one action (ask, event, finish, fail, stop);
+ * - `conversationReducer` applies one action (ask, event, fail, stop, rate);
  * - `historyFor` is what `/api/chat` gets as `history` for a follow-up: the
  *   finished exchanges before the new question, newest last, within the
  *   backend's limits (20 messages of ≤ 8,000 characters).
@@ -17,6 +17,7 @@ import {
   type Source,
   type Table,
 } from "./chat";
+import type { Rating } from "./feedback";
 
 export interface UserMessage {
   id: string;
@@ -41,6 +42,8 @@ export interface AssistantMessage {
   error?: string;
   /** Seconds to wait before asking again (rate limited). */
   retryAfterSeconds?: number;
+  /** The user's 👍/👎, once the backend has stored it (one per answer). */
+  feedback?: Rating;
 }
 
 export type Message = UserMessage | AssistantMessage;
@@ -53,7 +56,8 @@ export type Action =
   | { type: "ask"; userId: string; answerId: string; question: string }
   | { type: "event"; answerId: string; event: ChatEvent }
   | { type: "fail"; answerId: string; message: string; retryAfterSeconds?: number }
-  | { type: "stop"; answerId: string };
+  | { type: "stop"; answerId: string }
+  | { type: "rate"; answerId: string; rating: Rating };
 
 export const initialConversation: Conversation = { messages: [] };
 
@@ -62,11 +66,14 @@ function updateAnswer(
   id: string,
   update: (m: AssistantMessage) => AssistantMessage,
 ): Conversation {
+  // The same state when nothing changed (unknown id, or an update that is a
+  // no-op), so React skips the render and the change isn't reported.
   let changed = false;
   const messages = state.messages.map((m) => {
     if (m.id !== id || m.role !== "assistant") return m;
-    changed = true;
-    return update(m);
+    const updated = update(m);
+    if (updated !== m) changed = true;
+    return updated;
   });
   return changed ? { messages } : state;
 }
@@ -127,6 +134,10 @@ export function conversationReducer(state: Conversation, action: Action): Conver
     case "stop":
       return updateAnswer(state, action.answerId, (m) =>
         m.status === "streaming" ? { ...m, status: "stopped", activeTool: undefined } : m,
+      );
+    case "rate":
+      return updateAnswer(state, action.answerId, (m) =>
+        m.status === "done" && !m.feedback ? { ...m, feedback: action.rating } : m,
       );
   }
 }

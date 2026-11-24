@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 5: Frontend MVP (in progress) |
-| **Current feature** | F5.4 chat history (PR in review) |
-| **Current branch** | `feature/chat-history` |
-| **Open PR** | F5.4 local conversation history |
+| **Current feature** | F5.5 answer actions (PR in review) |
+| **Current branch** | `feature/answer-actions` |
+| **Open PR** | F5.5 copy and feedback actions |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-24 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F5.4 PR (and checks the sidebar and the phone drawer in a browser).
-2. **F5.5 `feature/answer-actions`**: copy an answer, and 👍/👎 feedback (`POST /api/feedback`).
+1. User reviews and merges the F5.5 PR (and tries Copy and 👍/👎 in a browser).
+2. **F5.6 `feature/ui-theme`**: responsive F1-themed dark UI polish (the last Phase 5 feature, then the Phase 5 close-out).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -115,8 +115,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F5.1 `feature/chat-ui`: streaming chat interface · PR #38 merged
 - [x] F5.2 `feature/answer-rendering`: markdown, tables, citations · PR #39 merged
 - [x] F5.3 `feature/starter-questions`: starter question cards · PR #40 merged
-- [ ] F5.4 `feature/chat-history`: local conversation history · 🔍 PR raised
-- [ ] F5.5 `feature/answer-actions`: copy + feedback actions
+- [x] F5.4 `feature/chat-history`: local conversation history · PR #41 merged
+- [ ] F5.5 `feature/answer-actions`: copy + feedback actions · 🔍 PR raised
 - [ ] F5.6 `feature/ui-theme`: responsive F1 dark theme
 
 ### Phase 6: Evaluation & Hardening
@@ -225,6 +225,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-24 | Markdown with `react-markdown` 10.1 + `remark-gfm` 4.0 (pinned); no raw HTML, unsafe URLs dropped (default transform, plus our own `cite:` scheme); per-element Tailwind classes instead of the typography plugin | Answers carry paraphrased Wikipedia text, so HTML must never render. The model writes markdown tables itself. +~156 KB raw client JS |
 | 2026-11-24 | Citation chips: `[S3]` → a numbered chip linking to the source, only for ids the backend sent as `citation` events (the text can't forge one); a Sources list (title › section) with the CC BY-SA note once the answer is complete | Chips stay honest: an invented id is plain text. The list doubles as the Wikipedia attribution |
 | 2026-11-24 | `table` events behind a collapsed "Show the data (N rows)" disclosure, not a second table | Seen live: the model already writes its own table into the text (sometimes cut with "…"); the exact rows stay one click away without showing everything twice |
+| 2026-11-24 | Answer actions: Copy gives the answer's markdown plus "Sources: [S1] Title › Section — URL"; 👍/👎 once per answer, recorded on the answer (and in the saved chat) only after the backend stores it; the question sent is the standalone one the backend answered (`done.question`), else the one asked; fields clipped to the backend's limits | Pasted [S#] markers stay meaningful. The backend has no update, so one vote per answer avoids duplicate rows (a reload can't re-vote). Clipping means a long answer never 422s |
 | 2026-11-24 | Chat history: one versioned `localStorage` key (`apexgpt.conversations`, `version: 1`), at most 50 chats; every write re-reads the key and changes one chat; what is read back is validated (a bad chat is dropped alone; source links must be http(s)); on a full quota the oldest other chats are dropped, else the chat carries on unsaved with a notice | No login in the MVP. Re-reading keeps two tabs from wiping each other's chats; validation because storage can hold anything (old versions, edits, corruption) |
 | 2026-11-24 | A visit opens on a new chat (saved ones listed beside it); a chat is saved with its first question and as answers end, not per token; leaving mid-answer stops it and keeps the text as "stopped" | Reloading mid-answer can't resume a stream anyway; saving per token would rewrite the whole key dozens of times a second |
 | 2026-11-24 | The page is a fixed-height app (`h-dvh`): sidebar and conversation scroll separately, composer pinned at the bottom; on phones the chats are a drawer | A sidebar beside a page-scrolling chat needs sticky offsets tied to the header height; internal scrolling doesn't |
@@ -245,6 +246,17 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-24: F5.5 copy and feedback actions
+- PR #41 (F5.4) merged.
+- **Built:**
+  - `src/lib/feedback.ts`: the `POST /api/feedback` client (trims and clips to 500/8,000 characters by code point, omits empty provider/model, 10 s timeout, safe messages for 429 with its delay, 503 with the backend's message, other statuses, bad bodies and network errors). `retryAfter`/`detail` are now shared from `chat.ts`.
+  - `src/components/AnswerActions.tsx`: Copy ("✓ Copied" for 2 s, "Couldn't copy" without a clipboard) for finished and stopped answers; 👍/👎 (`aria-pressed`, disabled while sending and once rated, "Thanks for the feedback.", errors inline with a retry) for finished ones only.
+  - The rating is a `rate` action on the answer (`feedback: "up" | "down"`), stored and validated with the saved chat.
+- **Fix found by a new test:** the reducer returned a new state for a no-op update (a late event after Stop, a second rating), so React re-rendered and the change was reported for saving. It now returns the same state.
+- **Live check (dev stack):** the CORS preflight from `http://localhost:3000` for `POST /api/feedback` allows it, and a feedback body like the client's was stored (201, id 4). The frontend container was rebuilt. Not yet clicked in a real browser.
+- **Tests:** frontend 181 (+29: client 11, actions 13, reducer 1, storage 2, Chat 2 — incl. the clipboard, the standalone question, sending/disabled, retry after failure, a recorded rating). Lint, typecheck, prettier and `next build` clean.
+- **Mutation checks (21):** all caught except an unreachable guard against a second click (the buttons are disabled then), which was removed.
 
 ### 2026-11-24: F5.4 local conversation history
 - PR #40 (F5.3) merged.

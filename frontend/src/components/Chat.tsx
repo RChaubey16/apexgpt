@@ -1,10 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
+import { AnswerActions } from "@/components/AnswerActions";
 import { AnswerContent } from "@/components/AnswerContent";
 import { StarterQuestions } from "@/components/StarterQuestions";
 import { ChatError, MAX_QUESTION_CHARS, streamChat } from "@/lib/chat";
+import type { sendFeedback } from "@/lib/feedback";
 import {
   conversationReducer,
   historyFor,
@@ -36,6 +45,8 @@ interface ChatProps {
   onMessagesChange?: (messages: Message[]) => void;
   /** For tests: the streaming client. */
   stream?: typeof streamChat;
+  /** For tests: the feedback client. */
+  feedback?: typeof sendFeedback;
 }
 
 export function Chat({
@@ -43,6 +54,7 @@ export function Chat({
   initialMessages,
   onMessagesChange,
   stream = streamChat,
+  feedback,
 }: ChatProps) {
   const [conversation, dispatch] = useReducer(
     conversationReducer,
@@ -168,7 +180,23 @@ export function Chat({
               <StarterQuestions onPick={(q) => void ask(q)} disabled={!ready} />
             </div>
           ) : (
-            conversation.messages.map((m) => <MessageView key={m.id} message={m} />)
+            conversation.messages.map((m, i) =>
+              m.role === "user" ? (
+                <UserMessageView key={m.id} content={m.content} />
+              ) : (
+                <AnswerView key={m.id} answer={m}>
+                  <AnswerActions
+                    answer={m}
+                    question={questionBefore(conversation.messages, i)}
+                    apiBaseUrl={apiBaseUrl}
+                    onRated={(rating) =>
+                      dispatch({ type: "rate", answerId: m.id, rating })
+                    }
+                    send={feedback}
+                  />
+                </AnswerView>
+              ),
+            )
           )}
           <div ref={endRef} />
         </div>
@@ -237,15 +265,17 @@ export function Chat({
   );
 }
 
-function MessageView({ message }: { message: Message }) {
-  if (message.role === "user") {
-    return (
-      <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-2xl bg-zinc-800 px-4 py-2.5 text-zinc-100">
-        {message.content}
-      </div>
-    );
-  }
-  return <AnswerView answer={message} />;
+function questionBefore(messages: Message[], index: number): string {
+  const previous = messages[index - 1];
+  return previous?.role === "user" ? previous.content : "";
+}
+
+function UserMessageView({ content }: { content: string }) {
+  return (
+    <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-2xl bg-zinc-800 px-4 py-2.5 text-zinc-100">
+      {content}
+    </div>
+  );
 }
 
 function statusLine(answer: AssistantMessage): string | null {
@@ -254,7 +284,14 @@ function statusLine(answer: AssistantMessage): string | null {
   return answer.content ? null : "Thinking…";
 }
 
-function AnswerView({ answer }: { answer: AssistantMessage }) {
+function AnswerView({
+  answer,
+  children,
+}: {
+  answer: AssistantMessage;
+  /** The actions under the answer. */
+  children: ReactNode;
+}) {
   const status = statusLine(answer);
   return (
     <article
@@ -292,6 +329,7 @@ function AnswerView({ answer }: { answer: AssistantMessage }) {
       {answer.done?.cached && (
         <p className="text-xs text-zinc-600">Answered from cache</p>
       )}
+      {children}
     </article>
   );
 }

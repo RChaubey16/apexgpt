@@ -250,12 +250,14 @@ interface StreamOptions {
   fetchImpl?: typeof fetch;
 }
 
-function retryAfter(response: Response): number {
+/** Seconds from a 429's Retry-After header (60 when it is missing or odd). */
+export function retryAfter(response: Response): number {
   const seconds = Number(response.headers.get("Retry-After"));
   return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 60;
 }
 
-async function detail(response: Response): Promise<string | null> {
+/** A FastAPI error body's `detail` message, if there is one. */
+export async function detail(response: Response): Promise<string | null> {
   try {
     const body: unknown = await response.json();
     return isObject(body) && isString(body.detail) ? body.detail : null;

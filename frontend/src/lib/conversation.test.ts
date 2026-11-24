@@ -133,6 +133,24 @@ describe("conversationReducer", () => {
     expect(answer(state).error).toBeUndefined();
   });
 
+  it("records one rating, only on a finished answer", () => {
+    const rate = (s: Conversation, rating: "up" | "down") =>
+      conversationReducer(s, { type: "rate", answerId: "a1", rating });
+
+    const streaming = rate(asked(), "up");
+    expect(answer(streaming).feedback).toBeUndefined();
+
+    let state = apply(
+      asked(),
+      { type: "token", text: "Hunt" },
+      { type: "done", info: INFO },
+    );
+    state = rate(state, "down");
+    expect(answer(state).feedback).toBe("down");
+
+    expect(rate(state, "up")).toBe(state); // already rated
+  });
+
   it("returns the same state for an unknown answer id", () => {
     const state = asked();
 

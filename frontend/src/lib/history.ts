@@ -23,6 +23,7 @@ import {
   type Table,
 } from "./chat";
 import type { AnswerStatus, AssistantMessage, Message } from "./conversation";
+import type { Rating } from "./feedback";
 
 export const STORAGE_KEY = "apexgpt.conversations";
 export const STORE_VERSION = 1;
@@ -156,6 +157,8 @@ function toMessage(v: unknown): Message | null {
   if (v.role === "user") return { id: v.id, role: "user", content: v.content };
   if (v.role !== "assistant" || !STATUSES.includes(v.status as AnswerStatus)) return null;
   if (!isOptionalString(v.standaloneQuestion) || !isOptionalString(v.error)) return null;
+  if (v.feedback !== undefined && v.feedback !== "up" && v.feedback !== "down")
+    return null;
   const tables = all(v.tables, toTable);
   const citations = all(v.citations, toSource);
   if (!tables || !citations) return null;
@@ -169,6 +172,7 @@ function toMessage(v: unknown): Message | null {
     citations,
     done: toDone(v.done),
     error: v.error as string | undefined,
+    feedback: v.feedback as Rating | undefined,
   });
 }
 
@@ -242,6 +246,7 @@ function sanitise(m: AssistantMessage): AssistantMessage {
     stored.standaloneQuestion = m.standaloneQuestion;
   if (m.done !== undefined) stored.done = m.done;
   if (m.error !== undefined) stored.error = m.error;
+  if (m.feedback !== undefined) stored.feedback = m.feedback;
   return stored;
 }
 
