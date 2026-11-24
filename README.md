@@ -474,6 +474,7 @@ npm test && npm run lint && npm run typecheck
   - Markdown with GFM tables (react-markdown: no raw HTML, unsafe links dropped, external links open in a new tab).
   - `[S3]` becomes a numbered chip linking to that Wikipedia source, but only for sources the backend actually cited. Once the answer is complete, a Sources list (title › section) follows, with the CC BY-SA note.
   - The exact rows from the stats database are behind "Show the data (N rows)". The model writes its own table into the text, so they aren't shown twice.
+- **Starter questions (F5.3)** ([`src/components/StarterQuestions.tsx`](frontend/src/components/StarterQuestions.tsx)): six cards on an empty chat. Picking one asks it at once and leaves any typed draft alone. They cover both the stats and the F1 history tools, and each was checked against the live backend. Keep new ones to questions the data answers well.
 
 ## Development Workflow
 

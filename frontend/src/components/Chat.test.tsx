@@ -81,6 +81,34 @@ describe("Chat", () => {
 
     expect(screen.getByText(/Ask about any driver/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(screen.getByRole("list", { name: "Starter questions" })).toBeInTheDocument();
+  });
+
+  it("asks a starter question when its card is picked, then hides the cards", async () => {
+    const { fake, user, input } = setup();
+    await user.type(input, "my draft");
+
+    await user.click(screen.getByRole("button", { name: /Abu Dhabi 2021/ }));
+
+    expect(fake.requests).toEqual([
+      { question: "Explain the 2021 Abu Dhabi Grand Prix controversy", history: [] },
+    ]);
+    expect(
+      screen.getByText("Explain the 2021 Abu Dhabi Grand Prix controversy"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "Starter questions" }),
+    ).not.toBeInTheDocument();
+    expect(input).toHaveValue("my draft"); // a draft isn't thrown away
+  });
+
+  it("disables the starter cards when the frontend is misconfigured", async () => {
+    const { fake, user } = setup(null);
+
+    const card = screen.getByRole("button", { name: /Abu Dhabi 2021/ });
+    expect(card).toBeDisabled();
+    await user.click(card);
+    expect(fake.requests).toEqual([]);
   });
 
   it("sends a question with Enter and streams the answer", async () => {

@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 5: Frontend MVP (in progress) |
-| **Current feature** | F5.2 answer rendering (PR in review) |
-| **Current branch** | `feature/answer-rendering` |
-| **Open PR** | F5.2 markdown, table and citation rendering |
+| **Current feature** | F5.3 starter questions (PR in review) |
+| **Current branch** | `feature/starter-questions` |
+| **Open PR** | F5.3 starter question cards |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
-| **Last updated** | 2026-11-23 |
+| **Last updated** | 2026-11-24 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F5.2 PR (includes a backend citation fix).
-2. **F5.3 `feature/starter-questions`**: starter question cards on an empty chat.
+1. User reviews and merges the F5.3 PR.
+2. **F5.4 `feature/chat-history`**: conversations in `localStorage` (new, rename, delete).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -113,8 +113,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 5: Frontend MVP
 - [x] F5.1 `feature/chat-ui`: streaming chat interface · PR #38 merged
-- [ ] F5.2 `feature/answer-rendering`: markdown, tables, citations · 🔍 PR raised
-- [ ] F5.3 `feature/starter-questions`: starter question cards
+- [x] F5.2 `feature/answer-rendering`: markdown, tables, citations · PR #39 merged
+- [ ] F5.3 `feature/starter-questions`: starter question cards · 🔍 PR raised
 - [ ] F5.4 `feature/chat-history`: local conversation history
 - [ ] F5.5 `feature/answer-actions`: copy + feedback actions
 - [ ] F5.6 `feature/ui-theme`: responsive F1 dark theme
@@ -242,6 +242,13 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-24: F5.3 starter question cards
+- PR #39 (F5.2) merged.
+- **Chose the questions live first:** six candidates were asked against the dev backend. All six answered correctly: Abu Dhabi 2021 and Senna–Prost (knowledge, with citations); Hunt 1976 (both tools, 5 citations); most titles, most constructor wins, most wins in 2023 (stats). Per-season poles were avoided (Known Issue).
+- **Built** `frontend/src/components/StarterQuestions.tsx`: six cards (title + question) in a responsive grid, shown on an empty chat in `Chat.tsx`. Picking one asks it at once, leaves a typed draft alone, and the cards are disabled when the frontend is misconfigured.
+- **Dev stack:** the frontend container was rebuilt and serves the cards. Not yet looked at in a real browser.
+- **Tests:** frontend 106 (+6: cards and titles, pick, disabled, question limits, asking from Chat, misconfigured). Lint, typecheck, prettier and `next build` clean. Mutation checks (6): 5 caught; the survivor was an unreachable guard in `Chat.tsx`, which was removed.
 
 ### 2026-11-24: F5.2 markdown, table and citation rendering
 - PR #38 (F5.1) merged.

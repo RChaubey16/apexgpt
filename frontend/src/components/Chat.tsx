@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { AnswerContent } from "@/components/AnswerContent";
+import { StarterQuestions } from "@/components/StarterQuestions";
 import { ChatError, MAX_QUESTION_CHARS, streamChat } from "@/lib/chat";
 import {
   conversationReducer,
@@ -100,12 +101,8 @@ export function Chat({ apiBaseUrl, stream = streamChat }: ChatProps) {
 
   const question = draft.trim();
   const blocked = blockedUntil !== null;
-  const canSend =
-    apiBaseUrl !== null &&
-    !answering &&
-    !blocked &&
-    question.length > 0 &&
-    question.length <= MAX_QUESTION_CHARS;
+  const ready = apiBaseUrl !== null && !answering && !blocked;
+  const canSend = ready && question.length > 0 && question.length <= MAX_QUESTION_CHARS;
 
   const submit = () => {
     if (!canSend) return;
@@ -122,9 +119,13 @@ export function Chat({ apiBaseUrl, stream = streamChat }: ChatProps) {
         aria-live="polite"
       >
         {conversation.messages.length === 0 ? (
-          <p className="m-auto max-w-md text-center text-zinc-400">
-            Ask about any driver, team, circuit, season or rivalry from 1950 to 2025.
-          </p>
+          <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-5">
+            <p className="max-w-md text-center text-zinc-400">
+              Ask about any driver, team, circuit, season or rivalry from 1950 to 2025.
+            </p>
+            {/* Shown only before the first question, so only `ready` can block it. */}
+            <StarterQuestions onPick={(q) => void ask(q)} disabled={!ready} />
+          </div>
         ) : (
           conversation.messages.map((m) => <MessageView key={m.id} message={m} />)
         )}
