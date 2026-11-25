@@ -32,6 +32,7 @@ It runs entirely on free models and free-tier services.
 backend/     FastAPI app: chat API, retrieval, LLM tools
 frontend/    Next.js chat UI
 ingestion/   Offline pipelines that load the F1 data and the Wikipedia corpus
+eval/        Golden question set for evaluating answers
 docs/        Plans, data strategy and progress tracker
 data/        Downloads, caches and models (git-ignored)
 ```
