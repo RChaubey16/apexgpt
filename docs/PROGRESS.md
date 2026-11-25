@@ -14,18 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 5 complete; Phase 6 not started |
-| **Current feature** | None (waiting for the go-ahead for Phase 6) |
-| **Current branch** | `feature/close-phase-5` |
-| **Open PR** | Phase 5 close-out docs |
+| **Current phase** | Phase 6: Evaluation & Hardening |
+| **Current feature** | F6.1 golden evaluation set |
+| **Current branch** | `feature/golden-eval-set` |
+| **Open PR** | F6.1 golden evaluation set |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
-| **Last updated** | 2026-11-24 |
+| **Last updated** | 2026-11-25 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User merges the Phase 5 close-out PR.
-2. **Phase 6 waits for the user's go-ahead.** It starts with F6.1 `feature/golden-eval-set`: ~100 golden questions across stats, seasons, races, crashes, rivalries, multi-hop, trick and out-of-scope (the Known Issues for F6 belong in it).
+1. User reviews and merges the F6.1 PR (golden evaluation set).
+2. Then F6.2 `feature/eval-runner`: run the golden set through the answer pipeline, score `answer` values by exact match, `facts`/behavior with an LLM judge, tools, cited sources and follow-up rewrites, and write a report. Live runs spend free-tier quota (~100 answers), so the runner should support running one category or a few ids.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -42,7 +42,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 3. Retrieval + LLM | ✅ Done | 2026-11-21 | 2026-11-22 |
 | 4. Chat API | ✅ Done | 2026-11-22 | 2026-11-23 |
 | 5. Frontend MVP | ✅ Done | 2026-11-23 | 2026-11-24 |
-| 6. Eval + hardening | ⬜ Not started | | |
+| 6. Eval + hardening | 🟡 In progress | 2026-11-25 | |
 | 7. Deployment | ⬜ Not started | | |
 
 Status key: ⬜ Not started · 🟡 In progress · ✅ Done · ⛔ Blocked
@@ -121,7 +121,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check** (the plan's Phase 5 items, end to end on merged `main` in the dev stack, headless Chrome against the live backend, 2026-11-24): backend status "All systems go"; six starter cards; the "Abu Dhabi 2021" card streamed a cited answer (3 chips, Sources list); a follow-up ("Who was his team-mate that year?") shown as "Answering: Who was Max Verstappen's team-mate in 2021?" with its stats table ("Sergio Pérez."); Copy → "✓ Copied" and the clipboard held the answer with its Sources; 👍 → pressed, "Thanks for the feedback.", backend 201; the chat survived a reload with its rating, was renamed, a new chat opened empty, and the delete left 0 chats in the list and in storage; 360 px wide with no sideways scroll; `theme-color` #0b0b0f. Caveat: in one earlier run the same follow-up came back as a clarifying question (Known Issues, F6).
 
 ### Phase 6: Evaluation & Hardening
-- [ ] F6.1 `feature/golden-eval-set`: golden question set
+- [ ] F6.1 `feature/golden-eval-set`: golden question set · 🔍 PR #46
 - [ ] F6.2 `feature/eval-runner`: evaluation runner
 - [ ] F6.3 `feature/retrieval-tuning`: tuning from eval results
 - [ ] F6.4 `feature/load-testing`: load + cold-start tests
@@ -241,6 +241,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-23 | Per-IP moving windows in memory; defaults chat `6/minute;100/day`, feedback `30/minute;500/day` (settings, blank = off); 429 + `Retry-After` (exposed via CORS) before the endpoint runs, invalid bodies count too; key = `request.client.host`, never `X-Forwarded-For` directly | One uvicorn worker, so no shared store. Groq's free tier is ~8k tokens/minute for everyone (~2 answers), so a per-IP cap is about stopping scripts, not fairness. uvicorn already resolves the client from trusted proxies only |
 | 2026-11-23 | Answer cache: LRU of recorded events (tokens merged), 256 entries / 24 h (settings), keyed by the folded standalone question; stored only when every tool was available and every call worked; stored before `done` is yielded; `done.cached`, and tokens/calls in `done` are the request's own | Data covers finished seasons, so a day loses little. Keying after condensing lets follow-ups hit. A degraded answer (stats DB down) must not be repeated for a day. `answer()` stops at `done`, which would have skipped a write placed after it (found by the tests) |
 | 2026-11-23 | New SSE event `question` (when the follow-up was rewritten) and `question` in `done` | The UI can show how a follow-up was understood, and the answer can be checked against it |
+| 2026-11-25 | Golden set in `eval/golden.yaml` (top level, as the plan's layout says); its schema, loader and matching in `backend/evals/` (outside `app/`, so not in the production image); PyYAML as a backend **dev** dependency | The runner (F6.2) needs the backend's pipeline; YAML is readable for 100 hand-written questions with SQL and history |
+| 2026-11-25 | Expectations per question: `answer` values (exact match after folding case, accents, dashes, thousands separators, trailing zeros and number words up to twenty; whole words only), `facts` for an LLM judge, `sources` (article titles), `tools`, `behavior` (answer / decline / correct_premise), `standalone` for follow-ups | Exact match where the answer is a value, a judge where it's prose. Number words because answers say "four titles" |
+| 2026-11-25 | Every stats value is proven by a reference `sql` query against the loaded data, and every source title must exist in `chunks` (corpus test); questions and history are validated with the chat API's own `ChatRequest` | Expected answers come from the data, not memory, and a data reload that changes one fails loudly. The set can't contain a request the endpoint would reject |
 | 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
@@ -248,6 +251,21 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-25: F6.1 golden evaluation set (Phase 6 started)
+- User gave the go-ahead for Phase 6. PR #45 (shorter README) merged.
+- **Built:**
+  - `eval/golden.yaml`: **100 questions**. Stats 22, seasons 14, races 12, crashes 10, rivalries 10, multi-hop 10, follow-ups 8 (with history), trick 8, out-of-scope 6.
+  - `backend/evals/golden.py`: the pydantic schema (rules per behavior and category, unique ids, valid chat requests), the loader (errors name the question id and field), and the answer matching the runner will use (`normalise`, `contains_value`, `missing_values`).
+- **Answers from the data:** every stats value was taken from queries on the loaded database, and each question keeps its reference `sql`. Narrative facts and sources were checked against the chunk text (e.g. the Masi replacement, the halo at Bahrain 2020, the 1988 best-11 rule). Facts the corpus didn't support were left out (the Monza 2021 halo).
+- **Found while building:**
+  - In 1988 Prost scored more points in total (105 to 94) but lost the title on the best-11 rule, now a trick question.
+  - The 2020 Monaco GP isn't in the data (cancelled), so it's a trick question too.
+- **Known Issues tracked by questions:** narrative answered with stats only (`races-abu-dhabi-2021`), the condenser's clarifying question (`follow-teammate-that-year`), per-season poles (`seasons-senna-poles-1988`, `follow-poles-that-season`; reference SQL reads the base tables), added names (`follow-race-director`), shared records (`stats-monza-record-tie`), Senna/Suzuka retrieval.
+- **Tests:**
+  - Backend unit 824 passing (+76 in `tests/evals`: the real file's coverage, the schema rules, YAML/file errors, matching).
+  - Corpus 178 passing (+104: every reference query proves its values; every source exists).
+  - Mutation checks: 3 on the data test (wrong number, wrong title, a partial name) and 7 on the code (decimal guards, number words, thousands, the follow-up rule, the chat-request check, decimal formatting). All caught.
 
 ### 2026-11-24: Phase 5 closed
 - PR #43 (F5.6) merged: **all Phase 5 features (F5.1–F5.6) are merged.**
