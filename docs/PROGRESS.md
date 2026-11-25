@@ -122,7 +122,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 6: Evaluation & Hardening
 - [x] F6.1 `feature/golden-eval-set`: golden question set · PR #46 merged
-- [ ] F6.2 `feature/eval-runner`: evaluation runner · 🔍 PR raised
+- [ ] F6.2 `feature/eval-runner`: evaluation runner · 🔍 PR #47
 - [ ] F6.3 `feature/retrieval-tuning`: tuning from eval results
 - [ ] F6.4 `feature/load-testing`: load + cold-start tests
 
