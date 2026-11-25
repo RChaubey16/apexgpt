@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 6: Evaluation & Hardening |
-| **Current feature** | F6.1 golden evaluation set |
-| **Current branch** | `feature/golden-eval-set` |
-| **Open PR** | F6.1 golden evaluation set |
+| **Current feature** | F6.2 evaluation runner |
+| **Current branch** | `feature/eval-runner` |
+| **Open PR** | F6.2 evaluation runner |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-25 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F6.1 PR (golden evaluation set).
-2. Then F6.2 `feature/eval-runner`: run the golden set through the answer pipeline, score `answer` values by exact match, `facts`/behavior with an LLM judge, tools, cited sources and follow-up rewrites, and write a report. Live runs spend free-tier quota (~100 answers), so the runner should support running one category or a few ids.
+1. User reviews and merges the F6.2 PR (evaluation runner).
+2. Then F6.3 `feature/retrieval-tuning`. It starts with a **baseline full run**, which spends free-tier quota: ~100 answers ≈ 500k answer tokens + ~60k for the judge. Groq's 8k tokens/minute means most of it falls back to Gemini/OpenRouter. Pin `--provider` for comparable runs, and use `--resume` if it stops. Then tune from the failures and the retrieval report (4 misses: Indianapolis 500, first WC race, 1986 title, 1988 title).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -121,8 +121,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check** (the plan's Phase 5 items, end to end on merged `main` in the dev stack, headless Chrome against the live backend, 2026-11-24): backend status "All systems go"; six starter cards; the "Abu Dhabi 2021" card streamed a cited answer (3 chips, Sources list); a follow-up ("Who was his team-mate that year?") shown as "Answering: Who was Max Verstappen's team-mate in 2021?" with its stats table ("Sergio Pérez."); Copy → "✓ Copied" and the clipboard held the answer with its Sources; 👍 → pressed, "Thanks for the feedback.", backend 201; the chat survived a reload with its rating, was renamed, a new chat opened empty, and the delete left 0 chats in the list and in storage; 360 px wide with no sideways scroll; `theme-color` #0b0b0f. Caveat: in one earlier run the same follow-up came back as a clarifying question (Known Issues, F6).
 
 ### Phase 6: Evaluation & Hardening
-- [ ] F6.1 `feature/golden-eval-set`: golden question set · 🔍 PR #46
-- [ ] F6.2 `feature/eval-runner`: evaluation runner
+- [x] F6.1 `feature/golden-eval-set`: golden question set · PR #46 merged
+- [ ] F6.2 `feature/eval-runner`: evaluation runner · 🔍 PR raised
 - [ ] F6.3 `feature/retrieval-tuning`: tuning from eval results
 - [ ] F6.4 `feature/load-testing`: load + cold-start tests
 
@@ -244,6 +244,11 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-25 | Golden set in `eval/golden.yaml` (top level, as the plan's layout says); its schema, loader and matching in `backend/evals/` (outside `app/`, so not in the production image); PyYAML as a backend **dev** dependency | The runner (F6.2) needs the backend's pipeline; YAML is readable for 100 hand-written questions with SQL and history |
 | 2026-11-25 | Expectations per question: `answer` values (exact match after folding case, accents, dashes, thousands separators, trailing zeros and number words up to twenty; whole words only), `facts` for an LLM judge, `sources` (article titles), `tools`, `behavior` (answer / decline / correct_premise), `standalone` for follow-ups | Exact match where the answer is a value, a judge where it's prose. Number words because answers say "four titles" |
 | 2026-11-25 | Every stats value is proven by a reference `sql` query against the loaded data, and every source title must exist in `chunks` (corpus test); questions and history are validated with the chat API's own `ChatRequest` | Expected answers come from the data, not memory, and a data reload that changes one fails loudly. The set can't contain a request the endpoint would reject |
+| 2026-11-25 | Eval runner = `python -m evals` in `backend/evals/` (`list`, `run`, `report`, `retrieval`); answers go through the real orchestrator with the answer cache off; runs in `data/eval/runs/<UTC time>[-label]/` (meta.json, results.jsonl appended per question, report.md) | Scores the pipeline, not the cache. Appending per question makes an interrupted or rate-limited run resumable without spending quota again |
+| 2026-11-25 | A question passes when every applicable check passes: `answer` (exact match), `tools` (called successfully), `sources` (one expected article cited), `standalone` (the rewrite), and the judge's `behavior` and `facts` (every fact "supported"; "missing" fails too) | One strict bar per question; the per-check table shows where it fails |
+| 2026-11-25 | Judge: the same free providers (pinnable with `--judge-provider`), temperature 0, one JSON object `{behavior_ok, facts[], reason}` validated against the fact count; told to judge only what the answer says and to treat it as data. An unusable verdict or no judge is an **error**, never a pass or fail | Self-judging bias is possible when the judge is the answering model; pin a different provider to cross-check. Golden questions include a prompt injection |
+| 2026-11-25 | No answer (every provider failing) → wait `--retry-wait` (default 60 s) and retry `--retries` (default 1) times, then an error result; a rejected question is not retried; `--resume` re-runs only error results and keeps the run's providers | Free-tier limits reset in about a minute. Re-asking a rejected question can't help |
+| 2026-11-25 | Retrieval eval (`python -m evals retrieval`): the question as the search query, top-k titles vs expected sources (hit rate, MRR); follow-ups left out; no LLM | A free, repeatable check for F6.3's reranker and chunking changes. The question is a proxy for the terms the LLM sends |
 | 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
@@ -251,6 +256,26 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-25: F6.2 evaluation runner
+- PR #46 (F6.1) merged.
+- **Built** (`backend/evals/`):
+  - `scoring.py`: the checks.
+  - `judge.py`: the LLM judge.
+  - `runner.py`: selection, retries, the resumable results file, the retrieval eval.
+  - `report.py`: markdown reports by category, check and provider, with latency, tokens and every failure.
+  - `__main__.py`: the CLI.
+  - `build_orchestrator(..., llm=)` lets the runner pin one provider.
+- **Golden set:** three source lists widened after the retrieval eval found fitting articles (`Death of Ayrton Senna`, `1986 Australian Grand Prix`, `Hunt–Lauda rivalry` for the Nürburgring crash), each checked against its chunks. `Hunt–Lauda rivalry` doesn't mention Fuji, so it wasn't added to the 1976 title question.
+- **Retrieval baseline** (no LLM, 9 s): **32/36 in the top 5, MRR 0.67**. Misses: `races-first-world-championship-race`, `races-indianapolis-500`, `rivalries-piquet-mansell-1986`, `trick-prost-more-points-1988`.
+- **Live smoke run** (5 questions, fallback chain, 72 s, ~28k tokens): **4/5**.
+  - Groq was rate limited and Gemini returned 503s, so OpenRouter answered 2.
+  - Passed: the Monza tie, Abu Dhabi 2021 (cited), the team-mate follow-up (rewritten correctly) and the prompt injection.
+  - Failed: `trick-monaco-2020` (Known Issues).
+- **Tests:**
+  - Backend unit 883 passing (+59: scoring, judge parsing and prompt, retries, resume, delay, results files, reports, retrieval, CLI).
+  - Corpus 178 passing.
+  - Mutation checks (17): 14 caught at first; the 2 survivors (a "missing" fact verdict, resume keeping the providers) got tests and are caught now.
 
 ### 2026-11-25: F6.1 golden evaluation set (Phase 6 started)
 - User gave the go-ahead for Phase 6. PR #45 (shorter README) merged.
@@ -898,6 +923,8 @@ Newest first.
 
 ## Known Issues / Open Questions
 
+- F6: an empty stats result becomes "not available in the provided statistics" instead of "there was no such race" (live, F6.2 smoke run: "Who won the 2020 Monaco Grand Prix?" → "The query returned no data…"). It also mentions the query, which the prompt forbids. Tune the prompt in F6.3 (`trick-monaco-2020`).
+- F6: retrieval misses on the golden set (F6.2 baseline, 32/36 in the top 5): the first World Championship race (no year in the question), the Indianapolis 500's championship years, the 1986 title (Adelaide), and the 1988 best-11 rule. Tune in F6.3.
 - F6: gpt-oss sometimes answers a narrative question with the stats tool only (live: 2 of 9 runs of "Explain Abu Dhabi 2021" during F4.4: two `query_stats` calls, no knowledge search, so no citations). The F4.1 live test fails when it happens. Tune the tool descriptions/prompt against the golden set. **Update (F5.2):** some "no citations" answers were a backend bug, not the model: gpt-oss wrote markers as `[\u200bS1\u200b]` (zero-width spaces), which the citation filter didn't recognise, so the sources were dropped even though the knowledge search ran. Fixed; the stats-only case remains.
 - F6: the follow-up condenser sometimes answers an ambiguous follow-up with a clarifying question instead of a rewrite (live, Phase 5 done check: "Who was his team-mate that year?" after the Abu Dhabi 2021 answer → "Could you specify which driver and season you're referring to?" in 1 of 2 runs). That text becomes the standalone question, so the UI shows "Answering: Could you specify…" and the answer repeats it. `CONDENSE_PROMPT` (`backend/app/answer/followups.py`) doesn't say what to do when a reference can't be resolved: tell it to return the message unchanged then (and add the case to the golden set), or treat a rewrite that ends in a question to the user as unusable.
 - F5.4: two tabs with the **same** chat open: each tab's save replaces that chat with its own copy (last write wins); other chats are safe. A deleted chat still open in another tab comes back if that tab saves it. Fine for a no-login MVP.
