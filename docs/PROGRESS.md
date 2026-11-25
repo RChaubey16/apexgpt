@@ -121,7 +121,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check** (the plan's Phase 5 items, end to end on merged `main` in the dev stack, headless Chrome against the live backend, 2026-11-24): backend status "All systems go"; six starter cards; the "Abu Dhabi 2021" card streamed a cited answer (3 chips, Sources list); a follow-up ("Who was his team-mate that year?") shown as "Answering: Who was Max Verstappen's team-mate in 2021?" with its stats table ("Sergio Pérez."); Copy → "✓ Copied" and the clipboard held the answer with its Sources; 👍 → pressed, "Thanks for the feedback.", backend 201; the chat survived a reload with its rating, was renamed, a new chat opened empty, and the delete left 0 chats in the list and in storage; 360 px wide with no sideways scroll; `theme-color` #0b0b0f. Caveat: in one earlier run the same follow-up came back as a clarifying question (Known Issues, F6).
 
 ### Phase 6: Evaluation & Hardening
-- [ ] F6.1 `feature/golden-eval-set`: golden question set · 🔍 PR raised
+- [ ] F6.1 `feature/golden-eval-set`: golden question set · 🔍 PR #46
 - [ ] F6.2 `feature/eval-runner`: evaluation runner
 - [ ] F6.3 `feature/retrieval-tuning`: tuning from eval results
 - [ ] F6.4 `feature/load-testing`: load + cold-start tests
