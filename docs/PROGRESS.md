@@ -128,7 +128,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check** (the plan's Phase 6 items): a ~100-question golden set (100, every category); an eval runner with exact match, an LLM judge and reports; tuning from the results (per-season stats, circuit towns, prompt and condenser fixes, the reranker re-checked); load and cold-start tests under the memory caps (no failures or OOM at 40 concurrent answers). Caveat: the before/after comparison with one pinned judge is deferred (Known Issues).
 
 ### Phase 7: Deployment 🏁
-- [ ] F7.1 `feature/prod-compose`: production compose for Coolify · 🔍 PR raised
+- [ ] F7.1 `feature/prod-compose`: production compose for Coolify · 🔍 PR #51
 - [ ] F7.2 `feature/neon-setup`: Neon setup + data restore scripts
 - [ ] F7.3 `feature/backup-workflow`: weekly backup workflow
 - [ ] F7.4 `feature/prod-smoke-test`: production smoke test
