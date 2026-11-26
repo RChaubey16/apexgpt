@@ -14,18 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 7: Deployment |
-| **Current feature** | F7.4 production smoke test |
-| **Current branch** | `feature/prod-smoke-test` |
-| **Open PR** | F7.4 production smoke test |
+| **Current phase** | **MVP complete: v1.0.0 is live** at https://apexgpt.ruturaj.xyz |
+| **Current feature** | None |
+| **Current branch** | `feature/close-phase-7` |
+| **Open PR** | Phase 7 close-out docs |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-26 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F7.4 PR (production smoke test).
-2. Then the MVP's last step: redeploy `main` in Coolify, run `python -m evals smoke` against production, and tag `v1.0.0` (plus a Phase 7 close-out in this file).
+1. User merges the Phase 7 close-out PR.
+2. Post-MVP, when the user wants it: the Known Issues below, and the later tiers in [FEATURES.md](./FEATURES.md). Run `python -m evals smoke` after every deploy (docs/DEPLOYMENT.md).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -43,7 +43,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 4. Chat API | ✅ Done | 2026-11-22 | 2026-11-23 |
 | 5. Frontend MVP | ✅ Done | 2026-11-23 | 2026-11-24 |
 | 6. Eval + hardening | ✅ Done | 2026-11-25 | 2026-11-26 |
-| 7. Deployment | 🟡 In progress | 2026-11-26 | |
+| 7. Deployment | ✅ Done | 2026-11-26 | 2026-11-26 |
 
 Status key: ⬜ Not started · 🟡 In progress · ✅ Done · ⛔ Blocked
 
@@ -127,12 +127,12 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F6.4 `feature/load-testing`: load + cold-start tests · PR #49 merged
 - [x] **Phase done check** (the plan's Phase 6 items): a ~100-question golden set (100, every category); an eval runner with exact match, an LLM judge and reports; tuning from the results (per-season stats, circuit towns, prompt and condenser fixes, the reranker re-checked); load and cold-start tests under the memory caps (no failures or OOM at 40 concurrent answers). Caveat: the before/after comparison with one pinned judge is deferred (Known Issues).
 
-### Phase 7: Deployment 🏁
+### Phase 7: Deployment 🏁 ✅
 - [x] F7.1 `feature/prod-compose`: production compose for Coolify · PR #51 merged
 - [x] F7.2 `feature/neon-setup`: Neon setup + data restore scripts · PR #52 merged
 - [x] F7.3 `feature/backup-workflow`: weekly backup workflow · PR #53 merged (Neon dumps fix: PR #54 merged)
-- [ ] F7.4 `feature/prod-smoke-test`: production smoke test · 🔍 PR #55
-- [ ] `main` deployed via Coolify, smoke test passed, tagged `v1.0.0`
+- [x] F7.4 `feature/prod-smoke-test`: production smoke test · PR #55 merged
+- [x] `main` deployed via Coolify, smoke test passed, tagged `v1.0.0` (2026-11-26)
 
 ---
 
@@ -274,6 +274,21 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: Phase 7 closed; v1.0.0
+- PR #55 (F7.4) merged: **all Phase 7 features (F7.1–F7.4) are merged, and with them the whole MVP plan (Phases 0–7).**
+- **Production runs `main`'s app code:** nothing under `backend/app`, `backend/Dockerfile`, the migrations, the lock files, `frontend/` or `docker-compose.prod.yml` changed after the deployed commit f03781c.
+- **Final smoke test against production:**
+  - The first run, during the automatic deploy that the merge set off, got 503s for its first seconds (Known Issues).
+  - Re-run once stable: **PASS**, infrastructure 7/7 and answers 8/8 (`/health/ready` 0.38 s).
+- **Tagged `v1.0.0`** (annotated) on 05ec629, the PR #55 merge.
+- Phase 7 delivers:
+  - `docker-compose.prod.yml` (models baked in, private-range proxy trust, migrations on start, limits, a log volume);
+  - Neon setup and the verified data restore (`scripts/neon_setup.sh`, `python -m restore`);
+  - the weekly verified, encrypted backup with the feedback purge;
+  - the production smoke test;
+  - `docs/DEPLOYMENT.md`.
+- **Live at https://apexgpt.ruturaj.xyz** (backend https://apexgpt-api.ruturaj.xyz), on Coolify with Neon. The first backup succeeded (run 45792193925).
 
 ### 2026-11-26: F7.4 production smoke test
 - PR #54 (backup fix for Neon dumps) merged.
@@ -1085,6 +1100,7 @@ Newest first.
 
 ## Known Issues / Open Questions
 
+- F7.1/F7.4: **a deploy has a short outage.** The smoke test run just after PR #55's merge got HTTP 503 from every endpoint for the first seconds (the merge set off Coolify's automatic deploy; it removes the old containers before the new ones are healthy). The in-memory answer cache also starts empty after each deploy. Fine at MVP traffic. If it matters later: deploy outside busy hours, or look at Coolify's rolling updates for compose resources.
 - F7.1: Coolify's docs don't say whether it honours `deploy.resources.limits`. After the first deploy, check `docker stats` on the VPS shows 768 MiB / 384 MiB (docs/DEPLOYMENT.md). **Checked (2026-11-26):** it does: the backend container's cgroup shows `memory.max` 805306368 (768 MiB) and `cpu.max` 100000 100000 (1 CPU).
 - F7.1: the backend runs `alembic upgrade head` on every start (a fast no-op when Neon is current). A migration that isn't backward compatible would make the old container fail on restart before the new one is up; keep migrations additive, or deploy them separately when one isn't.
 - F7.1/F7.4: the F6.4 cold start (~1.1 s to healthy, +~0.5 s on the first search) assumes the search models are already on disk. A fresh production container without them downloads ~145 MB on its first search; bake them into the image or a volume (F7.1). Neon's own wake-up after 5 idle minutes isn't measured locally; time it in the production smoke test (F7.4). **Update (F7.1):** the models are baked into the image (`HF_HUB_OFFLINE=1`; CI loads them with no network). Neon's wake-up time remains for F7.4. **Measured (F7.4):** the first `/health/ready` after ~8 idle minutes took 1.81 s, against ~0.44 s warm, so Neon's wake-up is ~1.4 s.
