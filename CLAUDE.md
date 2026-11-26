@@ -2,7 +2,7 @@
 
 Formula 1 RAG chat app (1950–2025). Read `docs/PROGRESS.md` first when resuming work.
 
-Docs: `docs/PROGRESS.md` · `docs/FEATURES.md` · `docs/WORKFLOW.md` · `docs/DEPLOYMENT.md` · `docs/DATA-STRATEGY.md`
+Docs: `docs/PROGRESS.md` · `docs/PLAN.md` · `docs/FEATURES.md` · `docs/WORKFLOW.md` · `docs/DEPLOYMENT.md` · `docs/DATA-STRATEGY.md`
 
 The v1.0.0 MVP docs (plan, Decision Log, Session Log) are archived in `docs/archive/v1.0.0-mvp/`: history only, not updated.
 
