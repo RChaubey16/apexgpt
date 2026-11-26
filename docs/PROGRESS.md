@@ -52,7 +52,7 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 
 | Feature | Branch | PR | Status | Notes |
 |---|---|---|---|---|
-| F8.1 App icons and favicons | `feature/app-icons` | | 🔍 | Logo = the header's three speed stripes (`frontend/brand/`); `npm run icons` generates the favicon (16/32/48), SVG icon, Apple icon, manifest icons (192/512/maskable) and the API domain's favicon |
+| F8.1 App icons and favicons | `feature/app-icons` | #59 | 🔍 | Logo = the header's three speed stripes (`frontend/brand/`); `npm run icons` generates the favicon (16/32/48), SVG icon, Apple icon, manifest icons (192/512/maskable) and the API domain's favicon |
 | F8.2 Page metadata and social previews | `feature/page-metadata` | | ⬜ | |
 | F8.3 Current season endpoint | `feature/season-api` | | ⬜ | |
 | F8.4 Frontend revamp | `feature/frontend-revamp` | | ⬜ | Install the frontend-design skill first |
