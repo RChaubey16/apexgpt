@@ -9,7 +9,7 @@ Where the project stands, and the features worked on since the MVP. **Read this 
   - Close or add **Open issues** as they change.
 - **History:** the MVP's plan, checklists, Decision Log and day-by-day Session Log are in the [v1.0.0 MVP archive](./archive/v1.0.0-mvp/).
 
-Related: [FEATURES.md](./FEATURES.md) (what's planned) · [DEPLOYMENT.md](./DEPLOYMENT.md) (running it) · [DATA-STRATEGY.md](./DATA-STRATEGY.md) (the data) · [WORKFLOW.md](./WORKFLOW.md) (how work is done)
+Related: [PLAN.md](./PLAN.md) (the features being built now) · [FEATURES.md](./FEATURES.md) (what's planned) · [DEPLOYMENT.md](./DEPLOYMENT.md) (running it) · [DATA-STRATEGY.md](./DATA-STRATEGY.md) (the data) · [WORKFLOW.md](./WORKFLOW.md) (how work is done)
 
 ---
 
@@ -22,7 +22,7 @@ Related: [FEATURES.md](./FEATURES.md) (what's planned) · [DEPLOYMENT.md](./DEPL
 | **Hosting** | Coolify on one VPS (backend 768 MB / 1 CPU, frontend 384 MB) · Neon Postgres 18 + pgvector (~80 MB of the 1 GB free tier) |
 | **Data** | Seasons 1950–2025: Jolpica-F1 statistics, 14,581 chunks from ~2,350 Wikipedia articles |
 | **Health** | Production smoke test PASS (infrastructure 7/7, answers 8/8) · weekly encrypted backup verified by a test restore |
-| **In progress** | Nothing |
+| **In progress** | Phase 8 (v1.1.0) is planned; next is F8.1. See [PLAN.md](./PLAN.md) |
 | **Last updated** | 2026-11-26 |
 
 **What v1.0.0 does:**
@@ -34,7 +34,9 @@ The full list is in [FEATURES.md](./FEATURES.md#shipped-in-v100).
 
 ## Next up
 
-Nothing is scheduled. When work starts, pick from:
+**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. Next is **F8.1, `feature/app-icons`**.
+
+After that, pick from:
 1. **The open issues below,** especially the ones marked ⭐ (they affect answer quality or operations).
 2. **The planned features** in [FEATURES.md](./FEATURES.md#planned).
 
@@ -44,11 +46,18 @@ Before shipping a change that affects answers, run the evaluation (`python -m ev
 
 ## Features
 
-Work since v1.0.0. Status: 🔍 PR raised · ✅ merged · ⛔ blocked.
+Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · ✅ merged · ⛔ blocked.
+
+### Phase 8: v1.1.0 ([plan](./PLAN.md))
 
 | Feature | Branch | PR | Status | Notes |
 |---|---|---|---|---|
-| *(none yet)* | | | | |
+| F8.1 App icons and favicons | `feature/app-icons` | | ⬜ | |
+| F8.2 Page metadata and social previews | `feature/page-metadata` | | ⬜ | |
+| F8.3 Current season endpoint | `feature/season-api` | | ⬜ | |
+| F8.4 Frontend revamp | `feature/frontend-revamp` | | ⬜ | Install the frontend-design skill first |
+| F8.5 Current season page | `feature/season-page` | | ⬜ | |
+| Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |
 
 The MVP's 44 features (F0.1–F7.4) are listed in the [archived PROGRESS.md](./archive/v1.0.0-mvp/PROGRESS.md#feature-checklists).
 

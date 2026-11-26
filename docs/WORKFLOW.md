@@ -2,6 +2,22 @@
 
 How work gets done in this repository. It's the MVP's workflow ([archived plan](./archive/v1.0.0-mvp/MVP-PLAN.md#5-development-workflow)), kept as is and updated with what the MVP taught. The git rules are also in [CLAUDE.md](../CLAUDE.md).
 
+## Planning a set of features
+
+New work starts with a plan, never with code, the way the MVP did:
+
+1. **Write it in [PLAN.md](./PLAN.md):**
+   - the phase's goal, what's out of scope, and when it counts as done;
+   - numbered features (`F8.1`, `F8.2`, …), each with its branch, scope and commit message;
+   - what's decided, and the open questions.
+
+   Several requests become several features, never one combined change.
+2. **Add the features to [PROGRESS.md](./PROGRESS.md#features)** as ⬜ planned.
+3. **Raise the plan as a docs PR.** The user reviews and merges it, and that's the go-ahead.
+4. **Build the features one at a time,** in the plan's order. Each feature's open questions are settled with the user when it starts.
+
+When a phase is released, its plan moves into `docs/archive/` with the other docs of that version.
+
 ## Branches and pull requests
 
 - **`main`** is the only long-lived branch. There's no `develop` branch.

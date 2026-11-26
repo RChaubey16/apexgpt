@@ -40,7 +40,18 @@ The MVP ([release notes](https://github.com/RChaubey16/apexgpt/releases/tag/v1.0
 
 ## Planned
 
-Not scheduled yet. When one is picked up, it gets a row in [PROGRESS.md](./PROGRESS.md#features) and follows [WORKFLOW.md](./WORKFLOW.md).
+### Phase 8: v1.1.0 (in progress)
+
+Planned in [PLAN.md](./PLAN.md):
+- **App icons and favicons,** with an ApexGPT logo.
+- **Page metadata and social previews.**
+- **A current-season endpoint,** with live data from Jolpica, kept out of the chat's data.
+- **A complete frontend revamp.**
+- **A `/season` page:** the drivers' and constructors' standings, and the next race.
+
+### Not scheduled yet
+
+When one of these is picked up, it's planned in [PLAN.md](./PLAN.md) and tracked in [PROGRESS.md](./PROGRESS.md#features) ([WORKFLOW.md](./WORKFLOW.md)).
 
 ### Left over from the MVP
 - **Share an answer:** a link to a single answer. The MVP has copy only.
