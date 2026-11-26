@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 7: Deployment |
-| **Current feature** | F7.1 production compose for Coolify |
-| **Current branch** | `feature/prod-compose` |
-| **Open PR** | F7.1 production compose for Coolify |
+| **Current feature** | F7.2 Neon setup and data restore |
+| **Current branch** | `feature/neon-setup` |
+| **Open PR** | F7.2 Neon setup and data restore |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-26 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F7.1 PR (production compose for Coolify).
-2. Then F7.2 `feature/neon-setup`: Neon migrations, the read-only role, data restore, and the size guard against Neon. **The user needs a Neon account** (free tier; region closest to the VPS). The user has a VPS with Coolify; no domain yet (Coolify's generated domain works until then).
+1. User reviews and merges the F7.2 PR (Neon setup and data restore).
+2. **User:** create the Neon project (free tier, region closest to the VPS, Postgres 18), then run `scripts/neon_setup.sh` (docs/DEPLOYMENT.md, "Neon setup"). After that, the first Coolify deploy can go ahead. Then F7.3 `feature/backup-workflow` (weekly `pg_dump` + the feedback purge).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -128,8 +128,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check** (the plan's Phase 6 items): a ~100-question golden set (100, every category); an eval runner with exact match, an LLM judge and reports; tuning from the results (per-season stats, circuit towns, prompt and condenser fixes, the reranker re-checked); load and cold-start tests under the memory caps (no failures or OOM at 40 concurrent answers). Caveat: the before/after comparison with one pinned judge is deferred (Known Issues).
 
 ### Phase 7: Deployment 🏁
-- [ ] F7.1 `feature/prod-compose`: production compose for Coolify · 🔍 PR #51
-- [ ] F7.2 `feature/neon-setup`: Neon setup + data restore scripts
+- [x] F7.1 `feature/prod-compose`: production compose for Coolify · PR #51 merged
+- [ ] F7.2 `feature/neon-setup`: Neon setup + data restore scripts · 🔍 PR #52
 - [ ] F7.3 `feature/backup-workflow`: weekly backup workflow
 - [ ] F7.4 `feature/prod-smoke-test`: production smoke test
 - [ ] `main` deployed via Coolify, smoke test passed, tagged `v1.0.0`
@@ -261,6 +261,9 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-26 | Migrations run in the backend's command (`alembic upgrade head && exec uvicorn …`), not a separate one-shot service | Coolify's `exclude_from_hc` key (for one-shot services) isn't valid Compose, so `docker compose config` and CI would reject the file. A failed migration still stops the container before it serves |
 | 2026-11-26 | Search models baked into the runtime image (a `models` build stage runs `python -m app.retrieval.prefetch` with the app's own loaders; root-owned, world-readable; `HF_HUB_OFFLINE=1`) | No ~145 MB download on a new container's first question, and no runtime dependency on Hugging Face. +152 MB per image |
 | 2026-11-26 | `FORWARDED_ALLOW_IPS` defaults to the private ranges in production | Coolify picks the stack network's subnet, and only Traefik can reach the unpublished backend. uvicorn 0.54 accepts CIDR ranges |
+| 2026-11-26 | Data restore = `python -m restore` (ingestion): every data table streamed with `COPY TO STDOUT` → `COPY FROM STDIN` into **one target transaction**, in foreign-key order, with sequences carried over; row counts, the size guard and the sanity checks are checked before commit. Not `pg_dump`/`pg_restore`; `feedback` and `alembic_version` are not copied | pg_dump must match the server's major version (18), which the host and CI runners don't have; COPY needs only psycopg and is testable in CI. One transaction means a failure leaves Neon untouched. The migrations own the schema |
+| 2026-11-26 | Restore safety: refuses the source as the target, a remote target without `sslmode=require` (local hosts are exempt, for rehearsals), different Alembic revisions, a target without the schema, and existing data unless `--replace` (TRUNCATE in the same transaction); the target URL comes from the environment only | It writes into production; mistakes must fail before anything changes, and the password must not show up in `ps` |
+| 2026-11-26 | `scripts/neon_setup.sh` runs the whole setup (migrations → read-only role → restore → size report), on Neon's direct host; the app uses the pooled host | One repeatable command, safe to re-run (also how data updates reach Neon) |
 | 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
@@ -268,6 +271,27 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: F7.2 Neon setup and data restore
+- PR #51 (F7.1) merged; its CI passed (8/8, including the new models-offline and prod-compose checks).
+- **Built:**
+  - `ingestion/restore/` (`python -m restore`, [--replace]);
+  - `scripts/neon_setup.sh`;
+  - a "Neon setup" section in `docs/DEPLOYMENT.md`;
+  - an `.env.example` note.
+- **Rehearsal on a fresh local database** (`apexgpt_neon_sim`), as Neon will be set up: migrations, then the read-only role, then the restore.
+  - 16 tables and 116,637 rows in ~11 s; 30 sanity checks passed before commit; 80.6 MB.
+  - A second run without `--replace` refused and changed nothing; `--replace` worked.
+  - The backend's corpus tests passed against the copy: **169 passed**, covering search quality, the golden reference queries and stats as the read-only role.
+  - The whole script ran end to end with `REPLACE=1`.
+- **Found by the tests:** upserts use up sequence values, so the source's position can be past its highest id. The restore copies the position as it is (verified: the next id is the source's position + 1).
+- **Tests:**
+  - Ingestion 553 passing: 13 unit tests (URL safety, FK order, CLI) and 8 integration tests (a real copy between two databases: everything copied, `feedback` left out, sequences; refusal and `--replace`; rollback on a failing check, on the size guard before and after copying, and on a short copy; no schema; a revision mismatch).
+  - Mutation checks (10): all caught after 2 new tests.
+- Rehearsal databases dropped; the local data is untouched.
+- **First real run on Neon (user):**
+  - The migrations failed at 0005 (`permission denied to alter role`): `apexgpt_llm_reader` had been created in the Neon console, so the owner role had no ADMIN option on it. The whole upgrade rolled back. After deleting the console role, all 9 migrations applied. `docs/DEPLOYMENT.md` now warns about this.
+  - Step 3 then failed with `replace[@]: unbound variable`: macOS's bash 3.2 treats an empty array as unset under `set -u`, and the rehearsal had only run with `REPLACE=1`. Fixed with a plain string; rehearsed again with `/bin/bash` 3.2, with and without `REPLACE`. Nothing was copied before the failure.
 
 ### 2026-11-26: F7.1 production compose for Coolify (Phase 7 started)
 - User gave the go-ahead for Phase 7. PR #50 (Phase 6 close-out) merged. The user has a VPS with Coolify; no domain or Neon account yet.
