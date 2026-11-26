@@ -15,16 +15,16 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 7: Deployment |
-| **Current feature** | F7.3 weekly backup workflow |
-| **Current branch** | `feature/backup-workflow` |
-| **Open PR** | F7.3 weekly backup workflow |
+| **Current feature** | Fix: restore check on Neon dumps (F7.3 follow-up) |
+| **Current branch** | `feature/backup-neon-restore` |
+| **Open PR** | Backup restore check for Neon dumps |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-26 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F7.3 PR (weekly backup workflow).
+1. User reviews and merges the backup fix PR (Neon dumps restore into stock Postgres).
 2. **User:** add the repository secrets `NEON_BACKUP_DATABASE_URL` (Neon direct owner URL) and `BACKUP_PASSPHRASE` (kept outside GitHub too), then run the workflow once (`gh workflow run backup.yml`). After that, F7.4 `feature/prod-smoke-test` (golden-set smoke test against https://apexgpt.ruturaj.xyz, plus Neon's wake-up time), then tag `v1.0.0`.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
@@ -130,7 +130,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 7: Deployment 🏁
 - [x] F7.1 `feature/prod-compose`: production compose for Coolify · PR #51 merged
 - [x] F7.2 `feature/neon-setup`: Neon setup + data restore scripts · PR #52 merged
-- [ ] F7.3 `feature/backup-workflow`: weekly backup workflow · 🔍 PR #53
+- [x] F7.3 `feature/backup-workflow`: weekly backup workflow · PR #53 merged (fix for Neon dumps: 🔍 PR #54)
 - [ ] F7.4 `feature/prod-smoke-test`: production smoke test
 - [ ] `main` deployed via Coolify, smoke test passed, tagged `v1.0.0`
 
@@ -273,6 +273,14 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: first backup run; restoring Neon dumps
+- PR #53 (F7.3) merged after squashing it (GitGuardian had flagged the `${BACKUP_PASSPHRASE:?…}` guard; it's now a `require` function). The user set both repository secrets.
+- **First run on GitHub** (run 45791495739): the dump of Neon worked (33 MB, 26 s), but **the restore check failed**: `unrecognized parameter "pg_attver"` on `ALTER TABLE ONLY … ALTER COLUMN … SET (pg_attver=N)`. Neon stamps that internal option on columns, `pg_dump` writes it out, and stock Postgres rejects it. No artifact was uploaded and the purge was skipped (the run stops at the first failure).
+- **Fix:** the restore check, and the documented restore, now go through `pg_restore --file=-`, a `sed` that drops exactly those lines, and `psql --single-transaction -v ON_ERROR_STOP=1` (under bash with `pipefail`).
+  - The filter was tested on samples: it removes `pg_attver` lines, quoted columns included, and keeps other column options and data text.
+  - Rehearsed locally: 18 tables and 116,642 rows matched.
+  - A broken SQL stream still fails the step (psql exit 3).
 
 ### 2026-11-26: deployed; F7.3 weekly backup workflow
 - **Deployed (user, Coolify):** `main` at f03781c, Neon set up with `scripts/neon_setup.sh`.

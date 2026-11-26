@@ -72,8 +72,14 @@ echo "== Checking the dump restores"
 pg sh -c 'PGOPTIONS="-c client_min_messages=warning" \
   psql "$VERIFY_DATABASE_URL" -XAtq -v ON_ERROR_STOP=1 \
   -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public"'
-pg sh -c 'pg_restore --exit-on-error --no-owner --no-privileges \
-  --dbname="$VERIFY_DATABASE_URL" /work/apexgpt.dump'
+# Through SQL text, without Neon's internal column option: a dump of Neon
+# contains `ALTER TABLE ONLY t ALTER COLUMN c SET (pg_attver=N);` lines, which
+# stock Postgres rejects ("unrecognized parameter"). docs/DEPLOYMENT.md
+# restores the same way, so this checks exactly what a recovery would run.
+pg bash -c 'set -o pipefail; pg_restore --no-owner --no-privileges --file=- /work/apexgpt.dump |
+  sed -E "/^ALTER TABLE ONLY [^ ]+ ALTER COLUMN [^ ]+ SET \(pg_attver=[0-9]+\);\$/d" |
+  PGOPTIONS="-c client_min_messages=warning" \
+    psql "$VERIFY_DATABASE_URL" -X -q --single-transaction -v ON_ERROR_STOP=1 >/dev/null'
 counts SOURCE_DATABASE_URL > "$work/source.txt"
 counts VERIFY_DATABASE_URL > "$work/restored.txt"
 if ! diff -u "$work/source.txt" "$work/restored.txt"; then

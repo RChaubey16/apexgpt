@@ -158,13 +158,18 @@ gh workflow run backup.yml && gh run watch
    ```
 
    This creates the extensions and the `apexgpt_llm_reader` role that the backup's grants refer to.
-3. **Restore.** This replaces every object, data and grants included, with the backup's copy:
+3. **Restore.** This replaces every object, data and grants included, with the backup's copy, in one transaction:
 
    ```bash
    docker run --rm -e NEON_DATABASE_URL -v "$PWD/backup:/b" pgvector/pgvector:0.8.1-pg18 \
-     pg_restore --clean --if-exists --no-owner --exit-on-error \
-       --dbname="$NEON_DATABASE_URL" /b/apexgpt.dump
+     bash -c 'set -o pipefail
+       pg_restore --clean --if-exists --no-owner --file=- /b/apexgpt.dump |
+       sed -E "/^ALTER TABLE ONLY [^ ]+ ALTER COLUMN [^ ]+ SET \(pg_attver=[0-9]+\);\$/d" |
+       psql "$NEON_DATABASE_URL" -X -q --single-transaction -v ON_ERROR_STOP=1 >/dev/null'
    ```
+
+   - The `sed` drops Neon's internal column option (`pg_attver`). A dump of Neon contains it, but stock Postgres rejects it, and Neon doesn't need it restored. This pipeline also restores into any other Postgres 18 with pgvector.
+   - It's exactly what the weekly run's restore check executes.
 
 4. **On a new database only,** set the read-only role's password: step 2/4 of `scripts/neon_setup.sh`, i.e. `python -m app.db.readonly_role`.
 5. **Delete `backup/` afterwards.** The decrypted dump holds the users' feedback.
