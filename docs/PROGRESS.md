@@ -124,7 +124,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F6.1 `feature/golden-eval-set`: golden question set · PR #46 merged
 - [x] F6.2 `feature/eval-runner`: evaluation runner · PR #47 merged
 - [x] F6.3 `feature/retrieval-tuning`: tuning from eval results · PR #48 merged
-- [ ] F6.4 `feature/load-testing`: load + cold-start tests · 🔍 PR raised
+- [ ] F6.4 `feature/load-testing`: load + cold-start tests · 🔍 PR #49
 
 ### Phase 7: Deployment 🏁
 - [ ] F7.1 `feature/prod-compose`: production compose for Coolify
