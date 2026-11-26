@@ -130,7 +130,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 7: Deployment 🏁
 - [x] F7.1 `feature/prod-compose`: production compose for Coolify · PR #51 merged
 - [x] F7.2 `feature/neon-setup`: Neon setup + data restore scripts · PR #52 merged
-- [x] F7.3 `feature/backup-workflow`: weekly backup workflow · PR #53 merged (fix for Neon dumps: 🔍 PR raised)
+- [x] F7.3 `feature/backup-workflow`: weekly backup workflow · PR #53 merged (fix for Neon dumps: 🔍 PR #54)
 - [ ] F7.4 `feature/prod-smoke-test`: production smoke test
 - [ ] `main` deployed via Coolify, smoke test passed, tagged `v1.0.0`
 
