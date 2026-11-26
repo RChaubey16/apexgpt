@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { getSiteUrl } from "@/lib/config";
+import { siteMetadata } from "@/lib/metadata";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,11 +15,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "ApexGPT",
-  description:
-    "Formula 1 chat assistant: drivers, constructors, circuits, seasons and rivalries from 1950 to 2025.",
-};
+// Title template, description, share cards (F8.2); see src/lib/metadata.ts.
+export const metadata: Metadata = siteMetadata(getSiteUrl());
 
 export const viewport: Viewport = {
   // Matches --color-background, so the phone's browser bar blends in.

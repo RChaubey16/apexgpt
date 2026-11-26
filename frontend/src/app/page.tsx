@@ -1,6 +1,7 @@
 import { BackendStatus } from "@/components/BackendStatus";
 import { ChatApp } from "@/components/ChatApp";
 import { ConfigError, getApiBaseUrl } from "@/lib/config";
+import { homeMetadata } from "@/lib/metadata";
 
 function resolveApiBaseUrl(): string | null {
   try {
@@ -14,6 +15,8 @@ function resolveApiBaseUrl(): string | null {
     throw error;
   }
 }
+
+export const metadata = homeMetadata;
 
 export default function Home() {
   const apiBaseUrl = resolveApiBaseUrl();

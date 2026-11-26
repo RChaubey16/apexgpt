@@ -18,7 +18,11 @@ FROM deps AS builder
 # NEXT_PUBLIC_* values are inlined into the browser bundle at build time,
 # so the backend URL must be provided here, not at runtime.
 ARG NEXT_PUBLIC_API_URL
+# The frontend's own public URL, for metadata (F8.2). Optional here (local
+# builds use http://localhost:3000); docker-compose.prod.yml requires it.
+ARG NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+    NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL} \
     NEXT_TELEMETRY_DISABLED=1
 RUN test -n "$NEXT_PUBLIC_API_URL" || \
     (echo "ERROR: build arg NEXT_PUBLIC_API_URL is required" >&2 && exit 1)

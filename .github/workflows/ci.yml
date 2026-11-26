@@ -298,6 +298,7 @@ jobs:
           CORS_ORIGINS: https://apexgpt.example.com
           GROQ_API_KEY: ci
           NEXT_PUBLIC_API_URL: https://api.apexgpt.example.com
+          NEXT_PUBLIC_SITE_URL: https://apexgpt.example.com
         run: |
           docker compose -f docker-compose.prod.yml --env-file /dev/null config -q
           if env -u GROQ_API_KEY docker compose -f docker-compose.prod.yml \

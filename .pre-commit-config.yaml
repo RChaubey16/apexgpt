@@ -10,6 +10,8 @@ repos:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
+        # Next.js emits *.alt.txt verbatim as image alt text, newline included.
+        exclude: \.alt\.txt$
       - id: check-yaml
         # Compose's `!override` tag isn't plain YAML; `docker compose config`
         # validates that file instead.

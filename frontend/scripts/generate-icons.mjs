@@ -1,13 +1,16 @@
-// Generate every icon file from the brand SVGs (F8.1). Run from frontend/:
+// Generate every icon file (F8.1) and the social preview image (F8.2) from
+// the brand SVGs. Run from frontend/:
 //
 //   npm run icons
 //
 // Sources: brand/icon.svg (the master), brand/icon-small.svg (the 16 px
-// favicon frame) and brand/icon-square.svg (full-bleed, for platforms that
-// mask icons themselves). See brand/README.md.
+// favicon frame), brand/icon-square.svg (full-bleed, for platforms that
+// mask icons themselves) and brand/og.svg (the 1200x630 share-card image; its
+// text uses the machine's fonts). See brand/README.md.
 //
 // Next.js picks up the files in src/app by name (icon.svg, favicon.ico,
-// apple-icon.png) and writes the <link> tags itself; src/app/manifest.ts
+// apple-icon.png, opengraph-image.png, twitter-image.png) and writes the
+// <link> and <meta> tags itself; src/app/manifest.ts
 // lists the ones in public/icons. The backend gets the same favicon.ico, so
 // the API domain has one too.
 
@@ -83,6 +86,12 @@ async function main() {
     { size: 32, data: await png("icon.svg", 32) },
     { size: 48, data: await png("icon.svg", 48) },
   ]);
+  const shareImage = await sharp(await readFile(join(BRAND, "og.svg")), {
+    density: 144,
+  })
+    .resize(1200, 630)
+    .png({ compressionLevel: 9 })
+    .toBuffer();
   const outputs = [
     [join(APP, "favicon.ico"), favicon],
     [join(BACKEND_STATIC, "favicon.ico"), favicon],
@@ -90,6 +99,8 @@ async function main() {
     [join(PUBLIC_ICONS, "icon-192.png"), await png("icon.svg", 192)],
     [join(PUBLIC_ICONS, "icon-512.png"), await png("icon.svg", 512)],
     [join(PUBLIC_ICONS, "icon-maskable-512.png"), await maskable(512)],
+    [join(APP, "opengraph-image.png"), shareImage],
+    [join(APP, "twitter-image.png"), shareImage],
   ];
   for (const [path, data] of outputs) {
     await writeFile(path, data);
