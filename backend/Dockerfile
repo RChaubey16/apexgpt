@@ -27,6 +27,16 @@ COPY . .
 EXPOSE 8000
 CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
+# ---------- Models: both search models, fetched once at build time (F7.1) ----------
+# A new container would otherwise download ~145 MB on its first question.
+FROM builder AS models
+
+COPY app ./app
+# Readable by the non-root app user, still owned by root (Hugging Face writes
+# some cache files 0600).
+RUN /app/.venv/bin/python -m app.retrieval.prefetch /app/models \
+    && chmod -R a+rX /app/models
+
 # ---------- Runtime: slim image, non-root, no build tools ----------
 FROM python:3.12-slim AS runtime
 
@@ -40,6 +50,11 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 COPY app ./app
+# The search models, read-only at runtime; never fetched from the network
+# (HF_HUB_OFFLINE). A deployment can still mount its own EMBEDDING_CACHE_DIR.
+COPY --from=models /app/models /app/models
+ENV EMBEDDING_CACHE_DIR=/app/models \
+    HF_HUB_OFFLINE=1
 # Migrations ship with the image so they can be run in place:
 #   docker run --rm -e DATABASE_URL=... <image> alembic upgrade head
 COPY alembic.ini ./

@@ -1,0 +1,116 @@
+# ApexGPT production stack for Coolify (F7.1): backend + frontend. The database
+# is Neon (F7.2), so there is no db service, and the VPS only runs the app.
+#
+# Coolify: Docker Compose build pack, Docker Compose Location
+# /docker-compose.prod.yml. In the Coolify UI, give each service a domain with
+# its internal port:
+#   frontend  https://apexgpt.example.com:3000
+#   backend   https://api.apexgpt.example.com:8000
+# Variables marked ":?" are required (Coolify blocks the deploy until they are
+# set). Nothing is published with `ports:`; Traefik reaches the services over
+# the stack's own Docker network.
+#
+# Check locally: docker compose -f docker-compose.prod.yml config
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    # Migrations first (a no-op when Neon is up to date): a failed migration
+    # stops the container before it serves anything. Then the image's command.
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --proxy-headers
+    expose:
+      - "8000"
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: ${DATABASE_URL:?Neon pooled connection string (?sslmode=require)}
+      # The LLM's stats queries run as the read-only role (F1.5/F7.2).
+      READONLY_DATABASE_URL: ${READONLY_DATABASE_URL:?Neon URL for apexgpt_llm_reader}
+      # Covers Neon waking up from suspend (~0.5-1 s).
+      DATABASE_CONNECT_TIMEOUT: ${DATABASE_CONNECT_TIMEOUT:-10}
+      # The frontend's origin, e.g. https://apexgpt.example.com (no trailing slash).
+      CORS_ORIGINS: ${CORS_ORIGINS:?the frontend origin}
+      # Proxy headers (X-Forwarded-For) are trusted only from these addresses.
+      # Only Traefik can reach the backend (it is on the stack's private Docker
+      # network and nothing is published), so the private ranges are safe and
+      # survive Coolify picking a new subnet. Never "*" while a port is published.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      # LLM providers: Groq is required, the fallbacks are optional (blank = off).
+      GROQ_API_KEY: ${GROQ_API_KEY:?}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      LLM_GROQ_MODEL: ${LLM_GROQ_MODEL:-openai/gpt-oss-120b}
+      LLM_GEMINI_MODEL: ${LLM_GEMINI_MODEL:-gemini-3.1-flash-lite}
+      LLM_OPENROUTER_MODEL: ${LLM_OPENROUTER_MODEL:-nvidia/nemotron-3-ultra-550b-a55b:free}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
+      LLM_RATE_LIMIT_WAIT_SECONDS: ${LLM_RATE_LIMIT_WAIT_SECONDS:-20}
+      RATE_LIMIT_CHAT: ${RATE_LIMIT_CHAT:-6/minute;100/day}
+      RATE_LIMIT_FEEDBACK: ${RATE_LIMIT_FEEDBACK:-30/minute;500/day}
+      ANSWER_CACHE_SIZE: ${ANSWER_CACHE_SIZE:-256}
+      ANSWER_CACHE_TTL_SECONDS: ${ANSWER_CACHE_TTL_SECONDS:-86400}
+      # The search models are in the image (/app/models, offline). One thread
+      # per model, matching the CPU limit below.
+      ONNX_THREADS: "1"
+      # JSON-lines log on a volume, so it survives deploys; rotated by size.
+      LOG_FILE: /app/logs/apexgpt.log
+      LOG_FILE_MAX_MB: ${LOG_FILE_MAX_MB:-10}
+      LOG_FILE_BACKUPS: ${LOG_FILE_BACKUPS:-5}
+    volumes:
+      - apexgpt-logs:/app/logs
+    healthcheck:
+      # Liveness only: /health never touches the database, so this never keeps
+      # Neon awake.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          # Measured in F6.4: ~350 MiB with both models, ~614 MiB peak at 40
+          # concurrent answers.
+          memory: 768M
+          cpus: "1.0"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      target: runtime
+      args:
+        # Inlined into the browser bundle at build time: the backend's public URL.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?the backend URL, e.g. https://api.apexgpt.example.com}
+    depends_on:
+      - backend
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: "1.0"
+    restart: unless-stopped
+
+volumes:
+  apexgpt-logs:
