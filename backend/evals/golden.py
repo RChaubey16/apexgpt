@@ -114,6 +114,8 @@ class GoldenQuestion(BaseModel):
     expect: Expectation
     sql: Text | None = None
     known_issue: Text | None = None
+    # In the production smoke test (F7.4): checked without the LLM judge.
+    smoke: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> GoldenQuestion:
@@ -134,6 +136,14 @@ class GoldenQuestion(BaseModel):
                 raise ValueError("`sql` proves `answer` values; give at least one")
         if self.sql and not self.expect.answer:
             raise ValueError("`sql` without `answer` values proves nothing")
+        if self.smoke and (
+            self.expect.behavior is not Behavior.ANSWER
+            or not (self.expect.answer or self.expect.sources or self.expect.standalone)
+        ):
+            raise ValueError(
+                "smoke questions need deterministic checks: answer values, sources "
+                "or standalone, with behavior answer"
+            )
         if self.category is Category.OUT_OF_SCOPE and (
             self.expect.behavior is not Behavior.DECLINE
         ):

@@ -7,6 +7,7 @@
     uv run python -m evals report ../data/eval/runs/<run>         # re-render report.md
     uv run python -m evals rescore ../data/eval/runs/<run>        # same answers, current golden set
     uv run python -m evals retrieval                              # no LLM; top-5 check
+    uv run python -m evals smoke --frontend https://… --api https://…   # the live site
 
 Needs the loaded corpus, READONLY_DATABASE_URL and LLM keys from .env, like
 `python -m app.answer`. Results go to data/eval/runs/ (git-ignored).
@@ -26,6 +27,7 @@ from evals.report import render_retrieval, render_run
 from evals.runner import (
     REPORT_FILE,
     RUNS_DIR,
+    SMOKE_DIR,
     RunError,
     RunMeta,
     RunOptions,
@@ -95,6 +97,20 @@ def build_parser() -> argparse.ArgumentParser:
     rescore_p.add_argument("--judge-provider", choices=PROVIDERS)
     rescore_p.add_argument("--no-judge", action="store_true")
     rescore_p.add_argument("--label", default="rescored")
+
+    smoke_p = commands.add_parser(
+        "smoke", help="check the live site over HTTP (smoke: true questions)"
+    )
+    smoke_p.add_argument(
+        "--frontend", required=True, help="e.g. https://apexgpt.ruturaj.xyz"
+    )
+    smoke_p.add_argument(
+        "--api", required=True, help="e.g. https://apexgpt-api.ruturaj.xyz"
+    )
+    smoke_p.add_argument(
+        "--delay", type=_positive, default=11.0, help="seconds between answers"
+    )
+    smoke_p.add_argument("--id", action="append", default=[], dest="ids")
 
     report_p = commands.add_parser("report", help="re-render a run's report")
     report_p.add_argument("run_dir", type=Path)
@@ -262,6 +278,34 @@ def _rescore(args: argparse.Namespace, golden) -> int:  # noqa: ANN001
     return 0
 
 
+def _url(value: str) -> str:
+    value = value.strip().rstrip("/")
+    if not value.startswith(("https://", "http://")) or "@" in value:
+        raise RunError(f"not an http(s) URL: {value!r}")
+    return value
+
+
+def _smoke(args: argparse.Namespace, golden) -> int:  # noqa: ANN001
+    from evals.smoke import render, run_smoke
+
+    frontend, api = _url(args.frontend), _url(args.api)
+    questions = [q for q in golden.questions if q.smoke]
+    if args.ids:
+        questions = select(golden, ids=args.ids)
+    if not questions:
+        raise RunError("no smoke questions (mark some with smoke: true)")
+    started = datetime.now(UTC)
+    print(f"Smoke test: {frontend} / {api}, {len(questions)} questions")
+    report = run_smoke(frontend, api, questions, delay=args.delay)
+    out = SMOKE_DIR / f"{started.strftime('%Y%m%dT%H%M%SZ')}.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        render(report, started.isoformat(timespec="seconds")), encoding="utf-8"
+    )
+    print(f"\n{'PASS' if report.ok else 'FAIL'}; report: {out}")
+    return 0 if report.ok else 1
+
+
 def _report(args: argparse.Namespace, golden) -> int:  # noqa: ANN001
     meta = read_meta(args.run_dir)
     results = load_results(args.run_dir)
@@ -317,6 +361,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _report(args, golden)
         if args.command == "rescore":
             return _rescore(args, golden)
+        if args.command == "smoke":
+            return _smoke(args, golden)
         return _retrieval(args, golden)
     except (GoldenSetError, RunError) as exc:
         print(f"error: {exc}", file=sys.stderr)

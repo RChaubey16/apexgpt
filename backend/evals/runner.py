@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 REPO_ROOT = DEFAULT_PATH.parents[1]
 RUNS_DIR = REPO_ROOT / "data" / "eval" / "runs"
+SMOKE_DIR = REPO_ROOT / "data" / "eval" / "smoke"
 RESULTS_FILE = "results.jsonl"
 META_FILE = "meta.json"
 REPORT_FILE = "report.md"

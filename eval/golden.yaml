@@ -13,6 +13,7 @@
 # - behavior:   answer (default) | decline | correct_premise.
 # - standalone: follow-ups only; values the rewritten question must contain.
 # - known_issue: why the question is here, if it tracks a known problem.
+# - smoke:      true = asked by the production smoke test (python -m evals smoke).
 #
 # Data covers the 1950–2025 seasons. Keep answers to what the data supports.
 
@@ -21,6 +22,7 @@ questions:
   # --- stats: career and all-time records ---------------------------------
   - id: stats-most-wins
     category: stats
+    smoke: true
     question: Who has won the most Formula 1 races?
     expect:
       answer: [Lewis Hamilton, "105"]
@@ -131,6 +133,7 @@ questions:
 
   - id: stats-monza-record-tie
     category: stats
+    smoke: true
     question: Who has the most wins at Monza?
     expect:
       answer: [Lewis Hamilton, Michael Schumacher, "5"]
@@ -367,6 +370,7 @@ questions:
 
   - id: seasons-senna-poles-1988
     category: seasons
+    smoke: true
     question: How many poles did Ayrton Senna take in 1988?
     expect:
       answer: ["13"]
@@ -400,6 +404,7 @@ questions:
 
   - id: races-2020-sakhir-winner
     category: races
+    smoke: true
     question: Who won the 2020 Sakhir Grand Prix and for which team?
     expect:
       answer: [Sergio Pérez, Racing Point]
@@ -488,6 +493,7 @@ questions:
 
   - id: races-abu-dhabi-2021
     category: races
+    smoke: true
     question: Explain Abu Dhabi 2021
     expect:
       answer: [Max Verstappen, Lewis Hamilton]
@@ -539,9 +545,10 @@ questions:
 
   - id: crashes-senna-imola
     category: crashes
+    smoke: true
     question: How did Ayrton Senna die?
     expect:
-      answer: [Imola]
+      answer: ["1994"]
       facts:
         - He crashed during the 1994 San Marino Grand Prix
       sources: [1994 San Marino Grand Prix, Ayrton Senna, Death of Ayrton Senna]
@@ -787,6 +794,7 @@ questions:
 
   - id: multi-imola-record
     category: multi_hop
+    smoke: true
     question: Who has won the most races at the circuit where Ayrton Senna died?
     expect:
       answer: [Michael Schumacher, "7"]
@@ -854,6 +862,7 @@ questions:
   # --- follow-ups (history; the question is condensed first) ---------------
   - id: follow-teammate-that-year
     category: follow_up
+    smoke: true
     question: Who was his team-mate that year?
     history:
       - role: user

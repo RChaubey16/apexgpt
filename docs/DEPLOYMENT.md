@@ -7,7 +7,7 @@ The deployment phase is built in steps:
 - F7.1: production compose
 - F7.2: Neon setup and data restore
 - F7.3: weekly backups (see "Backups")
-- F7.4: production smoke test
+- F7.4: production smoke test (see "Smoke test")
 
 ## What runs where
 
@@ -92,6 +92,26 @@ Budget: backend 768 MB / 1 CPU (measured peak ~614 MiB, see [backend/loadtest/RE
   Run it on the VPS. The backend should show `/ 768MiB` and the frontend `/ 384MiB`. Coolify's docs don't say whether it honours `deploy.resources.limits`.
 - **Check the backend:** `https://api…/health/ready` should return `{"status": "ok", "database": "ok"}`. `/docs` returns 404 in production.
 - **Check the frontend:** the page should show "All systems go". That calls `/health/ready`, which wakes Neon.
+
+## Smoke test
+
+After every deploy, from `backend/`:
+
+```bash
+uv run python -m evals smoke --frontend https://apexgpt.ruturaj.xyz --api https://apexgpt-api.ruturaj.xyz
+```
+
+It checks the live site over HTTPS, the way a browser uses it:
+- **The backend:** `/health/ready` and its latency, `/health` in production, `/docs` hidden, CORS allowing only the frontend's origin.
+- **The frontend:** its page and its `/api/health`.
+- **Answers:** the golden questions marked `smoke: true` (8), asked through `POST /api/chat` and scored without an LLM judge: answer values, tools, cited sources, and the follow-up rewrite.
+
+How it behaves:
+- It exits 1 if anything fails. The report, with failed answers' text, goes to `data/eval/smoke/`.
+- Questions are 11 s apart, to stay under the per-IP limit of 6 answers a minute. A run takes ~2 minutes and about 50k LLM tokens.
+- Re-runs within 24 hours are served from the production cache (the report shows "cached"), so they cost almost nothing.
+
+**Neon's wake-up:** run it after 5+ idle minutes and the first `/health/ready` includes Neon resuming. Measured on 2026-11-26: **1.81 s cold** against **~0.44 s warm**, so about 1.4 s of wake-up. The frontend calls `/health/ready` on page load, so a visitor usually pays that before asking anything.
 
 ## Client addresses
 
