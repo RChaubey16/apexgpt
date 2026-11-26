@@ -1,0 +1,103 @@
+# Weekly backup of the production database (F7.3).
+#
+# 1. pg_dump of Neon, restored into a scratch Postgres to prove it works (every
+#    table's row count must match), then encrypted (scripts/backup.sh).
+# 2. The encrypted dump is kept as an artifact for 5 weeks. The repository is
+#    public and anyone signed in can download a public repo's artifacts, so
+#    only the encrypted file is ever uploaded.
+# 3. Feedback older than 90 days is deleted (python -m app.feedback purge),
+#    after the backup.
+#
+# Repository secrets (Settings > Secrets and variables > Actions):
+#   NEON_BACKUP_DATABASE_URL  Neon's direct (non-pooled) owner connection string
+#   BACKUP_PASSPHRASE         20+ characters; keep a copy outside GitHub, it is
+#                             the only way to decrypt a backup
+# Restoring: docs/DEPLOYMENT.md, "Backups".
+
+name: Weekly backup
+
+on:
+  schedule:
+    - cron: "17 3 * * 0" # Sundays 03:17 UTC (off the hour, when runners are busy)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.11.2" # keep in sync with backend/Dockerfile
+  PG_IMAGE: pgvector/pgvector:0.8.1-pg18 # pg_dump 18, like Neon and the local db
+
+jobs:
+  backup:
+    name: Back up Neon and purge old feedback
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      # Scratch database the dump is restored into, to check it.
+      verify:
+        image: pgvector/pgvector:0.8.1-pg18
+        env:
+          POSTGRES_USER: verify
+          POSTGRES_DB: verify
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd "pg_isready -U verify"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the secrets are set
+        env:
+          NEON_BACKUP_DATABASE_URL: ${{ secrets.NEON_BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          missing=""
+          [ -n "$NEON_BACKUP_DATABASE_URL" ] || missing="$missing NEON_BACKUP_DATABASE_URL"
+          [ -n "$BACKUP_PASSPHRASE" ] || missing="$missing BACKUP_PASSPHRASE"
+          if [ -n "$missing" ]; then
+            echo "::error::repository secrets not set:$missing (see .github/workflows/backup.yml)"
+            exit 1
+          fi
+
+      - name: Back up, check the restore, encrypt
+        env:
+          SOURCE_DATABASE_URL: ${{ secrets.NEON_BACKUP_DATABASE_URL }}
+          VERIFY_DATABASE_URL: postgresql://verify@127.0.0.1:5432/verify
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          OUT_DIR: ${{ runner.temp }}/backup
+          DOCKER_NETWORK: host
+        run: scripts/backup.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: apexgpt-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/backup/*.dump.gpg
+          if-no-files-found: error
+          retention-days: 35
+          compression-level: 0 # already compressed and encrypted
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: false
+
+      - name: Delete feedback older than 90 days
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.NEON_BACKUP_DATABASE_URL }}
+        run: |
+          uv sync --frozen --no-dev
+          uv run --frozen --no-dev python -m app.feedback purge
