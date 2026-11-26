@@ -262,6 +262,13 @@ jobs:
             [ "$user" != root ] || { echo "::error::$c runs as root"; exit 1; }
           done
 
+      # F7.1: both search models are baked into the image and load offline,
+      # so a new production container never downloads them.
+      - name: Check the search models load with no network
+        run: |
+          docker run --rm --network none apexgpt-backend:ci \
+            python -m app.retrieval.prefetch /app/models
+
       - name: Show image sizes
         run: docker image ls 'apexgpt-*'
 
@@ -281,6 +288,23 @@ jobs:
 
       - name: Create .env from the example
         run: cp .env.example .env
+
+      # F7.1: the Coolify file is valid, and refuses to render without its
+      # required settings.
+      - name: Validate the production compose file
+        env:
+          DATABASE_URL: postgresql://ci:ci@db.example/ci
+          READONLY_DATABASE_URL: postgresql://reader:ci@db.example/ci
+          CORS_ORIGINS: https://apexgpt.example.com
+          GROQ_API_KEY: ci
+          NEXT_PUBLIC_API_URL: https://api.apexgpt.example.com
+        run: |
+          docker compose -f docker-compose.prod.yml --env-file /dev/null config -q
+          if env -u GROQ_API_KEY docker compose -f docker-compose.prod.yml \
+              --env-file /dev/null config -q 2>/dev/null; then
+            echo "::error::docker-compose.prod.yml rendered without GROQ_API_KEY"
+            exit 1
+          fi
 
       - name: Start the stack
         run: docker compose up -d --build --wait --wait-timeout 300

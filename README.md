@@ -117,6 +117,10 @@ Load and cold-start tests (production image, stub LLM, no quota): see [backend/l
 
 To run the backend outside Docker: `cd backend && uv run uvicorn app.main:create_app --factory --reload`. For the frontend, see [frontend/README.md](frontend/README.md).
 
+## Deployment
+
+Production runs on a VPS with Coolify ([docker-compose.prod.yml](docker-compose.prod.yml)) and a Neon database. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## Contributing
 
 - Create one `feature/<name>` branch from `main` per change, and open a pull request against `main`.
@@ -128,6 +132,7 @@ To run the backend outside Docker: `cd backend && uv run uvicorn app.main:create
 - [MVP plan](docs/MVP-PLAN.md): phases, workflow and feature breakdown
 - [Features](docs/FEATURES.md): the full feature list
 - [Data strategy](docs/DATA-STRATEGY.md): what data is stored and why
+- [Deployment](docs/DEPLOYMENT.md): Coolify setup and production settings
 - [Progress](docs/PROGRESS.md): current status and decision log
 
 ## Data attribution

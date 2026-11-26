@@ -6,7 +6,7 @@ Tracks where development stands, so work can resume after any interruption.
 
 **How to update:** when a feature passes the Feature Completion Checklist ([MVP-PLAN.md §5](./MVP-PLAN.md#5-development-workflow)) and its PR to `main` is raised, mark it `🔍 PR #<n>`. Tick it only after the user merges the PR. Update Current Status and Next Steps, and add a Session Log entry at the end of each work session. Record any change to an agreed decision in the Decision Log.
 
-Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [DATA-STRATEGY.md](./DATA-STRATEGY.md)
+Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [DATA-STRATEGY.md](./DATA-STRATEGY.md) · [DEPLOYMENT.md](./DEPLOYMENT.md)
 
 ---
 
@@ -14,18 +14,18 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 6 complete; Phase 7 not started |
-| **Current feature** | None (waiting for the go-ahead for Phase 7) |
-| **Current branch** | `feature/close-phase-6` |
-| **Open PR** | Phase 6 close-out docs |
+| **Current phase** | Phase 7: Deployment |
+| **Current feature** | F7.1 production compose for Coolify |
+| **Current branch** | `feature/prod-compose` |
+| **Open PR** | F7.1 production compose for Coolify |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-26 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User merges the Phase 6 close-out PR.
-2. **Phase 7 (deployment) waits for the user's go-ahead.** It starts with F7.1 `feature/prod-compose`. The open F7.1 items in Known Issues belong in it (models in the image, `FORWARDED_ALLOW_IPS`, the log volume, secrets).
+1. User reviews and merges the F7.1 PR (production compose for Coolify).
+2. Then F7.2 `feature/neon-setup`: Neon migrations, the read-only role, data restore, and the size guard against Neon. **The user needs a Neon account** (free tier; region closest to the VPS). The user has a VPS with Coolify; no domain yet (Coolify's generated domain works until then).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -43,7 +43,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 4. Chat API | ✅ Done | 2026-11-22 | 2026-11-23 |
 | 5. Frontend MVP | ✅ Done | 2026-11-23 | 2026-11-24 |
 | 6. Eval + hardening | ✅ Done | 2026-11-25 | 2026-11-26 |
-| 7. Deployment | ⬜ Not started | | |
+| 7. Deployment | 🟡 In progress | 2026-11-26 | |
 
 Status key: ⬜ Not started · 🟡 In progress · ✅ Done · ⛔ Blocked
 
@@ -128,7 +128,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] **Phase done check** (the plan's Phase 6 items): a ~100-question golden set (100, every category); an eval runner with exact match, an LLM judge and reports; tuning from the results (per-season stats, circuit towns, prompt and condenser fixes, the reranker re-checked); load and cold-start tests under the memory caps (no failures or OOM at 40 concurrent answers). Caveat: the before/after comparison with one pinned judge is deferred (Known Issues).
 
 ### Phase 7: Deployment 🏁
-- [ ] F7.1 `feature/prod-compose`: production compose for Coolify
+- [ ] F7.1 `feature/prod-compose`: production compose for Coolify · 🔍 PR raised
 - [ ] F7.2 `feature/neon-setup`: Neon setup + data restore scripts
 - [ ] F7.3 `feature/backup-workflow`: weekly backup workflow
 - [ ] F7.4 `feature/prod-smoke-test`: production smoke test
@@ -257,6 +257,10 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-26 | Prompt-injection defence is a prompt rule (never reveal or discuss the instructions), not an output filter | The prompt is public in the repository, so a leak exposes nothing secret. What matters is that the model doesn't obey injected instructions, and a filter can't take back streamed text |
 | 2026-11-26 | Load tests run the **production image** under its 768 MiB / 1-CPU cap through a compose override, answering via a **stub LLM** (`backend/loadtest/stub_llm.py`, OpenAI-compatible, a tool call then a cited streamed answer); provider base URLs became settings (`LLM_GROQ_BASE_URL`, …, validated http(s), defaults unchanged) | Everything but the model is real (resolution, search, reranking, stats DB, SSE) and no quota is spent; real providers would measure their rate limits, not the server |
 | 2026-11-26 | No model warm-up at startup and no cap on concurrent searches | Measured: the first search's model loading adds ~0.5 s; memory flattens out at ~610 MiB even at 40 concurrent answers, and one CPU wouldn't go faster with a cap |
+| 2026-11-26 | Production stack = `docker-compose.prod.yml` (backend + frontend; Neon instead of a db service), built by Coolify from the repo; domains set in Coolify's UI; nothing published with `ports:`; required settings as `${VAR:?}` so Coolify blocks a deploy without them | Follows Coolify's compose docs. A published port would bypass the proxy (and the client-address rules) |
+| 2026-11-26 | Migrations run in the backend's command (`alembic upgrade head && exec uvicorn …`), not a separate one-shot service | Coolify's `exclude_from_hc` key (for one-shot services) isn't valid Compose, so `docker compose config` and CI would reject the file. A failed migration still stops the container before it serves |
+| 2026-11-26 | Search models baked into the runtime image (a `models` build stage runs `python -m app.retrieval.prefetch` with the app's own loaders; root-owned, world-readable; `HF_HUB_OFFLINE=1`) | No ~145 MB download on a new container's first question, and no runtime dependency on Hugging Face. +152 MB per image |
+| 2026-11-26 | `FORWARDED_ALLOW_IPS` defaults to the private ranges in production | Coolify picks the stack network's subnet, and only Traefik can reach the unpublished backend. uvicorn 0.54 accepts CIDR ranges |
 | 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
@@ -264,6 +268,27 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: F7.1 production compose for Coolify (Phase 7 started)
+- User gave the go-ahead for Phase 7. PR #50 (Phase 6 close-out) merged. The user has a VPS with Coolify; no domain or Neon account yet.
+- Read Coolify's Docker Compose docs first (domains per service in the UI, `${VAR:?}` required variables, build args, no `ports:`).
+- **Built:**
+  - `docker-compose.prod.yml`;
+  - a `models` stage in `backend/Dockerfile` and `app/retrieval/prefetch.py`;
+  - CI: the prod file must render (and refuse to without `GROQ_API_KEY`), and the image's models must load with `--network none`;
+  - `docs/DEPLOYMENT.md`, the Coolify steps and variables.
+- **Local check of the production stack** (`docker compose -p apexgpt-prodcheck`; the local Postgres standing in for Neon, the stub LLM for Groq):
+  - migrations ran, and both services were healthy;
+  - `/health/ready` ok; `/docs` 404;
+  - CORS allowed the frontend's origin and refused another;
+  - a cited knowledge answer, with the models loaded from the image;
+  - a stats answer through the read-only role;
+  - the API URL inlined in the frontend bundle;
+  - the log file on the volume;
+  - rate limits keyed on `X-Forwarded-For`;
+  - memory: backend 349 MiB, frontend 33 MiB.
+- **Found:** Hugging Face writes some cache files 0600, so the non-root user logged "Ignoring corrupted tree cache"; fixed with `chmod -R a+rX`. A failed migration (wrong password in my test setup) kept the backend restarting without serving, as intended.
+- **Tests:** backend unit 953 passing (+4: prefetch).
 
 ### 2026-11-26: Phase 6 closed
 - PR #49 (F6.4) merged: **all Phase 6 features (F6.1–F6.4) are merged.**
@@ -992,7 +1017,9 @@ Newest first.
 
 ## Known Issues / Open Questions
 
-- F7.1/F7.4: the F6.4 cold start (~1.1 s to healthy, +~0.5 s on the first search) assumes the search models are already on disk. A fresh production container without them downloads ~145 MB on its first search; bake them into the image or a volume (F7.1). Neon's own wake-up after 5 idle minutes isn't measured locally; time it in the production smoke test (F7.4).
+- F7.1: Coolify's docs don't say whether it honours `deploy.resources.limits`. After the first deploy, check `docker stats` on the VPS shows 768 MiB / 384 MiB (docs/DEPLOYMENT.md).
+- F7.1: the backend runs `alembic upgrade head` on every start (a fast no-op when Neon is current). A migration that isn't backward compatible would make the old container fail on restart before the new one is up; keep migrations additive, or deploy them separately when one isn't.
+- F7.1/F7.4: the F6.4 cold start (~1.1 s to healthy, +~0.5 s on the first search) assumes the search models are already on disk. A fresh production container without them downloads ~145 MB on its first search; bake them into the image or a volume (F7.1). Neon's own wake-up after 5 idle minutes isn't measured locally; time it in the production smoke test (F7.4). **Update (F7.1):** the models are baked into the image (`HF_HUB_OFFLINE=1`; CI loads them with no network). Neon's wake-up time remains for F7.4.
 - F6: **judge providers grade differently.** On identical answers, 7 of 54 verdicts changed between Groq (strict, usually right) and Gemini (lenient: it passed "never won a race for Ferrari" for a question whose premise is that he drove for them). Runs judged through the fallback chain aren't comparable, so the judge is now pinned (default: the first configured provider). The F6.3 before/after comparison with one pinned judge wasn't run: Groq's free quota ran out after two full runs that day (12 of 30 judge calls failed). Run it later: `python -m evals rescore <baseline> --judge-provider groq` and the same for the F6.3 run (`data/eval/runs/20261126T031244Z-baseline`, `…T034345Z-tuned`).
 - F3.3/F6: after a mid-answer fallback, a model can echo our flattened tool history as its answer (live, F6.3 run: nemotron answered `multi-imola-record` with "I called query_stats with {…}."). `prepare_messages` writes other providers' tool calls as "I called X with Y." Rephrase it (or summarise the results instead) and test on all three providers.
 - F6.3: the last prompt change (rule 9: check a false premise with the tools) came after the full run, so it isn't verified live; `trick-hamilton-ferrari-title` had answered from memory with no tool call.
@@ -1002,7 +1029,7 @@ Newest first.
 - F6: the follow-up condenser sometimes answers an ambiguous follow-up with a clarifying question instead of a rewrite (live, Phase 5 done check: "Who was his team-mate that year?" after the Abu Dhabi 2021 answer → "Could you specify which driver and season you're referring to?" in 1 of 2 runs). That text becomes the standalone question, so the UI shows "Answering: Could you specify…" and the answer repeats it. `CONDENSE_PROMPT` (`backend/app/answer/followups.py`) doesn't say what to do when a reference can't be resolved: tell it to return the message unchanged then (and add the case to the golden set), or treat a rewrite that ends in a question to the user as unusable. **Fixed (F6.3):** the condense prompt keeps the season/race/team and never asks back; all 8 follow-ups passed in the F6.3 run (`follow-which-team` had lost "2009").
 - F5.4: two tabs with the **same** chat open: each tab's save replaces that chat with its own copy (last write wins); other chats are safe. A deleted chat still open in another tab comes back if that tab saves it. Fine for a no-login MVP.
 - F4.4: the answer cache is per process and isn't cleared by a data reload; reloaded data shows once entries expire (24 h) or on restart. Fine while the data covers finished seasons.
-- F7.1: the rate limits key on the client address, so `FORWARDED_ALLOW_IPS` must be the proxy's address in production, or every visitor shares the proxy's limit.
+- F7.1: the rate limits key on the client address, so `FORWARDED_ALLOW_IPS` must be the proxy's address in production, or every visitor shares the proxy's limit. **Fixed (F7.1):** `FORWARDED_ALLOW_IPS` defaults to the private ranges in `docker-compose.prod.yml`; checked locally (a 429 for one forwarded address, another unaffected).
 - F7.3: add `python -m app.feedback purge` to the weekly scheduled workflow (with the backup), so feedback expires after 90 days even when none is submitted. Until then, rows are purged whenever new feedback is saved.
 - F3.5/F6: the stats views can't answer per-season poles (`v_driver_career` has career totals, `v_race_winners` only winners). Found in the F4.2 check: "How many poles did Ayrton Senna take in 1988?" answered 7 (the wins from pole; the data has 13). Add per-season driver stats (wins, poles, podiums, points) to the views, or a season-results view, and a golden-set question for it. **Fixed (F6.3):** `v_driver_season` (migration 0009); Senna 1988 = 13, Schumacher 1994 = 6 in the F6.3 run.
 - F4.2: the condense rewrite may add a name the conversation didn't contain (live: "the race director" → "Michael Masi"). Helpful for retrieval, and the answer stays grounded in the tools, but it can steer the answer wrong; score it on the golden set (F6). Requests that aren't questions ("shorter please", "as a table") are condensed like questions; the answering model never sees the earlier answer.
@@ -1010,17 +1037,17 @@ Newest first.
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5). **Re-checked (F6.3):** swept weights 0–100 and 5–20 candidates on the 36 golden questions with sources. ×0.5 found one more (34 vs 33) but broke the Hunt/Lauda acceptance test, and more candidates never helped, so the settings stay.
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
 - F4.4/F7.1: one answer holds a worker thread for its whole stream (~2–8 s); the single uvicorn worker's thread pool (40) bounds concurrent answers. Fine at MVP traffic; the F6.4 load test should confirm. **Measured (F6.4):** 40 concurrent answers (the pool's limit) all succeeded under the 768 MiB / 1-CPU cap, with a 614 MiB memory peak and no OOM; latency is what degrades (done p95 37 s), because knowledge searches queue on the one CPU. Production capacity is bound by the LLM free tier (~1–2 answers/min on Groq) long before that.
-- F7.1: mount a volume at `/app/logs` in production (and set `LOG_FILE`), or logs are lost on every deploy. Logs hold questions; rotation bounds them by size (10 MB × 5), not by age. If a time limit is wanted (like feedback's 90 days), add a time-based rotation.
+- F7.1: mount a volume at `/app/logs` in production (and set `LOG_FILE`), or logs are lost on every deploy. Logs hold questions; rotation bounds them by size (10 MB × 5), not by age. If a time limit is wanted (like feedback's 90 days), add a time-based rotation. **Fixed (F7.1):** the `apexgpt-logs` volume with `LOG_FILE` set.
 - F6: fallback answers (Gemini lite, nemotron) are less polished than gpt-oss-120b's; the golden set should score each provider. Gemini 3.x flash previews and newer flash models were overloaded when tested; revisit the default.
 - F3.7/F6: the `query_stats` description is ~1,000 tokens and goes with every request that offers the tool. On Groq's free tier, 8 quick text-to-SQL requests hit the per-minute token limit (429); with no Gemini/OpenRouter key there is no fallback. The orchestrator should offer tools only when needed and keep prompts small; adding the fallback keys helps. **Update (F6.3):** `v_driver_season` and `circuit_locality` grew it from ~4,000 to ~6,000 characters; tokens per answer went from 4,863 (baseline) to 6,121 (F6.3 run).
 - F3.4: an everyday-word surname in an all-lowercase question isn't found ("pace" for Carlos Pace); write it capitalised or use the full name. When new drivers or teams are loaded, check whether any new single-word alias is an everyday word and add it to `COMMON_WORDS` in `app/retrieval/entities.py`.
 - F3.4: candidates are ordered, not decided. The orchestrator (F3.7) should use the best guess, but mention the alternatives when `ambiguous` and no season settles it (e.g. "Schumacher" alone).
 - F3.3: the Gemini (`gemini-2.5-flash`) and OpenRouter (`openai/gpt-oss-120b:free`) default models are unverified (no keys yet). A wrong model fails with 404 and falls through, so check with `LLM_LIVE_TESTS=1 uv run pytest -m llm` once keys are added.
-- F7.1: production needs `GROQ_API_KEY` (and the fallback keys) set as Coolify secrets; docker compose already passes them to the backend.
-- F7.1: the backend runtime image grew from 340 MB to 612 MB with fastembed/onnxruntime (F3.2's reranker added no dependencies). In production both models (~145 MB) download to a temporary directory on first search: bake them into the image or mount a volume. Set `ONNX_THREADS` to the production CPU limit.
+- F7.1: production needs `GROQ_API_KEY` (and the fallback keys) set as Coolify secrets; docker compose already passes them to the backend. **Fixed (F7.1):** required in `docker-compose.prod.yml` (`${GROQ_API_KEY:?}`), so Coolify blocks a deploy without it; the fallbacks are optional.
+- F7.1: the backend runtime image grew from 340 MB to 612 MB with fastembed/onnxruntime (F3.2's reranker added no dependencies). In production both models (~145 MB) download to a temporary directory on first search: bake them into the image or mount a volume. Set `ONNX_THREADS` to the production CPU limit. **Fixed (F7.1):** models baked in (+152 MB; the image is ~990 MB uncompressed); `ONNX_THREADS=1` for the 1-CPU limit.
 - F2.5: fastembed downloads the model from Hugging Face without a token (a rate-limit warning is printed; harmless).
 - F2.4/F2.5: 4 chunks are longer than bge-small's 512-token limit, so their ends are not embedded (they are still in full-text search). Check whether the chunker's token count matches the model's tokenizer; revisit in F6 tuning.
 - F2.3: 39 cleaned articles are under 20 words (very short Wikipedia stubs, e.g. "Al Herman"). Kept; check whether intro-only entities need fuller coverage in F6.
 
-- Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1.
+- Set `FORWARDED_ALLOW_IPS` to the Coolify/Traefik proxy network (never `*`). To do in F7.1. **Done (F7.1).**
 - F7.2 (Neon): confirm the migration's `CREATE ROLE` works as the Neon owner role and run `python -m app.db.readonly_role` against Neon.
