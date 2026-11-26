@@ -6,7 +6,7 @@ The deployment phase is built in steps:
 
 - F7.1: production compose
 - F7.2: Neon setup and data restore
-- F7.3: weekly backups
+- F7.3: weekly backups (see "Backups")
 - F7.4: production smoke test
 
 ## What runs where
@@ -106,3 +106,69 @@ Checked locally (F7.1): six requests from one forwarded address, then a 429 for 
 ## Logs
 
 The backend writes JSON lines to `/app/logs/apexgpt.log` on the `apexgpt-logs` volume, rotated at 10 MB × 5. The volume survives deploys. The logs hold users' questions (no IP addresses).
+
+## Backups
+
+[`.github/workflows/backup.yml`](../.github/workflows/backup.yml) runs every Sunday at 03:17 UTC, and on demand from **Actions → Weekly backup → Run workflow**. Each run:
+
+1. Takes a `pg_dump` of Neon (Postgres 18 tools, in the `pgvector/pgvector:0.8.1-pg18` image).
+2. Restores it into a scratch Postgres on the runner. **Every table's row count must match Neon's**, or the run fails.
+3. Encrypts it (gpg, AES-256) and keeps it as an artifact for 5 weeks. The repository is public, and anyone signed in to GitHub can download a public repo's artifacts, so only the encrypted file is ever uploaded. The dump includes the users' feedback.
+4. Deletes feedback older than 90 days (`python -m app.feedback purge`).
+
+The work is done by [`scripts/backup.sh`](../scripts/backup.sh), which also runs locally. Rehearsed locally: 18 tables and 116,642 rows dumped, restored and matched, then encrypted to 33 MB, in ~11 s.
+
+GitHub emails you when a scheduled run fails. It also disables scheduled workflows after 60 days without commits; re-enable it under **Actions** if that happens.
+
+### Setting it up
+
+Add two **repository secrets**. Use the GitHub CLI, which prompts for each value without echoing it, or the web UI under **Settings → Secrets and variables → Actions**:
+
+```bash
+gh secret set NEON_BACKUP_DATABASE_URL   # Neon's direct (non-pooled) owner URL
+gh secret set BACKUP_PASSPHRASE          # 20+ characters, e.g. openssl rand -base64 30
+```
+
+**Keep a copy of the passphrase outside GitHub** (a password manager). GitHub never shows a secret again, and without it no backup can be decrypted.
+
+Then run the workflow once by hand:
+
+```bash
+gh workflow run backup.yml && gh run watch
+```
+
+### Restoring a backup
+
+1. **Download and decrypt** (asks for the passphrase without echoing it):
+
+   ```bash
+   gh run download <run id> --dir backup     # or download the artifact from the run page
+   read -rs "BACKUP_PASSPHRASE?Passphrase: " && echo && export BACKUP_PASSPHRASE
+   docker run --rm -e BACKUP_PASSPHRASE -v "$PWD/backup:/b" pgvector/pgvector:0.8.1-pg18 \
+     sh -c 'export GNUPGHOME=$(mktemp -d); f=$(ls /b/*/*.dump.gpg | head -1);
+            printf %s "$BACKUP_PASSPHRASE" | gpg --batch --pinentry-mode loopback \
+              --passphrase-fd 0 --decrypt --output /b/apexgpt.dump "$f"'
+   ```
+
+   A wrong passphrase fails with `Bad session key`.
+2. **Prepare the target** (the same Neon database, or a new one):
+
+   ```bash
+   (cd backend && DATABASE_URL="$NEON_DATABASE_URL" uv run alembic upgrade head)
+   ```
+
+   This creates the extensions and the `apexgpt_llm_reader` role that the backup's grants refer to.
+3. **Restore.** This replaces every object, data and grants included, with the backup's copy:
+
+   ```bash
+   docker run --rm -e NEON_DATABASE_URL -v "$PWD/backup:/b" pgvector/pgvector:0.8.1-pg18 \
+     pg_restore --clean --if-exists --no-owner --exit-on-error \
+       --dbname="$NEON_DATABASE_URL" /b/apexgpt.dump
+   ```
+
+4. **On a new database only,** set the read-only role's password: step 2/4 of `scripts/neon_setup.sh`, i.e. `python -m app.db.readonly_role`.
+5. **Delete `backup/` afterwards.** The decrypted dump holds the users' feedback.
+
+Rehearsed locally on a fresh database: the restored copy matched the original (14,581 chunks, 25,873 results, revision 0009), and the read-only role could read the views.
+
+Neon's free tier also keeps a short point-in-time restore window (see the Neon console). The weekly backup covers anything older, or a lost project.

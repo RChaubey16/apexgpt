@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 7: Deployment |
-| **Current feature** | F7.2 Neon setup and data restore |
-| **Current branch** | `feature/neon-setup` |
-| **Open PR** | F7.2 Neon setup and data restore |
+| **Current feature** | F7.3 weekly backup workflow |
+| **Current branch** | `feature/backup-workflow` |
+| **Open PR** | F7.3 weekly backup workflow |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-26 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F7.2 PR (Neon setup and data restore).
-2. **User:** create the Neon project (free tier, region closest to the VPS, Postgres 18), then run `scripts/neon_setup.sh` (docs/DEPLOYMENT.md, "Neon setup"). After that, the first Coolify deploy can go ahead. Then F7.3 `feature/backup-workflow` (weekly `pg_dump` + the feedback purge).
+1. User reviews and merges the F7.3 PR (weekly backup workflow).
+2. **User:** add the repository secrets `NEON_BACKUP_DATABASE_URL` (Neon direct owner URL) and `BACKUP_PASSPHRASE` (kept outside GitHub too), then run the workflow once (`gh workflow run backup.yml`). After that, F7.4 `feature/prod-smoke-test` (golden-set smoke test against https://apexgpt.ruturaj.xyz, plus Neon's wake-up time), then tag `v1.0.0`.
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -129,8 +129,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 7: Deployment 🏁
 - [x] F7.1 `feature/prod-compose`: production compose for Coolify · PR #51 merged
-- [ ] F7.2 `feature/neon-setup`: Neon setup + data restore scripts · 🔍 PR #52
-- [ ] F7.3 `feature/backup-workflow`: weekly backup workflow
+- [x] F7.2 `feature/neon-setup`: Neon setup + data restore scripts · PR #52 merged
+- [ ] F7.3 `feature/backup-workflow`: weekly backup workflow · 🔍 PR #53
 - [ ] F7.4 `feature/prod-smoke-test`: production smoke test
 - [ ] `main` deployed via Coolify, smoke test passed, tagged `v1.0.0`
 
@@ -264,6 +264,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-26 | Data restore = `python -m restore` (ingestion): every data table streamed with `COPY TO STDOUT` → `COPY FROM STDIN` into **one target transaction**, in foreign-key order, with sequences carried over; row counts, the size guard and the sanity checks are checked before commit. Not `pg_dump`/`pg_restore`; `feedback` and `alembic_version` are not copied | pg_dump must match the server's major version (18), which the host and CI runners don't have; COPY needs only psycopg and is testable in CI. One transaction means a failure leaves Neon untouched. The migrations own the schema |
 | 2026-11-26 | Restore safety: refuses the source as the target, a remote target without `sslmode=require` (local hosts are exempt, for rehearsals), different Alembic revisions, a target without the schema, and existing data unless `--replace` (TRUNCATE in the same transaction); the target URL comes from the environment only | It writes into production; mistakes must fail before anything changes, and the password must not show up in `ps` |
 | 2026-11-26 | `scripts/neon_setup.sh` runs the whole setup (migrations → read-only role → restore → size report), on Neon's direct host; the app uses the pooled host | One repeatable command, safe to re-run (also how data updates reach Neon) |
+| 2026-11-26 | Weekly backup = a GitHub Actions workflow running `scripts/backup.sh`: `pg_dump` (custom format) with Postgres 18 tools in the pgvector image, a restore into a scratch Postgres with every table's row count compared, gpg AES-256 with a passphrase secret, a 35-day artifact; then the feedback purge | A backup is only a backup once it has been restored. The repository is public, so its artifacts are downloadable by any signed-in user: the dump (which holds feedback) is only uploaded encrypted. The tools run in a container, so client and server versions match on every machine |
+| 2026-11-26 | Restore = `alembic upgrade head` on the target, then `pg_restore --clean --if-exists --no-owner` (privileges kept), then `readonly_role` on a new database | The migrations create the role the dump's grants name; `--clean` then replaces every object with the backup's. Rehearsed locally |
 | 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
@@ -271,6 +273,25 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: deployed; F7.3 weekly backup workflow
+- **Deployed (user, Coolify):** `main` at f03781c, Neon set up with `scripts/neon_setup.sh`.
+  - Coolify applies the memory and CPU limits (backend cgroup: 768 MiB, 1 CPU; 94 MiB idle).
+  - Custom domains: **https://apexgpt.ruturaj.xyz** (frontend) and **https://apexgpt-api.ruturaj.xyz** (backend), DNS on Vercel.
+  - Checked from outside: Let's Encrypt certificates (to 24 Feb 2027), HTTP → HTTPS, `/health/ready` ok (0.36 s), `/docs` 404, CORS allowing only the new frontend origin, the frontend's `apiBaseUrl` set to the new backend URL.
+- PR #52 (F7.2) merged after squashing it to one commit: GitGuardian had flagged a fake test URL in its first commit. The tests now build fake URLs at runtime.
+- **Built:**
+  - `scripts/backup.sh`;
+  - `.github/workflows/backup.yml` (Sundays 03:17 UTC and on demand; `actions/upload-artifact` v7.0.2 pinned by SHA);
+  - a "Backups" section in `docs/DEPLOYMENT.md` (secrets, first run, restore).
+- **Rehearsed locally:**
+  - The backup: 18 tables and 116,642 rows dumped, restored into a scratch database with counts matched, then encrypted to 33 MB, in ~11 s.
+  - Decryption: a wrong passphrase fails (`Bad session key`); the right one gives a dump with all 18 tables' data and both extensions.
+  - Disaster recovery into a fresh database (migrate → `pg_restore --clean` → `readonly_role`): the copy matched the original, and the read-only role could read the views.
+  - The purge command against the local database.
+  - Test backups and passphrases deleted afterwards.
+- **Found:** the generated row-count queries lacked semicolons (psql read them as one statement); the script stopped there as intended, and was fixed. `gpg` isn't on the Mac, so encryption runs in the Postgres image (gpg 2.2.40), the same everywhere.
+- Not yet run on GitHub: a new workflow can only be started on demand once it's on `main`. It runs after the merge, once the secrets are set.
 
 ### 2026-11-26: F7.2 Neon setup and data restore
 - PR #51 (F7.1) merged; its CI passed (8/8, including the new models-offline and prod-compose checks).
@@ -1041,7 +1062,7 @@ Newest first.
 
 ## Known Issues / Open Questions
 
-- F7.1: Coolify's docs don't say whether it honours `deploy.resources.limits`. After the first deploy, check `docker stats` on the VPS shows 768 MiB / 384 MiB (docs/DEPLOYMENT.md).
+- F7.1: Coolify's docs don't say whether it honours `deploy.resources.limits`. After the first deploy, check `docker stats` on the VPS shows 768 MiB / 384 MiB (docs/DEPLOYMENT.md). **Checked (2026-11-26):** it does: the backend container's cgroup shows `memory.max` 805306368 (768 MiB) and `cpu.max` 100000 100000 (1 CPU).
 - F7.1: the backend runs `alembic upgrade head` on every start (a fast no-op when Neon is current). A migration that isn't backward compatible would make the old container fail on restart before the new one is up; keep migrations additive, or deploy them separately when one isn't.
 - F7.1/F7.4: the F6.4 cold start (~1.1 s to healthy, +~0.5 s on the first search) assumes the search models are already on disk. A fresh production container without them downloads ~145 MB on its first search; bake them into the image or a volume (F7.1). Neon's own wake-up after 5 idle minutes isn't measured locally; time it in the production smoke test (F7.4). **Update (F7.1):** the models are baked into the image (`HF_HUB_OFFLINE=1`; CI loads them with no network). Neon's wake-up time remains for F7.4.
 - F6: **judge providers grade differently.** On identical answers, 7 of 54 verdicts changed between Groq (strict, usually right) and Gemini (lenient: it passed "never won a race for Ferrari" for a question whose premise is that he drove for them). Runs judged through the fallback chain aren't comparable, so the judge is now pinned (default: the first configured provider). The F6.3 before/after comparison with one pinned judge wasn't run: Groq's free quota ran out after two full runs that day (12 of 30 judge calls failed). Run it later: `python -m evals rescore <baseline> --judge-provider groq` and the same for the F6.3 run (`data/eval/runs/20261126T031244Z-baseline`, `…T034345Z-tuned`).
@@ -1054,7 +1075,7 @@ Newest first.
 - F5.4: two tabs with the **same** chat open: each tab's save replaces that chat with its own copy (last write wins); other chats are safe. A deleted chat still open in another tab comes back if that tab saves it. Fine for a no-login MVP.
 - F4.4: the answer cache is per process and isn't cleared by a data reload; reloaded data shows once entries expire (24 h) or on restart. Fine while the data covers finished seasons.
 - F7.1: the rate limits key on the client address, so `FORWARDED_ALLOW_IPS` must be the proxy's address in production, or every visitor shares the proxy's limit. **Fixed (F7.1):** `FORWARDED_ALLOW_IPS` defaults to the private ranges in `docker-compose.prod.yml`; checked locally (a 429 for one forwarded address, another unaffected).
-- F7.3: add `python -m app.feedback purge` to the weekly scheduled workflow (with the backup), so feedback expires after 90 days even when none is submitted. Until then, rows are purged whenever new feedback is saved.
+- F7.3: add `python -m app.feedback purge` to the weekly scheduled workflow (with the backup), so feedback expires after 90 days even when none is submitted. Until then, rows are purged whenever new feedback is saved. **Done (F7.3):** the backup workflow runs it after each backup.
 - F3.5/F6: the stats views can't answer per-season poles (`v_driver_career` has career totals, `v_race_winners` only winners). Found in the F4.2 check: "How many poles did Ayrton Senna take in 1988?" answered 7 (the wins from pole; the data has 13). Add per-season driver stats (wins, poles, podiums, points) to the views, or a season-results view, and a golden-set question for it. **Fixed (F6.3):** `v_driver_season` (migration 0009); Senna 1988 = 13, Schumacher 1994 = 6 in the F6.3 run.
 - F4.2: the condense rewrite may add a name the conversation didn't contain (live: "the race director" → "Michael Masi"). Helpful for retrieval, and the answer stays grounded in the tools, but it can steer the answer wrong; score it on the golden set (F6). Requests that aren't questions ("shorter please", "as a table") are condensed like questions; the answering model never sees the earlier answer.
 
