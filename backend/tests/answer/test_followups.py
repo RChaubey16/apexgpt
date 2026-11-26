@@ -155,3 +155,10 @@ def test_valid_history_passes() -> None:
 def test_bad_history_is_rejected(history, message) -> None:
     with pytest.raises(ValueError, match=message):
         validate_history(history)
+
+
+def test_the_condense_prompt_keeps_the_season_and_never_asks_back() -> None:
+    """F6.3 golden-set failures: "Which team was he driving for?" lost "2009",
+    and an ambiguous follow-up came back as a clarifying question."""
+    assert "Keep the season, race or team" in CONDENSE_PROMPT
+    assert "Never ask the user anything" in CONDENSE_PROMPT

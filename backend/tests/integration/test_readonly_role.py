@@ -37,6 +37,7 @@ VIEWS = {
     "v_driver_career",
     "v_season_summary",
     "v_head_to_head_teammates",
+    "v_driver_season",
 }
 TEST_ROLE = "apexgpt_test_login_role"
 TEST_PASSWORD = "test-only-password-0123456789"

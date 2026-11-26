@@ -31,6 +31,7 @@ from pglast.visitors import Visitor
 STATS_VIEWS = (
     "v_race_winners",
     "v_driver_career",
+    "v_driver_season",
     "v_season_summary",
     "v_head_to_head_teammates",
 )

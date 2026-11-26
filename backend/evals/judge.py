@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import re
+import time
+from collections.abc import Callable
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -109,20 +111,41 @@ def parse_verdict(content: str | None, fact_count: int) -> _Output:
 
 
 class Judge:
-    def __init__(self, llm: LLMClient) -> None:
+    """Grades with one LLM client. Pin it to one provider: providers grade
+    differently (F6.3: on identical answers, 7 of 54 verdicts changed between
+    Groq and Gemini), so a fallback judge makes runs incomparable. A busy
+    provider is waited for and retried instead."""
+
+    def __init__(
+        self,
+        llm: LLMClient,
+        *,
+        retries: int = 2,
+        retry_wait: float = 60.0,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         self._llm = llm
+        self._retries = retries
+        self._retry_wait = retry_wait
+        self._sleep = sleep
 
     def __call__(self, question: GoldenQuestion, observed: Observed) -> JudgeVerdict:
         messages = [
             {"role": "system", "content": JUDGE_PROMPT},
             {"role": "user", "content": judge_message(question, observed)},
         ]
-        try:
-            response = self._llm.complete(
-                messages, temperature=0.0, max_tokens=MAX_JUDGE_TOKENS
-            )
-        except LLMError as exc:
-            raise JudgeError(f"no judge available: {type(exc).__name__}") from exc
+        for attempt in range(self._retries + 1):
+            try:
+                response = self._llm.complete(
+                    messages, temperature=0.0, max_tokens=MAX_JUDGE_TOKENS
+                )
+                break
+            except LLMError as exc:
+                if attempt == self._retries:
+                    raise JudgeError(
+                        f"no judge available: {type(exc).__name__}"
+                    ) from exc
+                self._sleep(self._retry_wait)
         output = parse_verdict(response.content, len(question.expect.facts))
         usage = response.usage
         return JudgeVerdict(

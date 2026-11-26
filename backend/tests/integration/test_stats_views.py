@@ -44,6 +44,7 @@ ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 VIEWS = (
     "v_race_winners",
     "v_driver_career",
+    "v_driver_season",
     "v_season_summary",
     "v_head_to_head_teammates",
 )
@@ -81,7 +82,7 @@ def session(engine: Engine) -> Iterator[Session]:
 def _load_dataset(s: Session) -> None:
     s.add_all(
         [Season(year=y, wikipedia_url=f"https://w/{y}") for y in (1955, 2020, 2021)]
-        + [Circuit(circuit_id=1, ref="track", name="Track")]
+        + [Circuit(circuit_id=1, ref="track", name="Track", locality="Trackville")]
         + [
             Driver(
                 driver_id=1, ref="ann", forename="Ann", surname="A", nationality="X"
@@ -241,6 +242,12 @@ def test_race_winners(session: Session) -> None:
     assert rows[3]["race_time"] is None
 
 
+def test_race_winners_have_the_circuit_town(session: Session) -> None:
+    """Migration 0009: the model searches circuits by town (Imola, Monza)."""
+    towns = _rows(session, "SELECT DISTINCT circuit_locality FROM v_race_winners")
+    assert towns == [{"circuit_locality": "Trackville"}]
+
+
 def test_race_winners_include_names_and_citation(session: Session) -> None:
     row = _one(session, "SELECT * FROM v_race_winners WHERE race_id = 1")
 
@@ -311,6 +318,100 @@ def test_champion_counts_only_final_standings(session: Session) -> None:
     bob = _one(session, "SELECT * FROM v_driver_career WHERE driver_ref = 'bob'")
 
     assert bob["championships"] == 1
+
+
+# --- v_driver_season (migration 0009) ---
+
+
+def _season(session: Session, driver: str, season: int) -> dict[str, Any]:
+    return _one(
+        session,
+        "SELECT * FROM v_driver_season WHERE driver_ref = :d AND season = :s",
+        d=driver,
+        s=season,
+    )
+
+
+def test_driver_season(session: Session) -> None:
+    ann = _season(session, "ann", 2020)
+
+    assert {
+        k: ann[k]
+        for k in (
+            "teams",
+            "race_entries",
+            "race_starts",
+            "wins",
+            "podiums",
+            "poles",
+            "fastest_laps",
+            "dnfs",
+            "championship_position",
+        )
+    } == {
+        "teams": "Xteam",
+        "race_entries": 2,
+        "race_starts": 2,
+        "wins": 1,
+        "podiums": 2,
+        "poles": 2,  # grid = 1 in both 2020 races
+        "fastest_laps": 1,
+        "dnfs": 0,
+        "championship_position": 2,  # Bob won 2020
+    }
+    assert ann["race_points"] == Decimal("40.00")
+    assert ann["championship_points"] == Decimal("40")
+
+
+def test_driver_season_sprints_and_title(session: Session) -> None:
+    ann = _season(session, "ann", 2021)
+
+    assert (ann["teams"], ann["wins"], ann["poles"]) == ("Yteam", 1, 0)
+    assert ann["race_points"] == Decimal("25.00")
+    assert ann["sprint_points"] == Decimal("8.00")
+    assert ann["total_points"] == Decimal("33.00")
+    assert ann["championship_position"] == 1
+
+
+def test_driver_season_shared_drives_and_two_cars(session: Session) -> None:
+    """1955: Ann shared the winning Yteam car and drove an Xteam car too."""
+    ann = _season(session, "ann", 1955)
+
+    assert ann["race_entries"] == 1  # one race, two cars
+    assert (ann["wins"], ann["podiums"]) == (1, 1)
+    assert ann["teams"] == "Xteam, Yteam"
+    assert ann["race_points"] == Decimal("4.00")
+    assert ann["championship_position"] is None  # no standings that season
+    assert ann["championship_points"] is None
+
+
+def test_driver_season_non_starts(session: Session) -> None:
+    cat = _season(session, "cat", 2020)
+
+    assert (cat["race_entries"], cat["race_starts"], cat["dnfs"]) == (2, 1, 1)
+    assert cat["championship_position"] is None  # not in the final standings
+
+
+def test_driver_seasons_add_up_to_the_career(session: Session) -> None:
+    mismatches = _rows(
+        session,
+        """
+        SELECT c.driver_ref
+        FROM v_driver_career c
+        JOIN (
+            SELECT driver_ref, sum(race_entries) AS e, sum(race_starts) AS st,
+                   sum(wins) AS w, sum(podiums) AS pd, sum(poles) AS p,
+                   sum(dnfs) AS dn, sum(race_points) AS rp, sum(total_points) AS tp
+            FROM v_driver_season GROUP BY driver_ref
+        ) s USING (driver_ref)
+        WHERE (c.race_entries, c.race_starts, c.wins, c.podiums, c.poles, c.dnfs,
+               c.race_points, c.total_points)
+              IS DISTINCT FROM (s.e, s.st, s.w, s.pd, s.p, s.dn, s.rp, s.tp)
+        """,
+    )
+    assert mismatches == []
+    # Ann and Cat raced in 1955, 2020 and 2021; Bob only in 2020.
+    assert _one(session, "SELECT count(*) AS n FROM v_driver_season")["n"] == 7
 
 
 # --- v_season_summary ---
@@ -454,3 +555,8 @@ def test_caveat_columns_are_documented(session: Session) -> None:
     assert "grid" in column_comment("v_driver_career", "poles")
     assert "2004" in column_comment("v_driver_career", "fastest_laps_since_2004")
     assert "Approximate" in column_comment("v_driver_career", "race_starts")
+    assert "best-results" in column_comment("v_driver_season", "championship_points")
+    assert "Imola" in column_comment("v_race_winners", "circuit_locality")
+    # CREATE OR REPLACE kept 0004's comments.
+    assert "milliseconds" in column_comment("v_race_winners", "time_ms")
+    assert "2004" in column_comment("v_driver_season", "fastest_laps")

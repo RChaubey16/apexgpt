@@ -5,6 +5,7 @@
     uv run python -m evals run --id races-abu-dhabi-2021 --id trick-monaco-2020
     uv run python -m evals run --resume ../data/eval/runs/<run>   # continue a run
     uv run python -m evals report ../data/eval/runs/<run>         # re-render report.md
+    uv run python -m evals rescore ../data/eval/runs/<run>        # same answers, current golden set
     uv run python -m evals retrieval                              # no LLM; top-5 check
 
 Needs the loaded corpus, READONLY_DATABASE_URL and LLM keys from .env, like
@@ -19,6 +20,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.retrieval.retriever import CANDIDATES, TOP_K
 from evals.golden import DEFAULT_PATH, GoldenSetError, load_golden_set
 from evals.report import render_retrieval, render_run
 from evals.runner import (
@@ -32,6 +34,7 @@ from evals.runner import (
     load_results,
     new_run_dir,
     read_meta,
+    rescore,
     run,
     run_retrieval,
     select,
@@ -85,6 +88,14 @@ def build_parser() -> argparse.ArgumentParser:
     where.add_argument("--resume", type=Path, help="continue the run in this directory")
     where.add_argument("--label", help="suffix for the new run's directory name")
 
+    rescore_p = commands.add_parser(
+        "rescore", help="score a run's answers again with the current golden set"
+    )
+    rescore_p.add_argument("run_dir", type=Path)
+    rescore_p.add_argument("--judge-provider", choices=PROVIDERS)
+    rescore_p.add_argument("--no-judge", action="store_true")
+    rescore_p.add_argument("--label", default="rescored")
+
     report_p = commands.add_parser("report", help="re-render a run's report")
     report_p.add_argument("run_dir", type=Path)
 
@@ -93,7 +104,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_selection(retrieval_p)
     retrieval_p.add_argument("--no-rerank", action="store_true")
-    retrieval_p.add_argument("--k", type=int, default=5, choices=range(1, 21))
+    retrieval_p.add_argument(
+        "--k",
+        type=int,
+        default=TOP_K,
+        choices=range(1, CANDIDATES + 1),
+        help=f"results to check (1–{CANDIDATES}, the reranker's candidates)",
+    )
     return parser
 
 
@@ -114,13 +131,29 @@ def _list(golden) -> int:  # noqa: ANN001
     return 0
 
 
+def build_judge(settings, provider: str | None):  # noqa: ANN001, ANN201
+    """(Judge, provider name), pinned to one provider: the one asked for, else
+    the first configured one. (None, name) when that provider has no key."""
+    from app.llm import build_llm_client, providers_from_settings
+    from evals.judge import Judge
+
+    if provider is None:
+        configured = providers_from_settings(settings)
+        if not configured:
+            return None, None
+        provider = configured[0].name
+    llm = build_llm_client(settings, only=provider)
+    if not llm.provider_names:
+        return None, provider
+    return Judge(llm), provider
+
+
 def _run(args: argparse.Namespace, golden) -> int:  # noqa: ANN001
     # Imported here: building the pipeline loads settings and the app modules.
     from app.answer import build_orchestrator
     from app.core.config import get_settings
     from app.core.logging import configure_logging
     from app.llm import build_llm_client
-    from evals.judge import Judge
 
     questions = select(golden, categories=args.category, ids=args.ids, limit=args.limit)
     if args.resume:
@@ -132,18 +165,6 @@ def _run(args: argparse.Namespace, golden) -> int:  # noqa: ANN001
             wanted = set(meta.question_ids)
             questions = [q for q in golden.questions if q.id in wanted]
         keep_run_settings(args, meta)
-    else:
-        run_dir = new_run_dir(RUNS_DIR, args.label)
-        meta = RunMeta(
-            started_at=datetime.now(UTC).isoformat(timespec="seconds"),
-            git_commit=git_commit(),
-            golden_sha256=file_sha256(DEFAULT_PATH),
-            provider=args.provider,
-            judge_provider=args.judge_provider,
-            judge=not args.no_judge,
-            question_ids=tuple(q.id for q in questions),
-        )
-        write_meta(run_dir, meta)
 
     settings = get_settings()
     configure_logging("WARNING")
@@ -158,15 +179,28 @@ def _run(args: argparse.Namespace, golden) -> int:  # noqa: ANN001
         return 1
     judge = None
     if not args.no_judge:
-        judge_llm = build_llm_client(settings, only=args.judge_provider)
-        if not judge_llm.provider_names:
+        judge, args.judge_provider = build_judge(settings, args.judge_provider)
+        if judge is None:
             print(
-                f"error: no key configured for {args.judge_provider}", file=sys.stderr
+                f"error: no key configured for judge {args.judge_provider or 'provider'}",
+                file=sys.stderr,
             )
             return 1
-        judge = Judge(judge_llm)
 
-    print(f"Run: {run_dir}")
+    if not args.resume:
+        run_dir = new_run_dir(RUNS_DIR, args.label)
+        meta = RunMeta(
+            started_at=datetime.now(UTC).isoformat(timespec="seconds"),
+            git_commit=git_commit(),
+            golden_sha256=file_sha256(DEFAULT_PATH),
+            provider=args.provider,
+            judge_provider=args.judge_provider,
+            judge=not args.no_judge,
+            question_ids=tuple(q.id for q in questions),
+        )
+        write_meta(run_dir, meta)
+
+    print(f"Run: {run_dir}  (judge: {args.judge_provider if judge else 'off'})")
     print(f"{len(questions)} questions; ~4–8k tokens per answer, ~1k per judgement")
     orchestrator = build_orchestrator(settings, llm=llm)
     try:
@@ -182,6 +216,45 @@ def _run(args: argparse.Namespace, golden) -> int:  # noqa: ANN001
     finally:
         orchestrator.close()
     report = render_run(results, meta)
+    (run_dir / REPORT_FILE).write_text(report, encoding="utf-8")
+    print()
+    print(report.split("\n## ")[0].strip())
+    print(f"\nReport: {run_dir / REPORT_FILE}")
+    return 0
+
+
+def _rescore(args: argparse.Namespace, golden) -> int:  # noqa: ANN001
+    from app.core.config import get_settings
+    from app.core.logging import configure_logging
+
+    meta = read_meta(args.run_dir)
+    previous = load_results(args.run_dir)
+    if meta is None or not previous:
+        raise RunError(f"{args.run_dir} is not an eval run with results")
+    judge = None
+    if not args.no_judge:
+        configure_logging("WARNING")
+        judge, args.judge_provider = build_judge(get_settings(), args.judge_provider)
+        if judge is None:
+            print(
+                f"error: no key configured for judge {args.judge_provider or 'provider'}",
+                file=sys.stderr,
+            )
+            return 1
+
+    run_dir = args.run_dir.with_name(f"{args.run_dir.name}-{args.label}")
+    run_dir.mkdir(exist_ok=False)
+    new_meta = meta.model_copy(
+        update={
+            "golden_sha256": file_sha256(DEFAULT_PATH),
+            "judge": judge is not None,
+            "judge_provider": args.judge_provider,
+        }
+    )
+    write_meta(run_dir, new_meta)
+    print(f"Rescoring {args.run_dir} into {run_dir}")
+    results = rescore(previous, golden.questions, run_dir, judge)
+    report = render_run(results, new_meta)
     (run_dir / REPORT_FILE).write_text(report, encoding="utf-8")
     print()
     print(report.split("\n## ")[0].strip())
@@ -242,6 +315,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run(args, golden)
         if args.command == "report":
             return _report(args, golden)
+        if args.command == "rescore":
+            return _rescore(args, golden)
         return _retrieval(args, golden)
     except (GoldenSetError, RunError) as exc:
         print(f"error: {exc}", file=sys.stderr)
