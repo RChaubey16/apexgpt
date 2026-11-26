@@ -3,7 +3,7 @@
 The plan named BAAI/bge-reranker-base. Measured on the labelled questions, it
 took ~1.6 s per question, peaked at ~2 GB of RAM (the backend's limit is 768 MB)
 and failed the Senna/Suzuka acceptance test. MiniLM-L-6 (80 MB) passed every
-question in the top 5 at ~0.2 s and adds ~170 MB (docs/PROGRESS.md, F3.2).
+question in the top 5 at ~0.2 s and adds ~170 MB (docs/archive/v1.0.0-mvp/PROGRESS.md, F3.2).
 
 Documents are scored one at a time (batch size 1): with batches, ONNX Runtime
 holds activations for several 512-token inputs at once, which raised peak

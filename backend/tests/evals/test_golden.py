@@ -61,7 +61,7 @@ def test_both_tools_are_exercised_alone_and_together() -> None:
 @pytest.mark.parametrize(
     "question_id",
     [
-        # Known Issues the golden set must keep tracking (docs/PROGRESS.md).
+        # Known Issues the golden set must keep tracking (docs/archive/v1.0.0-mvp/PROGRESS.md).
         "races-abu-dhabi-2021",  # narrative answered with stats only
         "follow-teammate-that-year",  # condenser asked a clarifying question
         "seasons-senna-poles-1988",  # no per-season poles in the views

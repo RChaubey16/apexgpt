@@ -4,7 +4,7 @@
  * The questions cover both tools (stats and F1 history) and were checked
  * against the live backend: each one gets a correct, well-formed answer.
  * Keep them to questions the data answers well (no per-season poles, for
- * example; see the Known Issues in docs/PROGRESS.md).
+ * example; see the Known Issues in docs/archive/v1.0.0-mvp/PROGRESS.md).
  */
 
 export interface StarterQuestion {

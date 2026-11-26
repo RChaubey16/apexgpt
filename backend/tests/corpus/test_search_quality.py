@@ -9,7 +9,7 @@ and the real embedding model; it only reads:
 Each question names articles that must appear in the top 10 hybrid results
 (F3.1) and in the top 5 after reranking (F3.2: what the answer is built from).
 The set was used to choose the fusion weights, the reranker and its blend
-(docs/PROGRESS.md, F3.1 and F3.2); every question passes both.
+(docs/archive/v1.0.0-mvp/PROGRESS.md, F3.1 and F3.2); every question passes both.
 """
 
 import os
@@ -37,7 +37,7 @@ if not _URL:
 
 TOP = 10
 
-# Phase 2 → F3.1 acceptance criterion (docs/PROGRESS.md).
+# Phase 2 → F3.1 acceptance criterion (docs/archive/v1.0.0-mvp/PROGRESS.md).
 ACCEPTANCE = (
     "Senna Prost Suzuka collision",
     ["1989 Japanese Grand Prix", "1990 Japanese Grand Prix"],

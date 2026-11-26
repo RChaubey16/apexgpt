@@ -2,7 +2,7 @@
 
 A Formula 1 chat assistant. Ask about drivers, teams, circuits, seasons, races, crashes, rivalries and title battles from **1950 to 2025**, and get answers grounded in real data, with sources.
 
-> **Status:** MVP in development. See [docs/PROGRESS.md](docs/PROGRESS.md).
+> **Status:** [v1.0.0](https://github.com/RChaubey16/apexgpt/releases/tag/v1.0.0) (the MVP) is live at **https://apexgpt.ruturaj.xyz**. See [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## How it works
 
@@ -129,11 +129,12 @@ Production runs on a VPS with Coolify ([docker-compose.prod.yml](docker-compose.
 
 ## Documentation
 
-- [MVP plan](docs/MVP-PLAN.md): phases, workflow and feature breakdown
-- [Features](docs/FEATURES.md): the full feature list
+- [Progress](docs/PROGRESS.md): current status, features in progress, open issues
+- [Features](docs/FEATURES.md): what shipped in v1.0.0 and what's planned
+- [Deployment](docs/DEPLOYMENT.md): Coolify, Neon, backups and the smoke test
 - [Data strategy](docs/DATA-STRATEGY.md): what data is stored and why
-- [Deployment](docs/DEPLOYMENT.md): Coolify setup and production settings
-- [Progress](docs/PROGRESS.md): current status and decision log
+- [Workflow](docs/WORKFLOW.md): branches, PRs and the feature checklist
+- [v1.0.0 MVP archive](docs/archive/v1.0.0-mvp/): the MVP plan, its progress tracker, Decision Log and Session Log
 
 ## Data attribution
 

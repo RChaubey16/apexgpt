@@ -12,7 +12,7 @@ Three ranked candidate lists are fused with Reciprocal Rank Fusion:
 
 Weights (vector 1.0, text 0.5, article 0.5), the 50 candidates per list and the
 cap of 2 chunks per article were chosen on a labelled set of 15 questions; see
-the F3.1 entry in docs/PROGRESS.md. Every list uses an index (~10 ms of SQL in
+the F3.1 entry in docs/archive/v1.0.0-mvp/PROGRESS.md. Every list uses an index (~10 ms of SQL in
 total on the full corpus), so no extra metadata indexes are needed.
 """
 

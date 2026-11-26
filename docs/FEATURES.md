@@ -1,98 +1,85 @@
-# ApexGPT — Feature Plan
+# ApexGPT: Features
 
-All features planned for ApexGPT, grouped into tiers. **Tier 1 is the MVP** (see [MVP-PLAN.md](./MVP-PLAN.md)). Tier 2, Tier 3 and the Live Season phase will be prioritised after the MVP ships.
+What ApexGPT does today, and what's planned next. The original feature plan, written before the MVP was built, is in the [v1.0.0 MVP archive](./archive/v1.0.0-mvp/FEATURES.md).
 
-Coverage scope: **1950 → 2025**. The ongoing season comes in the Live Season phase.
-
----
-
-## Tier 1 — Core (MVP)
-
-### 1. Conversational Q&A
-- Ask anything in natural language about drivers, constructors, circuits, seasons, races, crashes, rivalries and championship battles.
-- Streaming responses (token by token).
-- Follow-up awareness ("What about his teammate that year?").
-- Every answer cites its sources (article links, race references).
-- Honest "I don't know" when the data doesn't cover something, with no made-up answers.
-
-### 2. Accurate Stats Answers
-- Counting, ranking and comparison questions are answered with real queries against structured data, not from text chunks.
-- Results are shown as tables where that's clearer (e.g. "Top 10 drivers by pole positions").
-
-### 3. Full Coverage (1950–2025)
-- Championships, races, qualifying, sprints, fastest laps, DNFs and their reasons.
-- Changes over time: points systems, regulation eras, team name changes and lineage (e.g. Toleman → Benetton → Renault → Lotus → Alpine).
-
-### 4. Basic Chat UX
-- Suggested starter questions ("Greatest title deciders", "Explain the 2021 Abu Dhabi controversy").
-- Copy or share an answer.
-- Chat history kept in the browser (no login).
-- Answer feedback (👍/👎).
+Related: [PROGRESS.md](./PROGRESS.md) (status and open issues)
 
 ---
 
-## Tier 2 — Enhanced Experience
+## Shipped in v1.0.0
 
-### 5. Entity Pages (generated from data)
-- **Driver profile:** career stats, teams, titles, teammates, best seasons, notable moments.
-- **Constructor profile:** history, lineage, championships, legendary cars.
-- **Circuit profile:** layout history, lap records, most successful drivers, famous races there.
-- **Season page:** calendar, final standings, title battle summary, key storylines.
-- Entities mentioned in chat answers become clickable links to these pages.
+The MVP ([release notes](https://github.com/RChaubey16/apexgpt/releases/tag/v1.0.0)) covers every World Championship season from 1950 to 2025.
 
-### 6. Comparisons
-- Driver vs driver head-to-head (overall, or as teammates in equal machinery).
-- Era comparisons (e.g. Schumacher's Ferrari era vs Hamilton's Mercedes era).
-- Constructor vs constructor across eras.
+**Asking**
+- Questions in plain English about drivers, constructors, circuits, seasons, races, crashes, rivalries and title battles.
+- **Statistics come from real queries.** Counts, rankings, records, per-season results and team-mate comparisons are computed by validated SQL over the stats views, not taken from text. Shared records are named in full.
+- **History comes from cited sources.** What happened, why and how is answered from curated Wikipedia articles (hybrid search plus a reranker), and every fact is cited.
+- **Follow-ups:** "Who was his team-mate that year?" is understood from the conversation.
+- **Honest limits:**
+  - it says when the data doesn't cover something;
+  - it corrects false premises ("Senna never drove for Ferrari");
+  - it declines questions outside F1 or 1950–2025;
+  - it doesn't reveal its instructions.
+- Results shown as tables where that's clearer, with the exact rows one click away.
 
-### 7. Visual Answers
+**Using the app**
+- Streaming answers, with tool status ("Checking the stats…") and how a follow-up was understood.
+- Citation chips linking to the sources, and a sources list with the CC BY-SA attribution.
+- Starter question cards.
+- Chats saved in the browser, with no login (new, open, rename, delete).
+- Copy an answer with its sources; 👍/👎 feedback.
+- A responsive dark theme, meeting WCAG AA contrast.
+
+**Running it**
+- Free-tier LLMs with automatic fallback: Groq, then Gemini, then OpenRouter.
+- Per-IP rate limits, an answer cache, and structured logs.
+- A golden-set evaluation runner, load and cold-start tests, and a production smoke test.
+- Weekly encrypted backups, each one verified by a test restore. Feedback is deleted after 90 days.
+
+---
+
+## Planned
+
+Not scheduled yet. When one is picked up, it gets a row in [PROGRESS.md](./PROGRESS.md#features) and follows [WORKFLOW.md](./WORKFLOW.md).
+
+### Left over from the MVP
+- **Share an answer:** a link to a single answer. The MVP has copy only.
+- **Feedback analytics:** the 👍/👎 ratings are stored but not analysed yet. Use them to find weak answers and grow the golden set.
+- **Re-run ingestion from an admin endpoint.** Today the pipeline is re-run from the CLI, and data reaches production with `scripts/neon_setup.sh` (`REPLACE=1`).
+
+### Tier 2: a richer experience
+
+**Entity pages**, generated from the data:
+- Driver profile: career stats, teams, titles, team-mates, best seasons, notable moments.
+- Constructor profile: history, lineage, championships, legendary cars.
+- Circuit profile: layout history, most successful drivers, famous races there.
+- Season page: calendar, final standings, the title battle, key storylines.
+- Entities named in answers become links to these pages.
+
+**Comparisons:**
+- Driver vs driver: overall, or as team-mates in equal machinery.
+- Eras (e.g. Schumacher's Ferrari years vs Hamilton's Mercedes years), and constructors across eras.
+
+**Visual answers:**
 - Championship points progression charts (e.g. the 2010 four-way title fight).
-- Win and podium bar charts; season-by-season career timelines.
-- The LLM decides when a chart helps and returns chart data alongside the text.
+- Win and podium charts, and season-by-season career timelines.
+- The LLM decides when a chart helps and returns its data alongside the text.
 
-### 8. Curated Story Collections
+**Curated story collections:**
 - **Rivalries:** Senna–Prost, Hunt–Lauda, Hamilton–Rosberg, Hamilton–Verstappen, and more.
 - **Title deciders:** 1976, 1986, 2007, 2008, 2010, 2012, 2021.
-- **Safety & crashes:** major incidents and the safety changes that followed (handled respectfully).
+- **Safety and crashes:** major incidents and the safety changes that followed, handled respectfully.
 - **Iconic races:** Canada 2011, Brazil 2008, Donington 1993, and more.
 
----
+### Tier 3: engagement and power features
+- **Trivia and quiz mode:** quizzes generated from the structured data, with difficulty levels and era filters.
+- **"On this day" in F1:** race anniversaries and notable events on the home page.
+- **Explain-the-sport mode:** beginner-friendly explanations of DRS, ground effect, points systems, flags and tyre rules.
+- **Filters and scope:** limit a chat to an era, season or driver ("Answer only about the 1980s").
+- **User accounts:** saved conversations across devices, favourite drivers and teams, bookmarked answers.
 
-## Tier 3 — Engagement & Power Features
-
-### 9. F1 Trivia / Quiz Mode
-- Quizzes generated from the structured data.
-- Difficulty levels and era filters.
-
-### 10. "On This Day" in F1
-- Race anniversaries and notable events on the home page.
-
-### 11. Explain-the-Sport Mode
-- Beginner-friendly explanations: DRS, ground effect, points systems, flag rules, tyre rules.
-
-### 12. Filters & Scope Controls
-- Limit a chat to an era, season or driver ("Answer only about the 1980s").
-
-### 13. User Accounts
-- Saved conversations, favourite drivers and teams, bookmarked answers.
-
-### 14. Answer Feedback Analytics
-- Logged feedback used to evaluate and improve retrieval quality over time.
-
----
-
-## Live Season Phase
-
-- An ingestion job after each race weekend for results, standings and race reports.
-- Current-season context in answers (e.g. "How does this season compare to last year?").
-- Telemetry and lap-time analysis via FastF1 (2018+): lap comparisons, tyre strategy charts.
-- Auto-generated race weekend summaries after each Grand Prix.
-
----
-
-## Admin & Operations (internal)
-
-- Re-runnable ingestion pipeline (fetch → clean → chunk → embed → upsert), triggered from the CLI or an admin endpoint.
-- Evaluation set (~100 F1 questions with known answers) to catch retrieval regressions.
-- Rate limiting per IP (free LLM tiers have limits).
-- Logging of queries, latency and token use per provider.
+### Live season
+- An ingestion job after each race weekend for results, standings and race reports. The data currently ends with 2025.
+- Current-season context in answers ("How does this season compare to last year?").
+- Telemetry and lap times via FastF1 (2018+): lap comparisons and tyre strategy charts. `lap_times` was deliberately left out of the MVP ([DATA-STRATEGY.md](./DATA-STRATEGY.md)).
+- Auto-generated summaries after each Grand Prix.
