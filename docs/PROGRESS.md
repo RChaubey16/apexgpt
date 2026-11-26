@@ -53,7 +53,7 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | Feature | Branch | PR | Status | Notes |
 |---|---|---|---|---|
 | F8.1 App icons and favicons | `feature/app-icons` | #59 | ✅ | Logo = the header's three speed stripes (`frontend/brand/`); `npm run icons` generates the favicon (16/32/48), SVG icon, Apple icon, manifest icons (192/512/maskable) and the API domain's favicon |
-| F8.2 Page metadata and social previews | `feature/page-metadata` | | 🔍 | Title "ApexGPT: Formula 1 chat assistant"; Open Graph and Twitter cards with a 1200×630 image (`brand/og.svg`); per-page canonical URLs; `robots.txt` and `sitemap.xml`. Needs `NEXT_PUBLIC_SITE_URL` in Coolify (required) |
+| F8.2 Page metadata and social previews | `feature/page-metadata` | #60 | 🔍 | Title "ApexGPT: Formula 1 chat assistant"; Open Graph and Twitter cards with a 1200×630 image (`brand/og.svg`); per-page canonical URLs; `robots.txt` and `sitemap.xml`. Needs `NEXT_PUBLIC_SITE_URL` in Coolify (required) |
 | F8.3 Current season endpoint | `feature/season-api` | | ⬜ | |
 | F8.4 Frontend revamp | `feature/frontend-revamp` | | ⬜ | Install the frontend-design skill first |
 | F8.5 Current season page | `feature/season-page` | | ⬜ | |
