@@ -105,6 +105,14 @@ cd ingestion && uv run pytest      # ingestion unit tests
 cd frontend && npm ci && npm test  # frontend tests
 ```
 
+To evaluate answers against the golden question set in `eval/` (uses LLM quota; select questions while iterating):
+
+```bash
+cd backend
+uv run python -m evals run --category stats   # results and a report in data/eval/runs/
+uv run python -m evals retrieval              # retrieval-only check, no LLM
+```
+
 To run the backend outside Docker: `cd backend && uv run uvicorn app.main:create_app --factory --reload`. For the frontend, see [frontend/README.md](frontend/README.md).
 
 ## Contributing

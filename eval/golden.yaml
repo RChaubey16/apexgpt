@@ -559,7 +559,7 @@ questions:
         - Lauda crashed and his Ferrari caught fire at the 1976 German Grand Prix
         - He suffered severe burns and was given the last rites
         - He returned to racing about six weeks later
-      sources: [Niki Lauda, 1976 German Grand Prix]
+      sources: [Niki Lauda, 1976 German Grand Prix, Hunt–Lauda rivalry]
       tools: [search_f1_knowledge]
 
   - id: crashes-senna-imola
@@ -570,7 +570,7 @@ questions:
       facts:
         - He crashed at the Tamburello corner during the 1994 San Marino Grand Prix
         - He was leading the race in a Williams
-      sources: [1994 San Marino Grand Prix, Ayrton Senna]
+      sources: [1994 San Marino Grand Prix, Ayrton Senna, Death of Ayrton Senna]
       tools: [search_f1_knowledge]
 
   - id: crashes-ratzenberger
@@ -769,7 +769,7 @@ questions:
         - Williams team-mates Nigel Mansell and Nelson Piquet took points from each other
         - Mansell's tyre failed in Adelaide, the final race
         - Prost won that race and the title
-      sources: [1986 Formula One World Championship]
+      sources: [1986 Formula One World Championship, 1986 Australian Grand Prix]
       tools: [search_f1_knowledge]
 
   # --- multi-hop: both tools, or chained lookups ---------------------------

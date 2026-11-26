@@ -17,16 +17,22 @@ from app.answer.orchestrator import (
 )
 from app.core.config import Settings
 from app.db.session import create_db_engine
-from app.llm import build_llm_client
+from app.llm import LLMClient, build_llm_client
 from app.retrieval.entities import EntityResolver, load_entity_index
 from app.tools.knowledge import build_knowledge_tool
 from app.tools.stats import StatsTool
 
 
 def build_orchestrator(
-    settings: Settings, session_factory: "sessionmaker[Session] | None" = None
+    settings: Settings,
+    session_factory: "sessionmaker[Session] | None" = None,
+    *,
+    llm: LLMClient | None = None,
 ) -> Orchestrator:
-    """The LLM client, both tools and entity resolution, from settings."""
+    """The LLM client, both tools and entity resolution, from settings.
+
+    `llm` replaces the client built from settings (the eval runner pins one
+    provider with it)."""
     if session_factory is None:
         session_factory = sessionmaker(bind=create_db_engine(settings))
 
@@ -40,7 +46,7 @@ def build_orchestrator(
         else None
     )
     return Orchestrator(
-        build_llm_client(settings),
+        llm if llm is not None else build_llm_client(settings),
         [
             StatsTool.from_settings(settings),
             build_knowledge_tool(settings, session_factory),
