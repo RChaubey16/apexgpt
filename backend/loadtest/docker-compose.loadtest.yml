@@ -1,0 +1,41 @@
+# Load-test override (F6.4): the backend's production image under the VPS
+# budget, answering through the stub LLM on the host. From the repo root:
+#
+#   docker compose -f docker-compose.yml -f backend/loadtest/docker-compose.loadtest.yml \
+#     up -d --build --wait backend
+#
+# Then `docker compose up -d backend` (without this file) goes back to the dev
+# server. See backend/loadtest/README.md.
+services:
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    # The production command (no --reload); the database is already migrated.
+    command:
+      - uvicorn
+      - app.main:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: WARNING
+      # Every request does the whole job: no per-IP limits, no answer cache.
+      RATE_LIMIT_CHAT: ""
+      RATE_LIMIT_FEEDBACK: ""
+      ANSWER_CACHE_SIZE: "0"
+      # Only the stub LLM: real providers would spend quota.
+      GROQ_API_KEY: stub
+      GEMINI_API_KEY: ""
+      OPENROUTER_API_KEY: ""
+      LLM_GROQ_BASE_URL: http://host.docker.internal:${STUB_LLM_PORT:-9100}/v1
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    # The image's own code, not the dev source mounts.
+    volumes: !override
+      - ./data/models:/models
+      - ./data/logs:/app/logs

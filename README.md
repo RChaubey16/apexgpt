@@ -113,6 +113,8 @@ uv run python -m evals run --category stats   # results and a report in data/eva
 uv run python -m evals retrieval              # retrieval-only check, no LLM
 ```
 
+Load and cold-start tests (production image, stub LLM, no quota): see [backend/loadtest/README.md](backend/loadtest/README.md).
+
 To run the backend outside Docker: `cd backend && uv run uvicorn app.main:create_app --factory --reload`. For the frontend, see [frontend/README.md](frontend/README.md).
 
 ## Contributing

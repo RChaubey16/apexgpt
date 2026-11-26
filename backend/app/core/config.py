@@ -87,6 +87,13 @@ class Settings(BaseSettings):
     llm_groq_model: str = "openai/gpt-oss-120b"
     llm_gemini_model: str = "gemini-3.1-flash-lite"
     llm_openrouter_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    # Each provider's OpenAI-compatible API. Change only to point at a stand-in
+    # (the F6.4 load test's stub LLM) or a proxy; must be an http(s) URL.
+    llm_groq_base_url: str = "https://api.groq.com/openai/v1"
+    llm_gemini_base_url: str = (
+        "https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+    llm_openrouter_base_url: str = "https://openrouter.ai/api/v1"
     # Per request, per attempt. Free tiers can be slow under load.
     llm_timeout_seconds: float = 30.0
     # Extra attempts on the same provider after a timeout, connection error or
@@ -174,6 +181,15 @@ class Settings(BaseSettings):
         value = value.strip()
         if not value or len(value) > 200 or any(c.isspace() for c in value):
             raise ValueError("LLM model names must be non-empty with no spaces")
+        return value
+
+    @field_validator(
+        "llm_groq_base_url", "llm_gemini_base_url", "llm_openrouter_base_url"
+    )
+    @classmethod
+    def _validate_llm_base_url(cls, value: str) -> str:
+        value = value.strip()
+        _url_adapter.validate_python(value)
         return value
 
     @field_validator("llm_timeout_seconds")

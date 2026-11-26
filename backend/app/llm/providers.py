@@ -22,9 +22,11 @@ from pydantic import SecretStr
 
 from app.core.config import Settings
 
-GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+# The defaults; each is a setting (LLM_GROQ_BASE_URL, …) so the load test can
+# point the backend at a stub LLM (F6.4).
+GROQ_BASE_URL = Settings.model_fields["llm_groq_base_url"].default
+GEMINI_BASE_URL = Settings.model_fields["llm_gemini_base_url"].default
+OPENROUTER_BASE_URL = Settings.model_fields["llm_openrouter_base_url"].default
 
 
 @dataclass(frozen=True)
@@ -39,11 +41,21 @@ class Provider:
 def providers_from_settings(settings: Settings) -> list[Provider]:
     """The configured providers, in fallback order. Empty if no key is set."""
     candidates = [
-        ("groq", GROQ_BASE_URL, settings.llm_groq_model, settings.groq_api_key),
-        ("gemini", GEMINI_BASE_URL, settings.llm_gemini_model, settings.gemini_api_key),
+        (
+            "groq",
+            settings.llm_groq_base_url,
+            settings.llm_groq_model,
+            settings.groq_api_key,
+        ),
+        (
+            "gemini",
+            settings.llm_gemini_base_url,
+            settings.llm_gemini_model,
+            settings.gemini_api_key,
+        ),
         (
             "openrouter",
-            OPENROUTER_BASE_URL,
+            settings.llm_openrouter_base_url,
             settings.llm_openrouter_model,
             settings.openrouter_api_key,
         ),

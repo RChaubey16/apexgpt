@@ -11,6 +11,9 @@ repos:
         args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
       - id: check-yaml
+        # Compose's `!override` tag isn't plain YAML; `docker compose config`
+        # validates that file instead.
+        exclude: ^backend/loadtest/docker-compose\.loadtest\.yml$
       - id: check-json
       - id: check-toml
       - id: check-merge-conflict
