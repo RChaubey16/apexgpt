@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 7: Deployment |
-| **Current feature** | Fix: restore check on Neon dumps (F7.3 follow-up) |
-| **Current branch** | `feature/backup-neon-restore` |
-| **Open PR** | Backup restore check for Neon dumps |
+| **Current feature** | F7.4 production smoke test |
+| **Current branch** | `feature/prod-smoke-test` |
+| **Open PR** | F7.4 production smoke test |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-26 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the backup fix PR (Neon dumps restore into stock Postgres).
-2. **User:** add the repository secrets `NEON_BACKUP_DATABASE_URL` (Neon direct owner URL) and `BACKUP_PASSPHRASE` (kept outside GitHub too), then run the workflow once (`gh workflow run backup.yml`). After that, F7.4 `feature/prod-smoke-test` (golden-set smoke test against https://apexgpt.ruturaj.xyz, plus Neon's wake-up time), then tag `v1.0.0`.
+1. User reviews and merges the F7.4 PR (production smoke test).
+2. Then the MVP's last step: redeploy `main` in Coolify, run `python -m evals smoke` against production, and tag `v1.0.0` (plus a Phase 7 close-out in this file).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -130,8 +130,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 7: Deployment 🏁
 - [x] F7.1 `feature/prod-compose`: production compose for Coolify · PR #51 merged
 - [x] F7.2 `feature/neon-setup`: Neon setup + data restore scripts · PR #52 merged
-- [x] F7.3 `feature/backup-workflow`: weekly backup workflow · PR #53 merged (fix for Neon dumps: 🔍 PR #54)
-- [ ] F7.4 `feature/prod-smoke-test`: production smoke test
+- [x] F7.3 `feature/backup-workflow`: weekly backup workflow · PR #53 merged (Neon dumps fix: PR #54 merged)
+- [ ] F7.4 `feature/prod-smoke-test`: production smoke test · 🔍 PR raised
 - [ ] `main` deployed via Coolify, smoke test passed, tagged `v1.0.0`
 
 ---
@@ -266,6 +266,7 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-26 | `scripts/neon_setup.sh` runs the whole setup (migrations → read-only role → restore → size report), on Neon's direct host; the app uses the pooled host | One repeatable command, safe to re-run (also how data updates reach Neon) |
 | 2026-11-26 | Weekly backup = a GitHub Actions workflow running `scripts/backup.sh`: `pg_dump` (custom format) with Postgres 18 tools in the pgvector image, a restore into a scratch Postgres with every table's row count compared, gpg AES-256 with a passphrase secret, a 35-day artifact; then the feedback purge | A backup is only a backup once it has been restored. The repository is public, so its artifacts are downloadable by any signed-in user: the dump (which holds feedback) is only uploaded encrypted. The tools run in a container, so client and server versions match on every machine |
 | 2026-11-26 | Restore = `alembic upgrade head` on the target, then `pg_restore --clean --if-exists --no-owner` (privileges kept), then `readonly_role` on a new database | The migrations create the role the dump's grants name; `--clean` then replaces every object with the backup's. Rehearsed locally |
+| 2026-11-26 | Production smoke test = `python -m evals smoke`: the live site over HTTPS (health, readiness latency, docs hidden, CORS both ways, frontend page and health), plus the golden questions marked `smoke: true` (8) through `POST /api/chat`, scored with the deterministic checks only; 11 s between answers; exit 1 on any failure | Tests what users get (TLS, proxy, CORS, cache) rather than the code in-process. No judge: repeatable, half the tokens. The spacing respects the 6/minute per-IP limit. The schema requires smoke questions to have answer values, sources or a rewrite to check |
 | 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
@@ -273,6 +274,20 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: F7.4 production smoke test
+- PR #54 (backup fix for Neon dumps) merged.
+- **Built:**
+  - `backend/evals/smoke.py` and `python -m evals smoke --frontend … --api …`;
+  - a `smoke` flag on golden questions (8 marked; the schema requires deterministic checks for them);
+  - a "Smoke test" section in `docs/DEPLOYMENT.md`.
+- **First run against https://apexgpt.ruturaj.xyz** (~8 minutes after the last database activity):
+  - Infrastructure 7/7. The first `/health/ready` took **1.81 s** (Neon waking), against ~0.44 s warm.
+  - Answers 7/8: Senna 1988 poles (13), the Imola record and the follow-up rewrite all passed in production.
+  - `crashes-senna-imola` failed only because its correct, cited answer ("a crash at the 1994 San Marino Grand Prix") didn't name the town. Its expected value is now "1994", rechecked against the same cached production answer.
+  - `seasons-senna-poles-1988` took 63.6 s: Groq and Gemini were rate limited, so OpenRouter answered after the client's wait (free tier).
+- **Re-run:** **PASS**, infrastructure 7/7 and answers 8/8, all from the production answer cache (0.0–0.6 s).
+- **Tests:** backend unit 978 passing (+25: SSE parsing, building the observation, HTTP failures, each infrastructure check against a fake site, pacing, an answer error failing the run, the report with failed answers' text, the CLI and its exit codes, the schema rule). Mutation checks (9): all caught after 2 new tests.
 
 ### 2026-11-26: first backup run; restoring Neon dumps
 - PR #53 (F7.3) merged after squashing it (GitGuardian had flagged the `${BACKUP_PASSPHRASE:?…}` guard; it's now a `require` function). The user set both repository secrets.
@@ -1072,7 +1087,7 @@ Newest first.
 
 - F7.1: Coolify's docs don't say whether it honours `deploy.resources.limits`. After the first deploy, check `docker stats` on the VPS shows 768 MiB / 384 MiB (docs/DEPLOYMENT.md). **Checked (2026-11-26):** it does: the backend container's cgroup shows `memory.max` 805306368 (768 MiB) and `cpu.max` 100000 100000 (1 CPU).
 - F7.1: the backend runs `alembic upgrade head` on every start (a fast no-op when Neon is current). A migration that isn't backward compatible would make the old container fail on restart before the new one is up; keep migrations additive, or deploy them separately when one isn't.
-- F7.1/F7.4: the F6.4 cold start (~1.1 s to healthy, +~0.5 s on the first search) assumes the search models are already on disk. A fresh production container without them downloads ~145 MB on its first search; bake them into the image or a volume (F7.1). Neon's own wake-up after 5 idle minutes isn't measured locally; time it in the production smoke test (F7.4). **Update (F7.1):** the models are baked into the image (`HF_HUB_OFFLINE=1`; CI loads them with no network). Neon's wake-up time remains for F7.4.
+- F7.1/F7.4: the F6.4 cold start (~1.1 s to healthy, +~0.5 s on the first search) assumes the search models are already on disk. A fresh production container without them downloads ~145 MB on its first search; bake them into the image or a volume (F7.1). Neon's own wake-up after 5 idle minutes isn't measured locally; time it in the production smoke test (F7.4). **Update (F7.1):** the models are baked into the image (`HF_HUB_OFFLINE=1`; CI loads them with no network). Neon's wake-up time remains for F7.4. **Measured (F7.4):** the first `/health/ready` after ~8 idle minutes took 1.81 s, against ~0.44 s warm, so Neon's wake-up is ~1.4 s.
 - F6: **judge providers grade differently.** On identical answers, 7 of 54 verdicts changed between Groq (strict, usually right) and Gemini (lenient: it passed "never won a race for Ferrari" for a question whose premise is that he drove for them). Runs judged through the fallback chain aren't comparable, so the judge is now pinned (default: the first configured provider). The F6.3 before/after comparison with one pinned judge wasn't run: Groq's free quota ran out after two full runs that day (12 of 30 judge calls failed). Run it later: `python -m evals rescore <baseline> --judge-provider groq` and the same for the F6.3 run (`data/eval/runs/20261126T031244Z-baseline`, `…T034345Z-tuned`).
 - F3.3/F6: after a mid-answer fallback, a model can echo our flattened tool history as its answer (live, F6.3 run: nemotron answered `multi-imola-record` with "I called query_stats with {…}."). `prepare_messages` writes other providers' tool calls as "I called X with Y." Rephrase it (or summarise the results instead) and test on all three providers.
 - F6.3: the last prompt change (rule 9: check a false premise with the tools) came after the full run, so it isn't verified live; `trick-hamilton-ferrari-title` had answered from memory with no tool call.
