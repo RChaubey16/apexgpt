@@ -73,6 +73,7 @@ Budget: backend 768 MB / 1 CPU (measured peak ~614 MiB, see [backend/loadtest/RE
    | `DATABASE_URL` | yes | Neon **pooled** connection string with `?sslmode=require` (owner role) |
    | `READONLY_DATABASE_URL` | yes | The same pooled host, as `apexgpt_llm_reader` with its password |
    | `CORS_ORIGINS` | yes | The frontend's origin, e.g. `https://apexgpt.example.com` |
+   | `NEXT_PUBLIC_SITE_URL` | yes | The frontend's own public URL, e.g. `https://apexgpt.example.com`, for the canonical link, share cards, `robots.txt` and the sitemap. Also a **build** argument |
    | `NEXT_PUBLIC_API_URL` | yes | The backend's URL, e.g. `https://api.apexgpt.example.com`. It's a **build** argument: change it and the frontend must be rebuilt |
    | `GROQ_API_KEY` | yes | Groq API key (secret) |
    | `GEMINI_API_KEY`, `OPENROUTER_API_KEY` | no | Fallback providers (secrets). Blank turns a provider off |

@@ -1,8 +1,9 @@
 /**
  * App icons and the web manifest (F8.1): every generated file exists at the
  * size it claims, the favicon has its three frames, the backend serves the
- * same favicon, and the manifest's colours match the theme. The files are
- * generated from brand/*.svg by `npm run icons`.
+ * same favicon, the manifest's colours match the theme, and the share-card
+ * images are the right size. All are generated from brand/*.svg by
+ * `npm run icons`.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -84,6 +85,30 @@ describe("other icons", () => {
       expect(svg).not.toMatch(/<script|href=|@import|<image/i);
     },
   );
+});
+
+describe("share-card images (F8.2)", () => {
+  const og = readFileSync(join(APP, "opengraph-image.png"));
+
+  it("is 1200x630, the size Open Graph and X expect", () => {
+    expect(pngSize(og)).toEqual({ width: 1200, height: 630 });
+  });
+
+  it("is the same image for X, with the same alt text", () => {
+    expect(readFileSync(join(APP, "twitter-image.png")).equals(og)).toBe(true);
+    const alt = readFileSync(join(APP, "opengraph-image.alt.txt"), "utf8");
+    expect(alt).toMatch(/^ApexGPT: Formula 1 chat assistant\./);
+    expect(readFileSync(join(APP, "twitter-image.alt.txt"), "utf8")).toBe(alt);
+    // Next.js emits the file verbatim: a trailing newline would end up in
+    // og:image:alt (pre-commit's end-of-file-fixer skips these files).
+    expect(alt).toBe(alt.trim());
+  });
+
+  it("comes from a self-contained 1200x630 SVG", () => {
+    const svg = readFileSync(join(FRONTEND, "brand", "og.svg"), "utf8");
+    expect(svg).toContain('viewBox="0 0 1200 630"');
+    expect(svg).not.toMatch(/<script|href=|@import|<image/i);
+  });
 });
 
 describe("manifest", () => {

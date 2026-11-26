@@ -91,6 +91,9 @@ services:
       args:
         # Inlined into the browser bundle at build time: the backend's public URL.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?the backend URL, e.g. https://api.apexgpt.example.com}
+        # The frontend's own public URL: the canonical link, share-card images,
+        # robots.txt and the sitemap need absolute addresses.
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?the frontend URL, e.g. https://apexgpt.example.com}
     depends_on:
       - backend
     expose:
