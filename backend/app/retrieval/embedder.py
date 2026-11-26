@@ -4,7 +4,7 @@ Chunks were embedded by the ingestion pipeline with the same model
 (ingestion/narrative/embedder.py, MODEL_NAME), as passages. Questions are
 embedded with bge's retrieval instruction in front, which the model card
 recommends for short queries; on our labelled queries it ranked the expected
-articles higher than the bare question (see docs/PROGRESS.md, F3.1).
+articles higher than the bare question (see docs/archive/v1.0.0-mvp/PROGRESS.md, F3.1).
 """
 
 import logging

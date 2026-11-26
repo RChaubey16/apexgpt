@@ -11,7 +11,7 @@ labelled questions, blending put all 15 expected articles in the top 5 and the
 reranker alone put 14. 10, 12, 15, 20 and 30 candidates gave identical results:
 under the blend a low hybrid rank can't reach the top 5 on the reranker alone.
 Reranking costs ~70 ms per candidate on one CPU, so 10 halves it against 20
-(docs/PROGRESS.md, F3.2).
+(docs/archive/v1.0.0-mvp/PROGRESS.md, F3.2).
 
 If the reranker fails, the hybrid order is used (logged as a warning), so a
 model problem degrades answers instead of failing them.

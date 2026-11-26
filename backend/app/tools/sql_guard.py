@@ -15,7 +15,7 @@ grammar), then the whole tree is checked against allowlists:
 The query that runs is then *regenerated from the validated tree* (deparsed),
 with its row limit set in the tree, so what executes is exactly what was
 checked. The read-only role and transaction settings are the second line of
-defence, not the first (docs/PROGRESS.md, F1.5 Known Issue).
+defence, not the first (docs/archive/v1.0.0-mvp/PROGRESS.md, F1.5 Known Issue).
 
 Messages are written for the LLM, so it can fix its query; they never contain
 anything but the query's own text.

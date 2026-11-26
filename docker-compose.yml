@@ -5,7 +5,7 @@
 #   docker compose up --build     # http://localhost:${FRONTEND_PORT:-3000}
 #
 # Memory/CPU limits mirror the VPS budget (2 vCPU, 8 GB shared with Coolify and
-# other apps; see docs/MVP-PLAN.md), so resource problems show up locally first.
+# other apps; see docs/archive/v1.0.0-mvp/MVP-PLAN.md), so resource problems show up locally first.
 # Dev servers (next dev, uvicorn --reload) need more headroom than the
 # production images; production limits are set in F7.1.
 

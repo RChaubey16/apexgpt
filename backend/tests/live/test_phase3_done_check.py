@@ -1,4 +1,4 @@
-"""Phase 3 done check: the three CLI questions from docs/MVP-PLAN.md, answered end
+"""Phase 3 done check: the three CLI questions from docs/archive/v1.0.0-mvp/MVP-PLAN.md, answered end
 to end (entity resolution → LLM → tools → grounded, cited answer).
 
 Opt-in: spends free-tier quota (~5-8k tokens per question) and needs the corpus,

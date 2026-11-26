@@ -1,10 +1,12 @@
 # ApexGPT — MVP Development Plan
 
+> **Archived: ApexGPT v1.0.0 MVP docs**, frozen on 2026-11-26 at tag [`v1.0.0`](https://github.com/RChaubey16/apexgpt/releases/tag/v1.0.0). Kept for history; not updated. Current docs: [docs/](../../).
+
 ApexGPT is a Formula 1 RAG chat application that answers questions about drivers, constructors, circuits, seasons, races, crashes, rivalries and championship battles from **1950 to 2025**. Live/current-season data comes in a later phase.
 
 Related docs:
 - [FEATURES.md](./FEATURES.md): full feature plan by tier
-- [DATA-STRATEGY.md](./DATA-STRATEGY.md): what data is stored and how it is kept lean
+- [DATA-STRATEGY.md](../../DATA-STRATEGY.md): what data is stored and how it is kept lean
 - [PROGRESS.md](./PROGRESS.md): development progress tracker (start here when resuming)
 
 ---
@@ -62,7 +64,7 @@ Implications:
 
 | Constraint | Mitigation |
 |---|---|
-| 1 GB storage per project (writes that add data fail beyond it; reads continue) | Lean data strategy (~110–150 MB target) plus an ingestion size guard (warns at 700 MB, refuses at 900 MB). See [DATA-STRATEGY.md](./DATA-STRATEGY.md). |
+| 1 GB storage per project (writes that add data fail beyond it; reads continue) | Lean data strategy (~110–150 MB target) plus an ingestion size guard (warns at 700 MB, refuses at 900 MB). See [DATA-STRATEGY.md](../../DATA-STRATEGY.md). |
 | Suspends after 5 min idle; ~0.5–1 s cold start on the next query | Frontend calls `/health/ready` on page load to wake the DB before the user sends a question; measure first-query latency in Phase 6. The Docker healthcheck uses DB-free `/health` so it never keeps Neon awake |
 | 100 compute-hours/month per project | Compute only runs while awake, which is ample for a personal project; track usage in the Neon console |
 | Network round trip from VPS to Neon (~20–80 ms) | Acceptable next to LLM latency; use Neon's pooled connection string; pick the region closest to the VPS |
@@ -131,7 +133,7 @@ apexgpt/
 ### Phase 1: Structured F1 Data (1 week)
 
 - Schema (compact types, no redundant columns): `seasons`, `circuits`, `drivers`, `constructors`, `races`, `results`, `sprint_results`, `qualifying`, `driver_standings`, `constructor_standings`, `pit_stops`, `status`.
-- **`lap_times` is deferred** to the Live Season phase (see [DATA-STRATEGY.md](./DATA-STRATEGY.md)).
+- **`lap_times` is deferred** to the Live Season phase (see [DATA-STRATEGY.md](../../DATA-STRATEGY.md)).
 - Loader: Jolpica-F1 CSV database dump (free tier: one ~15 MB download, delayed 14 days, non-commercial use), cached in `data/` and transformed into the schema. No API crawl needed.
 - **Alias tables** for entity resolution ("Schumi" → Michael Schumacher, "Checo" → Sergio Pérez).
 - **Constructor lineage table** (Tyrrell → BAR → Honda → Brawn → Mercedes, etc.).
@@ -142,7 +144,7 @@ apexgpt/
 
 ### Phase 2: Narrative Corpus (1–1.5 weeks)
 
-Follows the rules in [DATA-STRATEGY.md](./DATA-STRATEGY.md).
+Follows the rules in [DATA-STRATEGY.md](../../DATA-STRATEGY.md).
 
 - Collect via the MediaWiki API, by importance:
   - 76 season articles (full)

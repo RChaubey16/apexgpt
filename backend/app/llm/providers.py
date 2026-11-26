@@ -2,7 +2,7 @@
 
 All three expose OpenAI-compatible chat completion APIs, so one client (the
 official openai SDK) talks to each through its base URL. A provider is used only
-when its API key is set; the order is fixed (docs/MVP-PLAN.md).
+when its API key is set; the order is fixed (docs/archive/v1.0.0-mvp/MVP-PLAN.md).
 
 Free-tier model lists change, so each model is a setting. Defaults, each
 chosen after a live tool-call test:

@@ -2,7 +2,7 @@
 
 Talks to Groq, Gemini and OpenRouter through their OpenAI-compatible APIs with
 the official openai SDK (chosen over LiteLLM, which added ~213 MB of RAM and
-3 s of import time; see the Decision Log in docs/PROGRESS.md).
+3 s of import time; see the Decision Log in docs/archive/v1.0.0-mvp/PROGRESS.md).
 
 For each request the configured providers are tried in order:
 - a timeout, connection error or 5xx is retried on the same provider
