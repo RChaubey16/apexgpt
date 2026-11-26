@@ -4,8 +4,8 @@ ApexGPT runs on a VPS with **Coolify** (backend and frontend containers) and a *
 
 The deployment phase is built in steps:
 
-- **F7.1: production compose** (this guide)
-- F7.2: Neon setup and data restore. Until it lands, there's no production database to point at.
+- F7.1: production compose
+- F7.2: Neon setup and data restore
 - F7.3: weekly backups
 - F7.4: production smoke test
 
@@ -19,6 +19,41 @@ The deployment phase is built in steps:
 | LLMs | Groq, then Gemini and OpenRouter | Free tiers, API keys only |
 
 Budget: backend 768 MB / 1 CPU (measured peak ~614 MiB, see [backend/loadtest/README.md](../backend/loadtest/README.md)); frontend 384 MB (~35 MiB measured).
+
+## Neon setup (once, before the first deploy)
+
+1. **Create the project** in the Neon console on the free tier, in the region closest to the VPS, with Postgres 18. Create a database for ApexGPT (e.g. `apexgpt`), or use the default `neondb`.
+2. **Copy two connection strings** from **Connect**, both for that database's owner role:
+   - the **direct** one, used by the setup below;
+   - the **pooled** one (its host contains `-pooler`), used by the app in Coolify.
+
+   Both end in `?sslmode=require`.
+3. **Pick a password for the read-only role** (16+ characters), e.g. `openssl rand -base64 24 | tr -d '/+='`.
+   - The migrations create the role `apexgpt_llm_reader`, and the setup gives it this password.
+   - **Don't create the role in the Neon console.** A role made there belongs to Neon's control plane, so the migrations can't set its limits (`permission denied to alter role`). If you already made one, delete it in the console and run the setup again.
+   - Its URL is the owner's **direct** URL with only the user and password replaced: same host, database and query.
+4. **Run the setup** from the repository root, on the machine that has the loaded local database:
+
+   ```bash
+   NEON_DATABASE_URL='postgresql://<owner>:<pw>@<direct host>/apexgpt?sslmode=require' \
+   NEON_READONLY_DATABASE_URL='postgresql://apexgpt_llm_reader:<reader pw>@<direct host>/apexgpt?sslmode=require' \
+     scripts/neon_setup.sh
+   ```
+
+   It does four things:
+   - runs the migrations (the `vector` and `unaccent` extensions, the schema, the views, the role);
+   - sets the read-only role's password and checks it can read the views;
+   - copies the local data;
+   - prints the size against the 1 GB free tier.
+
+   The copy is one transaction: row counts, the size guard and the 30 sanity checks must pass before it commits, or nothing changes. `REPLACE=1` overwrites data that's already there.
+
+   Rehearsed locally on a fresh database: 16 tables and 116,637 rows in ~11 s, 80.6 MB in total. The backend's real-data tests then passed against the copy.
+5. **For Coolify**, use the **pooled** host with the same credentials:
+   - `DATABASE_URL`: the owner;
+   - `READONLY_DATABASE_URL`: `apexgpt_llm_reader`.
+
+**Updating the data later** (a new season, or a corpus change): load it locally, check it, then run `REPLACE=1 scripts/neon_setup.sh`. A failure leaves Neon as it was.
 
 ## Coolify setup
 
@@ -35,8 +70,8 @@ Budget: backend 768 MB / 1 CPU (measured peak ~614 MiB, see [backend/loadtest/RE
 
    | Variable | Required | Value |
    |---|---|---|
-   | `DATABASE_URL` | yes | Neon **pooled** connection string with `?sslmode=require` (F7.2) |
-   | `READONLY_DATABASE_URL` | yes | The same host as the `apexgpt_llm_reader` role (F7.2) |
+   | `DATABASE_URL` | yes | Neon **pooled** connection string with `?sslmode=require` (owner role) |
+   | `READONLY_DATABASE_URL` | yes | The same pooled host, as `apexgpt_llm_reader` with its password |
    | `CORS_ORIGINS` | yes | The frontend's origin, e.g. `https://apexgpt.example.com` |
    | `NEXT_PUBLIC_API_URL` | yes | The backend's URL, e.g. `https://api.apexgpt.example.com`. It's a **build** argument: change it and the frontend must be rebuilt |
    | `GROQ_API_KEY` | yes | Groq API key (secret) |
