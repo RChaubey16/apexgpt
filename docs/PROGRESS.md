@@ -14,17 +14,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 
 | | |
 |---|---|
-| **Current phase** | Phase 6: Evaluation & Hardening |
-| **Current feature** | F6.4 load and cold-start tests |
-| **Current branch** | `feature/load-testing` |
-| **Open PR** | F6.4 load and cold-start tests |
+| **Current phase** | Phase 6 complete; Phase 7 not started |
+| **Current feature** | None (waiting for the go-ahead for Phase 7) |
+| **Current branch** | `feature/close-phase-6` |
+| **Open PR** | Phase 6 close-out docs |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-26 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F6.4 PR (load and cold-start tests). With it, **Phase 6 is complete**.
+1. User merges the Phase 6 close-out PR.
 2. **Phase 7 (deployment) waits for the user's go-ahead.** It starts with F7.1 `feature/prod-compose`. The open F7.1 items in Known Issues belong in it (models in the image, `FORWARDED_ALLOW_IPS`, the log volume, secrets).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
@@ -42,7 +42,7 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | 3. Retrieval + LLM | ✅ Done | 2026-11-21 | 2026-11-22 |
 | 4. Chat API | ✅ Done | 2026-11-22 | 2026-11-23 |
 | 5. Frontend MVP | ✅ Done | 2026-11-23 | 2026-11-24 |
-| 6. Eval + hardening | 🟡 In progress | 2026-11-25 | |
+| 6. Eval + hardening | ✅ Done | 2026-11-25 | 2026-11-26 |
 | 7. Deployment | ⬜ Not started | | |
 
 Status key: ⬜ Not started · 🟡 In progress · ✅ Done · ⛔ Blocked
@@ -120,11 +120,12 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 - [x] F5.6 `feature/ui-theme`: responsive F1 dark theme · PR #43 merged
 - [x] **Phase done check** (the plan's Phase 5 items, end to end on merged `main` in the dev stack, headless Chrome against the live backend, 2026-11-24): backend status "All systems go"; six starter cards; the "Abu Dhabi 2021" card streamed a cited answer (3 chips, Sources list); a follow-up ("Who was his team-mate that year?") shown as "Answering: Who was Max Verstappen's team-mate in 2021?" with its stats table ("Sergio Pérez."); Copy → "✓ Copied" and the clipboard held the answer with its Sources; 👍 → pressed, "Thanks for the feedback.", backend 201; the chat survived a reload with its rating, was renamed, a new chat opened empty, and the delete left 0 chats in the list and in storage; 360 px wide with no sideways scroll; `theme-color` #0b0b0f. Caveat: in one earlier run the same follow-up came back as a clarifying question (Known Issues, F6).
 
-### Phase 6: Evaluation & Hardening
+### Phase 6: Evaluation & Hardening ✅
 - [x] F6.1 `feature/golden-eval-set`: golden question set · PR #46 merged
 - [x] F6.2 `feature/eval-runner`: evaluation runner · PR #47 merged
 - [x] F6.3 `feature/retrieval-tuning`: tuning from eval results · PR #48 merged
-- [ ] F6.4 `feature/load-testing`: load + cold-start tests · 🔍 PR #49
+- [x] F6.4 `feature/load-testing`: load + cold-start tests · PR #49 merged
+- [x] **Phase done check** (the plan's Phase 6 items): a ~100-question golden set (100, every category); an eval runner with exact match, an LLM judge and reports; tuning from the results (per-season stats, circuit towns, prompt and condenser fixes, the reranker re-checked); load and cold-start tests under the memory caps (no failures or OOM at 40 concurrent answers). Caveat: the before/after comparison with one pinned judge is deferred (Known Issues).
 
 ### Phase 7: Deployment 🏁
 - [ ] F7.1 `feature/prod-compose`: production compose for Coolify
@@ -263,6 +264,22 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: Phase 6 closed
+- PR #49 (F6.4) merged: **all Phase 6 features (F6.1–F6.4) are merged.**
+- Phase 6 delivers:
+  - `eval/golden.yaml` (100 questions, the stats values proven by reference SQL);
+  - `python -m evals` (run, rescore, report, retrieval-only), with a pinned LLM judge;
+  - fixes from the results: `v_driver_season`, `circuit_locality`, the prompt and condenser rules;
+  - `python -m loadtest` with a stub LLM, which measured the production image under its VPS budget.
+- Eval: 62/100 at first; 91/100 with the golden set calibrated; ~89–96/100 after the fixes, depending on the judge provider.
+- Carried into later phases (Known Issues):
+  - the pinned-judge before/after comparison;
+  - the fallback "I called …" echo;
+  - a live check of prompt rule 9;
+  - the search models in the image, and Neon's wake-up time (F7.1/F7.4);
+  - the remaining F7.1 items.
+- Phase 7 not started; waiting for the user's go-ahead.
 
 ### 2026-11-26: F6.4 load and cold-start tests
 - PR #48 (F6.3) merged.
