@@ -180,6 +180,7 @@ def test_upgrade_creates_the_stats_views(engine: Engine) -> None:
     assert set(inspect(engine).get_view_names()) == {
         "v_race_winners",
         "v_driver_career",
+        "v_driver_season",
         "v_season_summary",
         "v_head_to_head_teammates",
     }

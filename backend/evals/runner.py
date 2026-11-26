@@ -274,6 +274,49 @@ def run(
     return [done[q.id] for q in questions if q.id in done]
 
 
+def rescore(
+    previous: dict[str, QuestionResult],
+    questions: Sequence[GoldenQuestion],
+    run_dir: Path,
+    judge: JudgeFn | None,
+    *,
+    progress: Callable[[str], None] = print,
+) -> list[QuestionResult]:
+    """Score a run's stored answers again against the current golden set,
+    without asking the pipeline again (only the judge is called).
+
+    For calibrating the golden set: a changed expectation is measured on the
+    same answers. Questions the run didn't answer are left out; results with an
+    error stay errors."""
+    results = []
+    todo = [q for q in questions if q.id in previous]
+    for index, question in enumerate(todo, 1):
+        old = previous[question.id]
+        if old.observed is None:
+            result = old.model_copy(update={"question": question.question})
+        else:
+            checks = check_answer(question, old.observed)
+            verdict = None
+            if judge is not None and needs_judge(question):
+                try:
+                    verdict = judge(question, old.observed)
+                    checks += check_judgement(question, verdict)
+                except JudgeError as exc:
+                    checks += check_judgement(question, None, str(exc))
+            result = QuestionResult(
+                id=question.id,
+                category=question.category.value,
+                question=question.question,
+                observed=old.observed,
+                judge=verdict,
+                checks=tuple(checks),
+            )
+        append_result(run_dir, result)
+        results.append(result)
+        progress(f"[{index}/{len(todo)}] {result.status.value.upper():5} {question.id}")
+    return results
+
+
 # --- retrieval only (no LLM) -----------------------------------------------------
 
 

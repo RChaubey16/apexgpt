@@ -246,7 +246,21 @@ def test_unusable_verdicts(content: str | None, message: str) -> None:
         parse_verdict(content, 1)
 
 
-def test_judge_wraps_llm_failures() -> None:
-    llm = ReplyingLLM(LLMUnavailableError("All providers failed"))
+def test_judge_wraps_llm_failures_after_retrying() -> None:
+    llm = ReplyingLLM(*[LLMUnavailableError("All providers failed")] * 3)
+    waits: list[float] = []
+    judge = Judge(llm, retries=2, retry_wait=30, sleep=waits.append)
     with pytest.raises(JudgeError, match="no judge available"):
-        Judge(llm)(question(expect={"facts": ["f"]}), _observed())
+        judge(question(expect={"facts": ["f"]}), _observed())
+    assert waits == [30, 30]
+    assert len(llm.messages) == 3
+
+
+def test_a_busy_judge_is_waited_for() -> None:
+    llm = ReplyingLLM(LLMUnavailableError("rate limited"), _reply(True, ["supported"]))
+    waits: list[float] = []
+    verdict = Judge(llm, retry_wait=5, sleep=waits.append)(
+        question(expect={"facts": ["f"]}), _observed()
+    )
+    assert verdict.facts == ("supported",)
+    assert waits == [5]

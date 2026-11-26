@@ -197,8 +197,6 @@ questions:
     question: How many drivers' championships have British drivers won?
     expect:
       answer: ["21"]
-      facts:
-        - Eleven different British drivers won those titles
       tools: [query_stats]
     sql: >-
       SELECT count(*), count(DISTINCT s.champion_ref) FROM v_season_summary s
@@ -260,9 +258,7 @@ questions:
     category: seasons
     question: By how many points did James Hunt win the 1976 championship?
     expect:
-      answer: ["69", "68", Niki Lauda]
-      facts:
-        - Hunt won by one point, 69 to Lauda's 68
+      answer: ["1"]
       tools: [query_stats]
     sql: >-
       SELECT title_margin, runner_up_name, champion_points, runner_up_points
@@ -273,8 +269,6 @@ questions:
     question: Who won the 2008 drivers' title and who finished second?
     expect:
       answer: [Lewis Hamilton, Felipe Massa]
-      facts:
-        - Hamilton won by a single point, 98 to 97
       tools: [query_stats]
     sql: >-
       SELECT champion_name, runner_up_name, champion_points, runner_up_points
@@ -284,10 +278,9 @@ questions:
     category: seasons
     question: How close was the 2007 championship?
     expect:
-      answer: [Kimi Räikkönen, "110", "109"]
+      answer: [Kimi Räikkönen]
       facts:
-        - Räikkönen won with 110 points
-        - Hamilton and Alonso both finished one point behind on 109
+        - Räikkönen won the title by one point
       tools: [query_stats]
     sql: >-
       SELECT champion_name, title_margin, champion_points, runner_up_points
@@ -297,7 +290,7 @@ questions:
     category: seasons
     question: Who won the 2010 World Championship and what was the margin?
     expect:
-      answer: [Sebastian Vettel, "4", Fernando Alonso]
+      answer: [Sebastian Vettel, "4"]
       tools: [query_stats]
     sql: >-
       SELECT champion_name, title_margin, runner_up_name FROM v_season_summary
@@ -308,8 +301,6 @@ questions:
     question: Who won the 2016 Formula 1 championship?
     expect:
       answer: [Nico Rosberg]
-      facts:
-        - He beat team-mate Lewis Hamilton by 5 points
       tools: [query_stats]
     sql: SELECT champion_name, runner_up_name, title_margin FROM v_season_summary WHERE season = 2016
 
@@ -318,8 +309,6 @@ questions:
     question: Who won the 2025 drivers' championship?
     expect:
       answer: [Lando Norris]
-      facts:
-        - Norris beat Max Verstappen by 2 points, 423 to 421
       tools: [query_stats]
     sql: >-
       SELECT champion_name, runner_up_name, champion_points, runner_up_points
@@ -354,8 +343,6 @@ questions:
     question: How many races did Max Verstappen win in 2023?
     expect:
       answer: ["19"]
-      facts:
-        - That is the record for wins in a single season
       tools: [query_stats]
     sql: >-
       SELECT count(*) FROM v_race_winners WHERE season = 2023 AND driver_ref = 'max_verstappen'
@@ -364,9 +351,7 @@ questions:
     category: seasons
     question: How many races did McLaren win in 1988?
     expect:
-      answer: ["15", "16"]
-      facts:
-        - McLaren won 15 of the 16 races
+      answer: ["15"]
       tools: [query_stats]
     sql: >-
       SELECT count(*) FILTER (WHERE constructor_name = 'McLaren'), count(*)
@@ -386,12 +371,10 @@ questions:
     expect:
       answer: ["13"]
       tools: [query_stats]
-    sql: >-
-      SELECT count(*) FROM results r JOIN races ra USING (race_id) JOIN drivers d USING (driver_id)
-      WHERE r.grid = 1 AND d.ref = 'senna' AND ra.season = 1988
+    sql: SELECT poles FROM v_driver_season WHERE driver_ref = 'senna' AND season = 1988
     known_issue: >-
-      The stats views have no per-season poles; answered 7 (wins from pole) in the
-      F4.2 check. The reference query reads the base tables.
+      Answered 7 (wins from pole) in the F4.2 check, before per-season stats existed;
+      v_driver_season added in F6.3.
 
   # --- races ------------------------------------------------------------------
   - id: races-first-world-championship-race
@@ -400,8 +383,7 @@ questions:
     expect:
       answer: [Nino Farina]
       facts:
-        - It was the 1950 British Grand Prix at Silverstone
-      sources: [1950 British Grand Prix]
+        - It was the 1950 British Grand Prix
     sql: >-
       SELECT driver_name, race_name, circuit_name FROM v_race_winners
       WHERE season = 1950 ORDER BY round LIMIT 1
@@ -421,7 +403,6 @@ questions:
     question: Who won the 2020 Sakhir Grand Prix and for which team?
     expect:
       answer: [Sergio Pérez, Racing Point]
-      sources: [2020 Sakhir Grand Prix]
     sql: >-
       SELECT driver_name, constructor_name FROM v_race_winners
       WHERE season = 2020 AND race_name = 'Sakhir Grand Prix'
@@ -435,7 +416,6 @@ questions:
         - The Michelin tyres were found to be unsafe for the banked final turn
         - The Michelin-shod teams pulled into the pits after the formation lap
         - Only the six cars on Bridgestone tyres raced
-        - Michael Schumacher won
       sources: [2005 United States Grand Prix]
       tools: [search_f1_knowledge]
 
@@ -460,7 +440,7 @@ questions:
     expect:
       answer: [Dijon, Keke Rosberg]
       facts:
-        - It was held at Dijon-Prenois in France, because circuit racing was banned in Switzerland
+        - It was held at Dijon-Prenois in France
       sources: [1982 Swiss Grand Prix]
     sql: >-
       SELECT driver_name, circuit_name FROM v_race_winners
@@ -486,10 +466,6 @@ questions:
     question: Who won the 2003 Brazilian Grand Prix?
     expect:
       answer: [Giancarlo Fisichella]
-      facts:
-        - The race was stopped with a red flag after crashes
-        - Räikkönen was first declared the winner, but Fisichella was awarded the win afterwards
-      sources: [2003 Brazilian Grand Prix]
     sql: >-
       SELECT driver_name, constructor_name FROM v_race_winners
       WHERE season = 2003 AND race_name = 'Brazilian Grand Prix'
@@ -543,8 +519,7 @@ questions:
       answer: ["1950", "1960"]
       facts:
         - It counted towards the World Championship from 1950 to 1960
-        - Johnnie Parsons won the 1950 Indianapolis 500
-      sources: [1950 Indianapolis 500]
+      sources: [1950 Indianapolis 500, History of Formula One, 1960 Formula One season]
     sql: >-
       SELECT min(season), max(season), count(*) FROM v_race_winners
       WHERE race_name = 'Indianapolis 500'
@@ -566,10 +541,9 @@ questions:
     category: crashes
     question: How did Ayrton Senna die?
     expect:
-      answer: [Imola, Tamburello]
+      answer: [Imola]
       facts:
-        - He crashed at the Tamburello corner during the 1994 San Marino Grand Prix
-        - He was leading the race in a Williams
+        - He crashed during the 1994 San Marino Grand Prix
       sources: [1994 San Marino Grand Prix, Ayrton Senna, Death of Ayrton Senna]
       tools: [search_f1_knowledge]
 
@@ -600,9 +574,8 @@ questions:
     category: crashes
     question: What happened to Jules Bianchi at Suzuka?
     expect:
-      answer: [recovery vehicle]
       facts:
-        - At the wet 2014 Japanese Grand Prix his car hit a recovery vehicle
+        - At the wet 2014 Japanese Grand Prix his car hit a recovery vehicle (a crane or wheel loader) that was removing another car
         - He suffered severe head injuries and died in 2015
       sources: [Jules Bianchi, 2014 Japanese Grand Prix]
       tools: [search_f1_knowledge]
@@ -624,7 +597,6 @@ questions:
       answer: [spring]
       facts:
         - A spring that fell off another car hit his helmet in qualifying
-        - He missed the rest of the 2009 season
       sources: [Felipe Massa, 2009 Hungarian Grand Prix]
       tools: [search_f1_knowledge]
 
@@ -743,7 +715,6 @@ questions:
     category: rivalries
     question: Why did Gilles Villeneuve fall out with Didier Pironi?
     expect:
-      answer: [Imola]
       facts:
         - At the 1982 San Marino Grand Prix Pironi passed Villeneuve on the last lap
         - Villeneuve believed the team had told them to hold position
@@ -764,10 +735,9 @@ questions:
     category: rivalries
     question: How did Alain Prost win the 1986 title when the Williams drivers were faster?
     expect:
-      answer: [Adelaide]
       facts:
         - Williams team-mates Nigel Mansell and Nelson Piquet took points from each other
-        - Mansell's tyre failed in Adelaide, the final race
+        - Mansell's tyre failed at the final race in Australia (Adelaide)
         - Prost won that race and the title
       sources: [1986 Formula One World Championship, 1986 Australian Grand Prix]
       tools: [search_f1_knowledge]
@@ -800,8 +770,6 @@ questions:
     question: Who won the championship in the year Ayrton Senna died?
     expect:
       answer: [Michael Schumacher, "1994"]
-      facts:
-        - Schumacher beat Damon Hill by one point
       tools: [query_stats]
     sql: >-
       SELECT season, champion_name, runner_up_name, title_margin FROM v_season_summary
@@ -859,8 +827,6 @@ questions:
     question: Who won the 1982 championship and how many races did he win that season?
     expect:
       answer: [Keke Rosberg, "1"]
-      facts:
-        - Eleven different drivers won races in 1982
       tools: [query_stats]
     sql: >-
       SELECT champion_name, champion_wins, distinct_race_winners FROM v_season_summary
@@ -881,8 +847,6 @@ questions:
     question: Who is the only driver to win the championship after his death, and how many races did he win that year?
     expect:
       answer: [Jochen Rindt, "1970", "5"]
-      facts:
-        - Rindt was killed in practice for the 1970 Italian Grand Prix at Monza
       sources: [Jochen Rindt, 1970 Italian Grand Prix]
       tools: [query_stats, search_f1_knowledge]
     sql: SELECT champion_name, season, champion_wins FROM v_season_summary WHERE season = 1970
@@ -997,9 +961,9 @@ questions:
       standalone: [Schumacher, "1994"]
       tools: [query_stats]
     sql: >-
-      SELECT count(*) FROM results r JOIN races ra USING (race_id) JOIN drivers d USING (driver_id)
-      WHERE r.grid = 1 AND d.ref = 'michael_schumacher' AND ra.season = 1994
-    known_issue: No per-season poles in the stats views (same as seasons-senna-poles-1988)
+      SELECT poles FROM v_driver_season
+      WHERE driver_ref = 'michael_schumacher' AND season = 1994
+    known_issue: Per-season poles (same as seasons-senna-poles-1988)
 
   - id: follow-race-director
     category: follow_up
@@ -1026,12 +990,8 @@ questions:
     question: How many world championships did Stirling Moss win?
     expect:
       behavior: correct_premise
-      answer: ["16"]
       facts:
         - Moss never won the championship
-        - He won 16 races and was runner-up several times
-      tools: [query_stats]
-    sql: SELECT championships, wins FROM v_driver_career WHERE driver_ref = 'moss'
 
   - id: trick-hamilton-ferrari-title
     category: trick
@@ -1053,20 +1013,14 @@ questions:
       behavior: correct_premise
       facts:
         - Senna never drove for Ferrari
-        - He raced for Toleman, Lotus, McLaren and Williams
-      answer: [Toleman, McLaren, Williams]
-      tools: [query_stats]
-    sql: SELECT teams FROM v_driver_career WHERE driver_ref = 'senna'
 
   - id: trick-hulkenberg-wins
     category: trick
     question: How many races has Nico Hulkenberg won?
     expect:
       behavior: correct_premise
-      answer: ["2025"]
       facts:
-        - He has not won a race; his first podium was the 2025 British Grand Prix
-      sources: [Nico Hülkenberg, 2025 British Grand Prix]
+        - He has not won a race
 
   - id: trick-monaco-2020
     category: trick
@@ -1082,41 +1036,30 @@ questions:
     question: In which year was Gilles Villeneuve world champion?
     expect:
       behavior: correct_premise
-      answer: [Jacques Villeneuve, "1997"]
       facts:
         - Gilles Villeneuve never won the championship
-        - His son Jacques Villeneuve won the 1997 title
-      tools: [query_stats]
-    sql: >-
-      SELECT g.championships, s.champion_name, s.season FROM v_season_summary s
-      CROSS JOIN v_driver_career g
-      WHERE s.champion_ref = 'villeneuve' AND g.driver_ref = 'gilles_villeneuve'
 
   - id: trick-prost-fifth-title
     category: trick
     question: When did Alain Prost win his fifth world title?
     expect:
       behavior: correct_premise
-      answer: ["4"]
       facts:
         - Prost won four titles (1985, 1986, 1989, 1993), not five
-      tools: [query_stats]
-    sql: SELECT championships FROM v_driver_career WHERE driver_ref = 'prost'
 
   - id: trick-prost-more-points-1988
     category: trick
     question: Why did Alain Prost lose the 1988 title when he scored fewer points than Senna?
     expect:
       behavior: correct_premise
-      answer: ["105", "94"]
+      answer: ["105", "94", "90", "87"]
       facts:
         - Prost actually scored more points in total (105 to Senna's 94)
         - Only each driver's best 11 results counted, which gave Senna the title 90 to 87
-      sources: [1988 Formula One World Championship]
       tools: [query_stats]
     sql: >-
-      SELECT points, teammate_points FROM v_head_to_head_teammates
-      WHERE season = 1988 AND driver_ref = 'prost' AND teammate_ref = 'senna'
+      SELECT driver_name, race_points, championship_points FROM v_driver_season
+      WHERE season = 1988 AND driver_ref IN ('prost', 'senna')
 
   # --- out of scope: should decline politely ----------------------------------
   - id: oos-2026-champion

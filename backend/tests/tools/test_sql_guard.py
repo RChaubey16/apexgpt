@@ -239,10 +239,11 @@ def test_a_cte_cannot_be_schema_qualified() -> None:
         ok("WITH t AS (SELECT * FROM v_driver_career) SELECT * FROM public.t")
 
 
-def test_the_view_list_is_the_four_stats_views() -> None:
+def test_the_view_list_is_the_five_stats_views() -> None:
     assert STATS_VIEWS == (
         "v_race_winners",
         "v_driver_career",
+        "v_driver_season",
         "v_season_summary",
         "v_head_to_head_teammates",
     )

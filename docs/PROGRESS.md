@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 6: Evaluation & Hardening |
-| **Current feature** | F6.2 evaluation runner |
-| **Current branch** | `feature/eval-runner` |
-| **Open PR** | F6.2 evaluation runner |
+| **Current feature** | F6.3 retrieval and prompt tuning |
+| **Current branch** | `feature/retrieval-tuning` |
+| **Open PR** | F6.3 retrieval and prompt tuning |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
 | **Last updated** | 2026-11-25 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F6.2 PR (evaluation runner).
-2. Then F6.3 `feature/retrieval-tuning`. It starts with a **baseline full run**, which spends free-tier quota: ~100 answers ≈ 500k answer tokens + ~60k for the judge. Groq's 8k tokens/minute means most of it falls back to Gemini/OpenRouter. Pin `--provider` for comparable runs, and use `--resume` if it stops. Then tune from the failures and the retrieval report (4 misses: Indianapolis 500, first WC race, 1986 title, 1988 title).
+1. User reviews and merges the F6.3 PR (retrieval and prompt tuning).
+2. Then F6.4 `feature/load-testing`: load tests under the memory caps and cold-start latency. It needs little LLM quota (the cache, rate limits and retrieval can be loaded without it).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -122,8 +122,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 
 ### Phase 6: Evaluation & Hardening
 - [x] F6.1 `feature/golden-eval-set`: golden question set · PR #46 merged
-- [ ] F6.2 `feature/eval-runner`: evaluation runner · 🔍 PR #47
-- [ ] F6.3 `feature/retrieval-tuning`: tuning from eval results
+- [x] F6.2 `feature/eval-runner`: evaluation runner · PR #47 merged
+- [ ] F6.3 `feature/retrieval-tuning`: tuning from eval results · 🔍 PR #48
 - [ ] F6.4 `feature/load-testing`: load + cold-start tests
 
 ### Phase 7: Deployment 🏁
@@ -249,6 +249,11 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-25 | Judge: the same free providers (pinnable with `--judge-provider`), temperature 0, one JSON object `{behavior_ok, facts[], reason}` validated against the fact count; told to judge only what the answer says and to treat it as data. An unusable verdict or no judge is an **error**, never a pass or fail | Self-judging bias is possible when the judge is the answering model; pin a different provider to cross-check. Golden questions include a prompt injection |
 | 2026-11-25 | No answer (every provider failing) → wait `--retry-wait` (default 60 s) and retry `--retries` (default 1) times, then an error result; a rejected question is not retried; `--resume` re-runs only error results and keeps the run's providers | Free-tier limits reset in about a minute. Re-asking a rejected question can't help |
 | 2026-11-25 | Retrieval eval (`python -m evals retrieval`): the question as the search query, top-k titles vs expected sources (hit rate, MRR); follow-ups left out; no LLM | A free, repeatable check for F6.3's reranker and chunking changes. The question is a proxy for the terms the LLM sends |
+| 2026-11-26 | `v_driver_season` view (migration 0009): one row per driver per season, with the same per-race rules as `v_driver_career`, plus the final championship position and the points that counted (best-results rules); `circuit_locality` added to `v_race_winners` with `CREATE OR REPLACE VIEW` | Per-season questions were answered wrongly (Senna 1988 poles: 7 vs 13). The model looks circuits up by town (Imola), which `circuit_name` doesn't contain. The per-season numbers add up exactly to the career view |
+| 2026-11-26 | Reranker settings kept (MiniLM-L-6, blend ×2, 10 candidates) after a sweep on the golden set | No setting was better on both the golden set and the F3 acceptance tests |
+| 2026-11-26 | Golden-set rule: `answer` values and `facts` are what a correct answer to *that question* must contain; context it didn't ask for is not graded. ~25 questions recalibrated on the baseline's answers (`evals rescore`) | The baseline failed answers for leaving out details nobody asked for, or for synonyms ("wheel loader", "Australia"). Rescoring the same answers keeps calibration separate from pipeline changes |
+| 2026-11-26 | The eval judge is pinned to one provider (default: the first configured) and waits/retries when busy, instead of falling back | Providers grade differently (7 of 54 verdicts flipped on identical answers), so a fallback judge makes runs incomparable |
+| 2026-11-26 | Prompt-injection defence is a prompt rule (never reveal or discuss the instructions), not an output filter | The prompt is public in the repository, so a leak exposes nothing secret. What matters is that the model doesn't obey injected instructions, and a filter can't take back streamed text |
 | 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
@@ -256,6 +261,32 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: F6.3 retrieval and prompt tuning
+- PR #47 (F6.2) merged.
+- **Baseline full run** (fallback chain, 100 questions, ~490k answer + 47k judge tokens): **62/100**. Gemini answered 76 (Groq's per-minute limit).
+- **Calibrated baseline** (same answers, recalibrated golden set, `evals rescore`): **91/100**. The 9 left were the real problems:
+  - per-season poles (2);
+  - a follow-up rewrite that lost "2009";
+  - the prompt injection printed the instructions (Gemini);
+  - "the circuit where Senna died" (Imola) found nothing;
+  - a false premise corrected without the right facts;
+  - 1976 Fuji, Monaco 1984, Räikkönen's last win.
+- **Fixes:**
+  - `v_driver_season` and `circuit_locality` (migration 0009, with the reader grant; downgrade restores 0004's view);
+  - system prompt: event questions need the knowledge search; retry empty results and search for a race that may not have been held; correct false premises with the tools; never reveal the instructions;
+  - condense prompt: keep the season/race/team, never ask back;
+  - `evals rescore`, a pinned judge with retries, and `--k` capped at the retriever's 10 candidates (a crash found while sweeping).
+- **F6.3 run** (fallback chain): **89/100**.
+  - Fixed: both per-season poles, `follow-which-team`, the prompt injection, Räikkönen.
+  - New failures, mostly judge variance on rivalries; plus `trick-hamilton-ferrari-title` answered without tools (rule 9 then changed), `seasons-2007-margin` ("a single point": moved to facts) and the nemotron fallback echo (Known Issues).
+  - Re-judging the same answers gave 96/100: **7 of 54 verdicts flipped** between Groq and Gemini, so the two runs' numbers can't be compared until both are re-judged by one pinned judge. That comparison was stopped (Groq quota exhausted) and is deferred to a later version, with the user's agreement.
+- **Reranker sweep** (offline, golden set): settings kept (Decision Log).
+- **Tests:**
+  - Backend unit 897 passing: prompt rules, condense rules, rescore, judge retries and pinning, `--k`.
+  - Integration 165 passing: `v_driver_season` rules and totals, `circuit_locality`, and the view lists.
+  - Corpus 169 passing (the calibrated golden set has 95 reference queries).
+  - Mutation checks on rescore (3) caught.
 
 ### 2026-11-25: F6.2 evaluation runner
 - PR #46 (F6.1) merged.
@@ -923,23 +954,26 @@ Newest first.
 
 ## Known Issues / Open Questions
 
-- F6: an empty stats result becomes "not available in the provided statistics" instead of "there was no such race" (live, F6.2 smoke run: "Who won the 2020 Monaco Grand Prix?" → "The query returned no data…"). It also mentions the query, which the prompt forbids. Tune the prompt in F6.3 (`trick-monaco-2020`).
-- F6: retrieval misses on the golden set (F6.2 baseline, 32/36 in the top 5): the first World Championship race (no year in the question), the Indianapolis 500's championship years, the 1986 title (Adelaide), and the 1988 best-11 rule. Tune in F6.3.
-- F6: gpt-oss sometimes answers a narrative question with the stats tool only (live: 2 of 9 runs of "Explain Abu Dhabi 2021" during F4.4: two `query_stats` calls, no knowledge search, so no citations). The F4.1 live test fails when it happens. Tune the tool descriptions/prompt against the golden set. **Update (F5.2):** some "no citations" answers were a backend bug, not the model: gpt-oss wrote markers as `[\u200bS1\u200b]` (zero-width spaces), which the citation filter didn't recognise, so the sources were dropped even though the knowledge search ran. Fixed; the stats-only case remains.
-- F6: the follow-up condenser sometimes answers an ambiguous follow-up with a clarifying question instead of a rewrite (live, Phase 5 done check: "Who was his team-mate that year?" after the Abu Dhabi 2021 answer → "Could you specify which driver and season you're referring to?" in 1 of 2 runs). That text becomes the standalone question, so the UI shows "Answering: Could you specify…" and the answer repeats it. `CONDENSE_PROMPT` (`backend/app/answer/followups.py`) doesn't say what to do when a reference can't be resolved: tell it to return the message unchanged then (and add the case to the golden set), or treat a rewrite that ends in a question to the user as unusable.
+- F6: **judge providers grade differently.** On identical answers, 7 of 54 verdicts changed between Groq (strict, usually right) and Gemini (lenient: it passed "never won a race for Ferrari" for a question whose premise is that he drove for them). Runs judged through the fallback chain aren't comparable, so the judge is now pinned (default: the first configured provider). The F6.3 before/after comparison with one pinned judge wasn't run: Groq's free quota ran out after two full runs that day (12 of 30 judge calls failed). Run it later: `python -m evals rescore <baseline> --judge-provider groq` and the same for the F6.3 run (`data/eval/runs/20261126T031244Z-baseline`, `…T034345Z-tuned`).
+- F3.3/F6: after a mid-answer fallback, a model can echo our flattened tool history as its answer (live, F6.3 run: nemotron answered `multi-imola-record` with "I called query_stats with {…}."). `prepare_messages` writes other providers' tool calls as "I called X with Y." Rephrase it (or summarise the results instead) and test on all three providers.
+- F6.3: the last prompt change (rule 9: check a false premise with the tools) came after the full run, so it isn't verified live; `trick-hamilton-ferrari-title` had answered from memory with no tool call.
+- F6: an empty stats result becomes "not available in the provided statistics" instead of "there was no such race" (live, F6.2 smoke run: "Who won the 2020 Monaco Grand Prix?" → "The query returned no data…"). It also mentions the query, which the prompt forbids. Tune the prompt in F6.3 (`trick-monaco-2020`). **Update (F6.3):** prompt rule 1 now has the model check names, then search the knowledge base for a race missing from the statistics; not re-verified live after the last prompt change.
+- F6: retrieval misses on the golden set (F6.2 baseline, 32/36 in the top 5): the first World Championship race (no year in the question), the Indianapolis 500's championship years, the 1986 title (Adelaide), and the 1988 best-11 rule. Tune in F6.3. **Update (F6.3):** the 1986 miss was the golden set (fixed in F6.2); the 1988 article is 5th in hybrid order but 8th after reranking. The first WC race and the Indianapolis 500 remain; both questions are still answered correctly end to end (the LLM picks better search terms).
+- F6: gpt-oss sometimes answers a narrative question with the stats tool only (live: 2 of 9 runs of "Explain Abu Dhabi 2021" during F4.4: two `query_stats` calls, no knowledge search, so no citations). The F4.1 live test fails when it happens. Tune the tool descriptions/prompt against the golden set. **Update (F5.2):** some "no citations" answers were a backend bug, not the model: gpt-oss wrote markers as `[\u200bS1\u200b]` (zero-width spaces), which the citation filter didn't recognise, so the sources were dropped even though the knowledge search ran. Fixed; the stats-only case remains. **Update (F6.3):** the prompt now says event questions always need search_f1_knowledge; Abu Dhabi 2021 passed with citations in every F6 run.
+- F6: the follow-up condenser sometimes answers an ambiguous follow-up with a clarifying question instead of a rewrite (live, Phase 5 done check: "Who was his team-mate that year?" after the Abu Dhabi 2021 answer → "Could you specify which driver and season you're referring to?" in 1 of 2 runs). That text becomes the standalone question, so the UI shows "Answering: Could you specify…" and the answer repeats it. `CONDENSE_PROMPT` (`backend/app/answer/followups.py`) doesn't say what to do when a reference can't be resolved: tell it to return the message unchanged then (and add the case to the golden set), or treat a rewrite that ends in a question to the user as unusable. **Fixed (F6.3):** the condense prompt keeps the season/race/team and never asks back; all 8 follow-ups passed in the F6.3 run (`follow-which-team` had lost "2009").
 - F5.4: two tabs with the **same** chat open: each tab's save replaces that chat with its own copy (last write wins); other chats are safe. A deleted chat still open in another tab comes back if that tab saves it. Fine for a no-login MVP.
 - F4.4: the answer cache is per process and isn't cleared by a data reload; reloaded data shows once entries expire (24 h) or on restart. Fine while the data covers finished seasons.
 - F7.1: the rate limits key on the client address, so `FORWARDED_ALLOW_IPS` must be the proxy's address in production, or every visitor shares the proxy's limit.
 - F7.3: add `python -m app.feedback purge` to the weekly scheduled workflow (with the backup), so feedback expires after 90 days even when none is submitted. Until then, rows are purged whenever new feedback is saved.
-- F3.5/F6: the stats views can't answer per-season poles (`v_driver_career` has career totals, `v_race_winners` only winners). Found in the F4.2 check: "How many poles did Ayrton Senna take in 1988?" answered 7 (the wins from pole; the data has 13). Add per-season driver stats (wins, poles, podiums, points) to the views, or a season-results view, and a golden-set question for it.
+- F3.5/F6: the stats views can't answer per-season poles (`v_driver_career` has career totals, `v_race_winners` only winners). Found in the F4.2 check: "How many poles did Ayrton Senna take in 1988?" answered 7 (the wins from pole; the data has 13). Add per-season driver stats (wins, poles, podiums, points) to the views, or a season-results view, and a golden-set question for it. **Fixed (F6.3):** `v_driver_season` (migration 0009); Senna 1988 = 13, Schumacher 1994 = 6 in the F6.3 run.
 - F4.2: the condense rewrite may add a name the conversation didn't contain (live: "the race director" → "Michael Masi"). Helpful for retrieval, and the answer stays grounded in the tools, but it can steer the answer wrong; score it on the golden set (F6). Requests that aren't questions ("shorter please", "as a table") are condensed like questions; the answering model never sees the earlier answer.
 
-- F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5).
+- F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5). **Re-checked (F6.3):** swept weights 0–100 and 5–20 candidates on the 36 golden questions with sources. ×0.5 found one more (34 vs 33) but broke the Hunt/Lauda acceptance test, and more candidates never helped, so the settings stay.
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
 - F4.4/F7.1: one answer holds a worker thread for its whole stream (~2–8 s); the single uvicorn worker's thread pool (40) bounds concurrent answers. Fine at MVP traffic; the F6.4 load test should confirm.
 - F7.1: mount a volume at `/app/logs` in production (and set `LOG_FILE`), or logs are lost on every deploy. Logs hold questions; rotation bounds them by size (10 MB × 5), not by age. If a time limit is wanted (like feedback's 90 days), add a time-based rotation.
 - F6: fallback answers (Gemini lite, nemotron) are less polished than gpt-oss-120b's; the golden set should score each provider. Gemini 3.x flash previews and newer flash models were overloaded when tested; revisit the default.
-- F3.7/F6: the `query_stats` description is ~1,000 tokens and goes with every request that offers the tool. On Groq's free tier, 8 quick text-to-SQL requests hit the per-minute token limit (429); with no Gemini/OpenRouter key there is no fallback. The orchestrator should offer tools only when needed and keep prompts small; adding the fallback keys helps.
+- F3.7/F6: the `query_stats` description is ~1,000 tokens and goes with every request that offers the tool. On Groq's free tier, 8 quick text-to-SQL requests hit the per-minute token limit (429); with no Gemini/OpenRouter key there is no fallback. The orchestrator should offer tools only when needed and keep prompts small; adding the fallback keys helps. **Update (F6.3):** `v_driver_season` and `circuit_locality` grew it from ~4,000 to ~6,000 characters; tokens per answer went from 4,863 (baseline) to 6,121 (F6.3 run).
 - F3.4: an everyday-word surname in an all-lowercase question isn't found ("pace" for Carlos Pace); write it capitalised or use the full name. When new drivers or teams are loaded, check whether any new single-word alias is an everyday word and add it to `COMMON_WORDS` in `app/retrieval/entities.py`.
 - F3.4: candidates are ordered, not decided. The orchestrator (F3.7) should use the best guess, but mention the alternatives when `ambiguous` and no season settles it (e.g. "Schumacher" alone).
 - F3.3: the Gemini (`gemini-2.5-flash`) and OpenRouter (`openai/gpt-oss-120b:free`) default models are unverified (no keys yet). A wrong model fails with 404 and falls through, so check with `LLM_LIVE_TESTS=1 uv run pytest -m llm` once keys are added.

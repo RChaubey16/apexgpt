@@ -19,6 +19,7 @@ from evals.runner import (
     load_results,
     new_run_dir,
     read_meta,
+    rescore,
     retrieval_questions,
     run,
     run_retrieval,
@@ -329,6 +330,131 @@ def test_meta_round_trip_and_run_dirs(tmp_path: Path) -> None:
         read_meta(run_dir)
 
 
+# --- rescoring --------------------------------------------------------------------------
+
+
+def test_rescore_uses_the_stored_answers_and_the_new_expectations(
+    tmp_path: Path,
+) -> None:
+    old_dir, new_dir = tmp_path / "old", tmp_path / "new"
+    old_dir.mkdir()
+    new_dir.mkdir()
+    replies = _replies(
+        **{
+            "Who has the most wins?": [
+                answer("Hamilton, 105", tools=[("query_stats", True)])
+            ],
+            "Who will win in 2026?": [AnswerUnavailableError("busy")] * 2,
+        }
+    )
+    run(
+        GOLDEN.questions,
+        old_dir,
+        Answerer(replies),
+        _judge(),
+        RunOptions(retry_wait=0),
+        progress=lambda _: None,
+    )
+
+    # The expectation changes: "Hamilton" is now not enough.
+    stricter = golden_set(
+        {
+            "id": "stats-a",
+            "category": "stats",
+            "question": "Who has the most wins?",
+            "expect": {"answer": ["Lewis Hamilton"], "tools": ["query_stats"]},
+            "sql": "SELECT 'Lewis Hamilton'",
+        },
+        {
+            "id": "races-b",
+            "category": "races",
+            "question": "Explain Abu Dhabi 2021",
+            "expect": {"facts": ["late safety car"]},
+        },
+        {
+            "id": "oos-c",
+            "category": "out_of_scope",
+            "question": "Who will win in 2026?",
+            "expect": {"behavior": "decline"},
+        },
+        {
+            "id": "new-d",
+            "category": "races",
+            "question": "Never asked",
+            "expect": {"facts": ["x"]},
+        },
+    )
+    judge = _judge()
+    lines: list[str] = []
+    results = {
+        r.id: r
+        for r in rescore(
+            load_results(old_dir),
+            stricter.questions,
+            new_dir,
+            judge,
+            progress=lines.append,
+        )
+    }
+
+    assert set(results) == {"stats-a", "races-b", "oos-c"}  # new-d was never answered
+    assert results["stats-a"].status is Status.FAIL
+    assert [c.name for c in results["races-b"].checks] == ["behavior", "facts"]
+    assert results["oos-c"].error == "busy"  # an error stays an error
+    assert judge.calls == ["races-b"]  # no new answers; the judge only where needed
+    assert set(load_results(new_dir)) == {"stats-a", "races-b", "oos-c"}
+    assert lines[0] == "[1/3] FAIL  stats-a"
+
+
+def test_rescore_with_a_failing_judge(tmp_path: Path) -> None:
+    run(
+        GOLDEN.questions[1:2],
+        tmp_path,
+        Answerer(_replies()),
+        None,
+        progress=lambda _: None,
+    )
+
+    def broken(question, observed):  # noqa: ANN001, ANN202
+        raise JudgeError("no JSON")
+
+    [result] = rescore(
+        load_results(tmp_path),
+        GOLDEN.questions,
+        tmp_path,
+        broken,
+        progress=lambda _: None,
+    )
+    assert result.status is Status.ERROR
+
+
+def test_cli_rescore_needs_a_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["rescore", str(tmp_path), "--no-judge"]) == 2
+    assert "not an eval run with results" in capsys.readouterr().err
+
+
+def test_cli_rescore_without_judge(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run_dir = tmp_path / "20261126T000000Z"
+    run_dir.mkdir()
+    write_meta(run_dir, _meta())
+    run(
+        GOLDEN.questions[:1],
+        run_dir,
+        Answerer(_replies()),
+        None,
+        progress=lambda _: None,
+    )
+    # The real golden set has no "stats-a", so nothing is rescored, but a run is written.
+    assert cli.main(["rescore", str(run_dir), "--no-judge", "--label", "x"]) == 0
+    new = tmp_path / "20261126T000000Z-x"
+    assert read_meta(new).judge is False
+    assert (new / "report.md").exists()
+
+
 # --- reports ---------------------------------------------------------------------------
 
 
@@ -508,9 +634,28 @@ def test_resume_keeps_the_runs_providers(argv: list[str], expected: tuple) -> No
         ["run", "--retries", "9"],
         ["run", "--resume", "x", "--label", "y"],
         ["retrieval", "--k", "0"],
+        ["retrieval", "--k", "11"],  # more than the retriever returns
     ],
 )
 def test_cli_rejects_bad_arguments(argv: list[str]) -> None:
     with pytest.raises(SystemExit) as info:
         cli.main(argv)
     assert info.value.code == 2
+
+
+def test_the_judge_is_pinned_to_one_provider() -> None:
+    from tests.conftest import make_settings
+
+    settings = make_settings(groq_api_key="g", gemini_api_key="m")
+    judge, provider = cli.build_judge(settings, None)
+    assert provider == "groq"  # the first configured, not the fallback chain
+    assert judge._llm.provider_names == ["groq"]  # noqa: SLF001
+
+    judge, provider = cli.build_judge(settings, "gemini")
+    assert (provider, judge._llm.provider_names) == (
+        "gemini",
+        ["gemini"],
+    )  # noqa: SLF001
+
+    assert cli.build_judge(settings, "openrouter") == (None, "openrouter")
+    assert cli.build_judge(make_settings(), None) == (None, None)
