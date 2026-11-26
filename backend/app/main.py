@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import __version__
 from app.answer import build_orchestrator
-from app.api.routes import chat, feedback, health
+from app.api.routes import chat, favicon, feedback, health
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
@@ -71,4 +71,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(chat.router)
     app.include_router(feedback.router)
+    app.include_router(favicon.router)
     return app
