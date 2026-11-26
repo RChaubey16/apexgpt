@@ -213,3 +213,18 @@ def test_rate_limit_wait_setting() -> None:
     assert client._rate_limit_wait == 0
     with pytest.raises(ValidationError, match="LLM_RATE_LIMIT_WAIT_SECONDS"):
         make_settings(llm_rate_limit_wait_seconds=61)
+
+
+def test_base_urls_are_settings_for_a_stand_in() -> None:
+    """F6.4: the load test points the backend at a stub LLM."""
+    settings = make_settings(
+        groq_api_key="k", llm_groq_base_url=" http://host.docker.internal:9100/v1 "
+    )
+    [groq] = providers_from_settings(settings)
+    assert groq.base_url == "http://host.docker.internal:9100/v1"
+
+
+@pytest.mark.parametrize("url", ["", "ftp://x/v1", "not a url", "file:///etc/passwd"])
+def test_bad_base_urls_are_rejected(url: str) -> None:
+    with pytest.raises(ValidationError):
+        make_settings(llm_gemini_base_url=url)

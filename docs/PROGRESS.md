@@ -15,17 +15,17 @@ Related docs: [MVP-PLAN.md](./MVP-PLAN.md) · [FEATURES.md](./FEATURES.md) · [D
 | | |
 |---|---|
 | **Current phase** | Phase 6: Evaluation & Hardening |
-| **Current feature** | F6.3 retrieval and prompt tuning |
-| **Current branch** | `feature/retrieval-tuning` |
-| **Open PR** | F6.3 retrieval and prompt tuning |
+| **Current feature** | F6.4 load and cold-start tests |
+| **Current branch** | `feature/load-testing` |
+| **Open PR** | F6.4 load and cold-start tests |
 | **Repo** | https://github.com/RChaubey16/apexgpt |
-| **Last updated** | 2026-11-25 |
+| **Last updated** | 2026-11-26 |
 | **Blockers** | None |
 
 ## Next Steps
 
-1. User reviews and merges the F6.3 PR (retrieval and prompt tuning).
-2. Then F6.4 `feature/load-testing`: load tests under the memory caps and cold-start latency. It needs little LLM quota (the cache, rate limits and retrieval can be loaded without it).
+1. User reviews and merges the F6.4 PR (load and cold-start tests). With it, **Phase 6 is complete**.
+2. **Phase 7 (deployment) waits for the user's go-ahead.** It starts with F7.1 `feature/prod-compose`. The open F7.1 items in Known Issues belong in it (models in the image, `FORWARDED_ALLOW_IPS`, the log volume, secrets).
 3. Optional (user): add `EMBEDDING_CACHE_DIR=../data/models` to `.env`, so the host reuses the downloaded models.
 4. Optional (user): in GitHub branch protection for `main`, require the **CI passed** check.
 
@@ -123,8 +123,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ### Phase 6: Evaluation & Hardening
 - [x] F6.1 `feature/golden-eval-set`: golden question set · PR #46 merged
 - [x] F6.2 `feature/eval-runner`: evaluation runner · PR #47 merged
-- [ ] F6.3 `feature/retrieval-tuning`: tuning from eval results · 🔍 PR #48
-- [ ] F6.4 `feature/load-testing`: load + cold-start tests
+- [x] F6.3 `feature/retrieval-tuning`: tuning from eval results · PR #48 merged
+- [ ] F6.4 `feature/load-testing`: load + cold-start tests · 🔍 PR #49
 
 ### Phase 7: Deployment 🏁
 - [ ] F7.1 `feature/prod-compose`: production compose for Coolify
@@ -254,6 +254,8 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 | 2026-11-26 | Golden-set rule: `answer` values and `facts` are what a correct answer to *that question* must contain; context it didn't ask for is not graded. ~25 questions recalibrated on the baseline's answers (`evals rescore`) | The baseline failed answers for leaving out details nobody asked for, or for synonyms ("wheel loader", "Australia"). Rescoring the same answers keeps calibration separate from pipeline changes |
 | 2026-11-26 | The eval judge is pinned to one provider (default: the first configured) and waits/retries when busy, instead of falling back | Providers grade differently (7 of 54 verdicts flipped on identical answers), so a fallback judge makes runs incomparable |
 | 2026-11-26 | Prompt-injection defence is a prompt rule (never reveal or discuss the instructions), not an output filter | The prompt is public in the repository, so a leak exposes nothing secret. What matters is that the model doesn't obey injected instructions, and a filter can't take back streamed text |
+| 2026-11-26 | Load tests run the **production image** under its 768 MiB / 1-CPU cap through a compose override, answering via a **stub LLM** (`backend/loadtest/stub_llm.py`, OpenAI-compatible, a tool call then a cited streamed answer); provider base URLs became settings (`LLM_GROQ_BASE_URL`, …, validated http(s), defaults unchanged) | Everything but the model is real (resolution, search, reranking, stats DB, SSE) and no quota is spent; real providers would measure their rate limits, not the server |
+| 2026-11-26 | No model warm-up at startup and no cap on concurrent searches | Measured: the first search's model loading adds ~0.5 s; memory flattens out at ~610 MiB even at 40 concurrent answers, and one CPU wouldn't go faster with a cap |
 | 2026-11-24 | Theme as Tailwind `@theme` tokens; components may not use the default palette (a test enforces it, and WCAG AA contrast for every text/surface pair) | One place to change the look; the old muted greys failed AA, and a test stops that from coming back |
 
 ---
@@ -261,6 +263,25 @@ Branch names, scopes and commit messages for each feature are in [MVP-PLAN.md §
 ## Session Log
 
 Newest first.
+
+### 2026-11-26: F6.4 load and cold-start tests
+- PR #48 (F6.3) merged.
+- **Built** (`backend/loadtest/`):
+  - `stub_llm.py`: the stand-in LLM.
+  - `measure.py`: timed SSE requests (first event, first token, done, per-tool time), concurrent scenarios, a `docker stats` sampler, the cold start (restart → `/health` → `/health/ready` → two answers).
+  - `report.py` and the CLI (`python -m loadtest load | coldstart`).
+  - A compose override for the production image.
+  - A README with the steps and the results.
+  - App change: the provider base URLs are settings.
+- **Cold start:** ~1.1 s to healthy; the first knowledge search 1.0–1.4 s (warm 0.65–0.8 s); the first answer done in 2.4–2.9 s; ~350 MiB with both models loaded (~90 idle).
+- **Load** (golden questions, stats and knowledge mixed): no failures at 1–40 concurrent users.
+  - Throughput levels off at ~60–90 answers/min.
+  - Done p95: 2.5 s (1 user), 8.9 s (5), 26 s (10), 37 s (40).
+  - Peak memory 373 → 614 MiB of 768; no OOM.
+- **Found while testing:** the stub took a flattened tool result (another provider's round) for the question; fixed. A cold-start run on stats questions measured no model loading, so the cold start now asks knowledge questions.
+- **Tests:**
+  - Backend unit 949 passing (+52: the stub's plans and SSE, our real `LLMClient` against the stub in-process, request timing and outcomes, docker stats parsing, scenarios, cold start, reports, CLI, base-URL settings).
+  - Mutation checks (10): all caught after 2 new tests; 1 survivor (the runner's own connection-pool limit) has no effect, since the user tasks bound concurrency.
 
 ### 2026-11-26: F6.3 retrieval and prompt tuning
 - PR #47 (F6.2) merged.
@@ -954,6 +975,7 @@ Newest first.
 
 ## Known Issues / Open Questions
 
+- F7.1/F7.4: the F6.4 cold start (~1.1 s to healthy, +~0.5 s on the first search) assumes the search models are already on disk. A fresh production container without them downloads ~145 MB on its first search; bake them into the image or a volume (F7.1). Neon's own wake-up after 5 idle minutes isn't measured locally; time it in the production smoke test (F7.4).
 - F6: **judge providers grade differently.** On identical answers, 7 of 54 verdicts changed between Groq (strict, usually right) and Gemini (lenient: it passed "never won a race for Ferrari" for a question whose premise is that he drove for them). Runs judged through the fallback chain aren't comparable, so the judge is now pinned (default: the first configured provider). The F6.3 before/after comparison with one pinned judge wasn't run: Groq's free quota ran out after two full runs that day (12 of 30 judge calls failed). Run it later: `python -m evals rescore <baseline> --judge-provider groq` and the same for the F6.3 run (`data/eval/runs/20261126T031244Z-baseline`, `…T034345Z-tuned`).
 - F3.3/F6: after a mid-answer fallback, a model can echo our flattened tool history as its answer (live, F6.3 run: nemotron answered `multi-imola-record` with "I called query_stats with {…}."). `prepare_messages` writes other providers' tool calls as "I called X with Y." Rephrase it (or summarise the results instead) and test on all three providers.
 - F6.3: the last prompt change (rule 9: check a false premise with the tools) came after the full run, so it isn't verified live; `trick-hamilton-ferrari-title` had answered from memory with no tool call.
@@ -970,7 +992,7 @@ Newest first.
 
 - F6: the reranker settings (MiniLM-L-6, blend ×2, 10 candidates) were chosen on 15 questions. Re-check them on the ~100-question golden set; the corpus tests are the regression guard until then. "How did Hunt beat Lauda in 1976" is the closest call (rivalry lead at #5). **Re-checked (F6.3):** swept weights 0–100 and 5–20 candidates on the 36 golden questions with sources. ×0.5 found one more (34 vs 33) but broke the Hunt/Lauda acceptance test, and more candidates never helped, so the settings stay.
 - F3.6: words like "explain" or "tell me about" count for the text and article lists (all words must match). Vector search covers these questions today; the knowledge tool can pass the LLM's search terms instead of the raw question.
-- F4.4/F7.1: one answer holds a worker thread for its whole stream (~2–8 s); the single uvicorn worker's thread pool (40) bounds concurrent answers. Fine at MVP traffic; the F6.4 load test should confirm.
+- F4.4/F7.1: one answer holds a worker thread for its whole stream (~2–8 s); the single uvicorn worker's thread pool (40) bounds concurrent answers. Fine at MVP traffic; the F6.4 load test should confirm. **Measured (F6.4):** 40 concurrent answers (the pool's limit) all succeeded under the 768 MiB / 1-CPU cap, with a 614 MiB memory peak and no OOM; latency is what degrades (done p95 37 s), because knowledge searches queue on the one CPU. Production capacity is bound by the LLM free tier (~1–2 answers/min on Groq) long before that.
 - F7.1: mount a volume at `/app/logs` in production (and set `LOG_FILE`), or logs are lost on every deploy. Logs hold questions; rotation bounds them by size (10 MB × 5), not by age. If a time limit is wanted (like feedback's 90 days), add a time-based rotation.
 - F6: fallback answers (Gemini lite, nemotron) are less polished than gpt-oss-120b's; the golden set should score each provider. Gemini 3.x flash previews and newer flash models were overloaded when tested; revisit the default.
 - F3.7/F6: the `query_stats` description is ~1,000 tokens and goes with every request that offers the tool. On Groq's free tier, 8 quick text-to-SQL requests hit the per-minute token limit (429); with no Gemini/OpenRouter key there is no fallback. The orchestrator should offer tools only when needed and keep prompts small; adding the fallback keys helps. **Update (F6.3):** `v_driver_season` and `circuit_locality` grew it from ~4,000 to ~6,000 characters; tokens per answer went from 4,863 (baseline) to 6,121 (F6.3 run).
