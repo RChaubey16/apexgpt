@@ -34,13 +34,15 @@ The features being built now, planned the same way as the MVP ([archived plan](.
 - **The season view gets its own page (`/season`),** with a top navigation. It has a shareable URL and room to grow, and keeps the chat uncluttered.
 - **The logo is designed in F8.1;** there isn't an existing one.
 - **The revamp uses the frontend-design skill,** not mockups or outside references.
+- **F8.3, settled when it started (2026-11-27):**
+  - **Columns:** drivers' standings have position, driver (name, code, number, nationality), latest team, points and wins; constructors' standings have position, team, nationality, points and wins.
+  - **The next race:** round, name, circuit and location, the race start, and every session of the weekend (practice, sprint qualifying, sprint, qualifying), all in UTC. The page shows them in the visitor's time zone and runs the countdown.
+  - **The off-season:** the final standings with `complete: true`, plus the next season's first race once Jolpica publishes the calendar (`next_race: null` until then). If Jolpica's "current" moves to a season with no races yet, the previous season's final standings are shown.
+  - **Freshness:** cached for 10 minutes (Jolpica's own cache time), so ~18 requests an hour at most. When Jolpica fails, the last data is served with `stale: true` for up to 24 hours, retried at most once a minute; with nothing cached, a 503.
 
 ### Open questions (settled when the feature starts)
 
-- **F8.3, F8.5: columns.** Proposed: drivers' standings show position, driver, team, points and wins; constructors' standings show position, team, points and wins.
-- **F8.3, F8.5: the next race.** Name, circuit, date and time (shown in the visitor's time zone), a countdown, and maybe the full session schedule.
-- **F8.3, F8.5: the off-season,** which starts after the 2026 finale in Abu Dhabi on 6 Dec. Proposed: show the final standings, plus the next season's first race once its calendar is published.
-- **F8.3: freshness.** How soon after a race the standings should update. This sets the cache lifetime. Jolpica allows 500 requests an hour.
+- **F8.5: the page.** How the standings, the next race and the countdown are laid out, in the new design.
 
 ### Facts checked while planning (2026-11-26)
 

@@ -78,7 +78,7 @@ Budget: backend 768 MB / 1 CPU (measured peak ~614 MiB, see [backend/loadtest/RE
    | `GROQ_API_KEY` | yes | Groq API key (secret) |
    | `GEMINI_API_KEY`, `OPENROUTER_API_KEY` | no | Fallback providers (secrets). Blank turns a provider off |
    | `FORWARDED_ALLOW_IPS` | no | Default: the private ranges. See "Client addresses" below |
-   | `RATE_LIMIT_CHAT`, `RATE_LIMIT_FEEDBACK`, `ANSWER_CACHE_*`, `LLM_*`, `LOG_*` | no | Defaults as in development |
+   | `RATE_LIMIT_CHAT`, `RATE_LIMIT_FEEDBACK`, `RATE_LIMIT_SEASON`, `ANSWER_CACHE_*`, `JOLPICA_BASE_URL`, `SEASON_CACHE_TTL_SECONDS`, `LLM_*`, `LOG_*` | no | Defaults as in development |
 
 5. **Deploy.** The backend logs `alembic upgrade head` and then `Uvicorn running`. Both services turn healthy, from `/health` and `/api/health`.
 
@@ -103,7 +103,7 @@ uv run python -m evals smoke --frontend https://apexgpt.ruturaj.xyz --api https:
 ```
 
 It checks the live site over HTTPS, the way a browser uses it:
-- **The backend:** `/health/ready` and its latency, `/health` in production, `/docs` hidden, CORS allowing only the frontend's origin.
+- **The backend:** `/health/ready` and its latency, `/health` in production, `/docs` hidden, CORS allowing only the frontend's origin, and `/api/season/current` returning standings that aren't stale (so Jolpica is reachable from the VPS).
 - **The frontend:** its page and its `/api/health`.
 - **Answers:** the golden questions marked `smoke: true` (8), asked through `POST /api/chat` and scored without an LLM judge: answer values, tools, cited sources, and the follow-up rewrite.
 

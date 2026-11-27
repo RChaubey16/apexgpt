@@ -22,8 +22,8 @@ Related: [PLAN.md](./PLAN.md) (the features being built now) · [FEATURES.md](./
 | **Hosting** | Coolify on one VPS (backend 768 MB / 1 CPU, frontend 384 MB) · Neon Postgres 18 + pgvector (~80 MB of the 1 GB free tier) |
 | **Data** | Seasons 1950–2025: Jolpica-F1 statistics, 14,581 chunks from ~2,350 Wikipedia articles |
 | **Health** | Production smoke test PASS (infrastructure 7/7, answers 8/8) · weekly encrypted backup verified by a test restore |
-| **In progress** | Phase 8 (v1.1.0): F8.2 page metadata and social previews (PR raised). See [PLAN.md](./PLAN.md) |
-| **Last updated** | 2026-11-26 |
+| **In progress** | Phase 8 (v1.1.0): F8.3 current season endpoint (PR raised). See [PLAN.md](./PLAN.md) |
+| **Last updated** | 2026-11-27 |
 
 **What v1.0.0 does:**
 - Cited answers to F1 statistics questions (text-to-SQL over five stats views) and history questions (hybrid search with reranking over Wikipedia).
@@ -34,7 +34,7 @@ The full list is in [FEATURES.md](./FEATURES.md#shipped-in-v100).
 
 ## Next up
 
-**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1 is merged; **F8.2** is in review; next is **F8.3, `feature/season-api`**.
+**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1 and F8.2 are merged; **F8.3** is in review; next is **F8.4, `feature/frontend-revamp`** (install the frontend-design skill first).
 
 After that, pick from:
 1. **The open issues below,** especially the ones marked ⭐ (they affect answer quality or operations).
@@ -53,8 +53,8 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | Feature | Branch | PR | Status | Notes |
 |---|---|---|---|---|
 | F8.1 App icons and favicons | `feature/app-icons` | #59 | ✅ | Logo = the header's three speed stripes (`frontend/brand/`); `npm run icons` generates the favicon (16/32/48), SVG icon, Apple icon, manifest icons (192/512/maskable) and the API domain's favicon |
-| F8.2 Page metadata and social previews | `feature/page-metadata` | #60 | 🔍 | Title "ApexGPT: Formula 1 chat assistant"; Open Graph and Twitter cards with a 1200×630 image (`brand/og.svg`); per-page canonical URLs; `robots.txt` and `sitemap.xml`. Needs `NEXT_PUBLIC_SITE_URL` in Coolify (required) |
-| F8.3 Current season endpoint | `feature/season-api` | | ⬜ | |
+| F8.2 Page metadata and social previews | `feature/page-metadata` | #60 | ✅ | Title "ApexGPT: Formula 1 chat assistant"; Open Graph and Twitter cards with a 1200×630 image (`brand/og.svg`); per-page canonical URLs; `robots.txt` and `sitemap.xml`. Needs `NEXT_PUBLIC_SITE_URL` in Coolify (required) |
+| F8.3 Current season endpoint | `feature/season-api` | | 🔍 | `GET /api/season/current`: standings and the next race (every session, UTC) from Jolpica; cached 10 min, stale data served for up to 24 h when Jolpica is down, 503 otherwise; off-season handled; `RATE_LIMIT_SEASON`. The smoke test checks it (infrastructure now 8 checks) |
 | F8.4 Frontend revamp | `feature/frontend-revamp` | | ⬜ | Install the frontend-design skill first |
 | F8.5 Current season page | `feature/season-page` | | ⬜ | |
 | Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |

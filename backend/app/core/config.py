@@ -108,9 +108,17 @@ class Settings(BaseSettings):
     # (Groq: 8,000/minute for everyone), so its limit is the tight one.
     rate_limit_chat: str = "6/minute;100/day"
     rate_limit_feedback: str = "30/minute;500/day"
+    # The current season endpoint (F8.3) is cheap (served from a cache), so
+    # its limit only stops floods.
+    rate_limit_season: str = "60/minute;2000/day"
     # In-memory answer cache (F4.4): entries (0 = off) and seconds each lives.
     answer_cache_size: int = 256
     answer_cache_ttl_seconds: int = 86_400
+
+    # Current season (F8.3): the Jolpica-F1 API, and seconds its standings and
+    # calendar are cached (60-3600; Jolpica itself caches for 600).
+    jolpica_base_url: str = "https://api.jolpi.ca/ergast/f1"
+    season_cache_ttl_seconds: int = 600
 
     @field_validator("database_url")
     @classmethod
@@ -213,7 +221,21 @@ class Settings(BaseSettings):
             raise ValueError("LLM_MAX_RETRIES must be between 0 and 3")
         return value
 
-    @field_validator("rate_limit_chat", "rate_limit_feedback")
+    @field_validator("jolpica_base_url")
+    @classmethod
+    def _validate_jolpica_base_url(cls, value: str) -> str:
+        value = value.strip()
+        _url_adapter.validate_python(value)
+        return value.rstrip("/")
+
+    @field_validator("season_cache_ttl_seconds")
+    @classmethod
+    def _validate_season_cache_ttl(cls, value: int) -> int:
+        if not 60 <= value <= 3600:
+            raise ValueError("SEASON_CACHE_TTL_SECONDS must be between 60 and 3600")
+        return value
+
+    @field_validator("rate_limit_chat", "rate_limit_feedback", "rate_limit_season")
     @classmethod
     def _validate_rate_limit(cls, value: str) -> str:
         from app.core.rate_limit import parse_limits
