@@ -170,14 +170,14 @@ export function Chat({
         aria-label="Conversation"
         aria-live="polite"
       >
-        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-6 px-4 py-6">
+        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-4 px-4 py-5">
           {conversation.messages.length === 0 ? (
-            <div className="my-auto flex w-full flex-col gap-6 py-4">
-              <div className="flex flex-col gap-2">
-                <h2 className="text-3xl leading-tight font-extrabold tracking-tight font-stretch-condensed sm:text-4xl">
+            <div className="my-auto flex w-full flex-col gap-4 py-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-xl leading-tight font-bold">
                   What do you want to know?
                 </h2>
-                <p className="max-w-[60ch] text-soft">
+                <p className="max-w-[60ch] text-muted">
                   Ask about any driver, team, circuit, season or rivalry from 1950 to
                   2025.
                 </p>
@@ -208,9 +208,9 @@ export function Chat({
         </div>
       </div>
 
-      <div className="border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
+      <div className="border-t border-line bg-background pb-[env(safe-area-inset-bottom)]">
         <form
-          className="mx-auto w-full max-w-3xl px-3 py-3 sm:px-4"
+          className="mx-auto w-full max-w-3xl px-3 py-2.5 sm:px-4"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
@@ -238,13 +238,13 @@ export function Chat({
                   : "Chat is unavailable (frontend misconfigured)"
               }
               disabled={apiBaseUrl === null}
-              className="max-h-40 min-h-11 min-w-0 flex-1 resize-none rounded-md border border-control bg-raised px-4 py-2.5 text-base text-foreground placeholder:text-muted focus:border-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              className="max-h-40 min-h-10 min-w-0 flex-1 resize-none rounded-md border border-line bg-raised px-3 py-2 text-base text-foreground placeholder:text-muted focus:border-control disabled:cursor-not-allowed disabled:opacity-50"
             />
             {answering ? (
               <button
                 type="button"
                 onClick={() => controller.current?.abort()}
-                className="h-11 shrink-0 rounded-md border border-control px-4 text-base font-semibold text-soft font-stretch-condensed hover:border-foreground hover:text-foreground"
+                className="h-10 shrink-0 rounded-md border border-control px-4 text-sm font-semibold text-soft hover:border-foreground hover:text-foreground"
               >
                 Stop
               </button>
@@ -252,7 +252,7 @@ export function Chat({
               <button
                 type="submit"
                 disabled={!canSend}
-                className="h-11 shrink-0 rounded-md bg-accent px-5 text-base font-bold text-on-accent font-stretch-condensed hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-raised disabled:text-muted"
+                className="h-10 shrink-0 rounded-md bg-accent px-5 text-sm font-bold text-on-accent hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-raised disabled:text-muted"
               >
                 Send
               </button>
@@ -276,14 +276,10 @@ function questionBefore(messages: Message[], index: number): string {
   return previous?.role === "user" ? previous.content : "";
 }
 
-/**
- * A question, set like a timing-screen header: left-aligned, condensed, with
- * a rule above each one after the first, so a chat reads as a log of
- * question-and-answer laps rather than chat bubbles.
- */
+/** A question: a compact bubble on the right, with a red edge (F8.6). */
 function UserMessageView({ content }: { content: string }) {
   return (
-    <p className="border-t border-line pt-5 text-lg leading-snug font-semibold break-words whitespace-pre-wrap text-foreground font-stretch-semi-condensed first:border-t-0 first:pt-0">
+    <p className="ml-auto max-w-[85%] rounded-lg rounded-br-sm border-r-2 border-accent bg-raised px-3 py-2 font-semibold break-words whitespace-pre-wrap text-foreground">
       <span className="sr-only">You asked: </span>
       <span>{content}</span>
     </p>
@@ -305,12 +301,11 @@ function AnswerView({
   children: ReactNode;
 }) {
   const status = statusLine(answer);
-  // The timing-tower stripe: its colour is the answer's state. Yellow (the
-  // medium compound) while it streams, quiet once done, red on an error,
-  // dashed when stopped.
+  // An answer card. Its left edge shows the answer's state: yellow while it
+  // streams, none once done, red on an error, dashed when stopped.
   return (
     <article
-      className="flex max-w-full min-w-0 flex-col gap-2 border-l-[3px] border-control pl-3 transition-colors duration-500 sm:pl-4 data-[status=error]:border-accent data-[status=stopped]:border-dashed data-[status=streaming]:border-warning"
+      className="flex max-w-full min-w-0 flex-col gap-2 rounded-lg border-l-2 border-transparent bg-surface px-3 py-3 transition-colors duration-500 sm:px-4 data-[status=error]:border-accent data-[status=stopped]:border-dashed data-[status=stopped]:border-control data-[status=streaming]:border-warning"
       aria-busy={answer.status === "streaming"}
       data-status={answer.status}
     >

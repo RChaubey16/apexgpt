@@ -46,16 +46,12 @@ interface StarterQuestionsProps {
   disabled?: boolean;
 }
 
-/**
- * Laid out like rows of a timing table, not cards: the short title in a
- * condensed column, the question beside it, rows ruled apart. On phones the
- * title sits above the question.
- */
+/** Compact cards, two columns on wider screens (F8.6). */
 export function StarterQuestions({ onPick, disabled = false }: StarterQuestionsProps) {
   return (
     <ul
       aria-label="Starter questions"
-      className="w-full divide-y divide-line border-y border-line"
+      className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2"
     >
       {STARTER_QUESTIONS.map((s) => (
         <li key={s.question}>
@@ -63,14 +59,10 @@ export function StarterQuestions({ onPick, disabled = false }: StarterQuestionsP
             type="button"
             onClick={() => onPick(s.question)}
             disabled={disabled}
-            className="group flex w-full flex-col gap-0.5 px-2 py-3 text-left hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent sm:flex-row sm:items-baseline sm:gap-4"
+            className="flex h-full w-full flex-col gap-0.5 rounded-lg border-l-2 border-accent bg-surface px-3 py-2.5 text-left hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface"
           >
-            <span className="shrink-0 text-base font-semibold text-foreground font-stretch-condensed sm:w-44">
-              {s.title}
-            </span>
-            <span className="text-soft group-hover:text-foreground group-disabled:group-hover:text-soft">
-              {s.question}
-            </span>
+            <span className="font-bold text-foreground">{s.title}</span>
+            <span className="text-muted">{s.question}</span>
           </button>
         </li>
       ))}

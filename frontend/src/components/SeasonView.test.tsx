@@ -42,7 +42,9 @@ describe("SeasonView", () => {
       within(race).getByText("Lusail International Circuit, Lusail, Qatar"),
     ).toBeInTheDocument();
     // NOW is Fri 27 Nov 12:00 UTC; the race starts Sun 29 Nov 16:00 UTC.
-    expect(within(race).getByTestId("countdown")).toHaveTextContent("2d 04h 00m 00s");
+    expect(within(race).getByTestId("countdown")).toHaveTextContent(
+      "02days04hrs00mins00secs",
+    );
     expect(within(race).getByTestId("countdown")).toHaveAttribute("aria-hidden", "true");
     expect(
       within(race).getByText("until the race starts, Sun 29 Nov, 16:00"),

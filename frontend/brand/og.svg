@@ -1,20 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
   <title>ApexGPT: Formula 1 chat assistant</title>
-  <rect width="1200" height="630" fill="#12171d"/>
-  <!-- A brand stripe in the logo red, echoing the timing-tower stripe beside answers (F8.4). -->
-  <rect x="0" y="0" width="12" height="630" fill="#d93a32"/>
+  <rect width="1200" height="630" fill="#14141c"/>
+  <!-- A brand stripe in F1 red. -->
+  <rect x="0" y="0" width="12" height="630" fill="#e10600"/>
   <!-- The logo tile (brand/icon.svg, scaled 3.5x). -->
   <g transform="translate(96 150) scale(3.5)">
-    <rect width="64" height="64" rx="14" fill="#1a2028"/>
-    <g fill="#d93a32">
+    <rect width="64" height="64" rx="14" fill="#1f1f2a"/>
+    <g fill="#e10600">
       <path d="M7 50 L17 50 L27 14 L17 14 Z"/>
       <path d="M22 50 L32 50 L42 14 L32 14 Z"/>
       <path d="M37 50 L47 50 L57 14 L47 14 Z"/>
     </g>
   </g>
   <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
-    <text x="372" y="262" font-size="124" font-weight="800" font-stretch="condensed" fill="#f4f5f2" letter-spacing="-2">ApexGPT</text>
-    <text x="376" y="336" font-size="46" font-weight="600" fill="#f4f5f2">Formula 1 chat assistant</text>
-    <text x="376" y="392" font-size="31" font-weight="500" fill="#93a0ae">Every season from 1950 to 2025, with cited answers</text>
+    <text x="372" y="262" font-size="124" font-weight="700" fill="#ffffff" letter-spacing="-2">ApexGPT</text>
+    <text x="376" y="336" font-size="46" font-weight="600" fill="#ffffff">Formula 1 chat assistant</text>
+    <text x="376" y="392" font-size="31" font-weight="500" fill="#a0a0ae">Every season from 1950 to 2025, with cited answers</text>
   </g>
 </svg>

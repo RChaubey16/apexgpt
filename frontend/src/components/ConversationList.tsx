@@ -36,7 +36,7 @@ export function ConversationList({
       <button
         type="button"
         onClick={onNew}
-        className="min-h-10 rounded-md border border-control px-3 text-left text-base font-semibold text-foreground font-stretch-condensed hover:border-foreground hover:bg-raised"
+        className="min-h-9 rounded-md bg-accent px-3 text-left text-sm font-bold text-on-accent hover:bg-accent-strong"
       >
         New chat
       </button>
@@ -135,7 +135,7 @@ function ConversationRow({
 
   return (
     <li
-      className={`group flex items-center gap-1 rounded-md pr-1 ${active ? "bg-raised shadow-[inset_3px_0_0_var(--color-foreground)]" : "hover:bg-raised"}`}
+      className={`group flex items-center gap-1 rounded-md pr-1 ${active ? "bg-raised shadow-[inset_2px_0_0_var(--color-accent)]" : "hover:bg-raised"}`}
     >
       <button
         type="button"

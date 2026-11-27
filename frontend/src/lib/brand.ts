@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
 // (F8.1, F8.2).
 
 // Matches --color-background in globals.css (and the viewport's themeColor).
-export const BACKGROUND = "#12171d";
+export const BACKGROUND = "#14141c";
 
 export const APP_NAME = "ApexGPT";
 
