@@ -396,3 +396,43 @@ describe("Chat answer actions", () => {
     expect(send.mock.calls[0][1]).toMatchObject({ question: "Who won 1988?" });
   });
 });
+
+describe("pit wall layout (F8.4b)", () => {
+  const saved: Message[] = [
+    { id: "q1", role: "user", content: "Who won 1976?" },
+    {
+      id: "a1",
+      role: "assistant",
+      status: "done",
+      content: "James Hunt.",
+      citations: [],
+      tables: [],
+    },
+    { id: "q2", role: "user", content: "And 1977?" },
+    {
+      id: "a2",
+      role: "assistant",
+      status: "error",
+      content: "",
+      citations: [],
+      tables: [],
+      error: "Too many questions",
+    },
+  ];
+
+  it("announces each question as the user's, now they aren't bubbles", () => {
+    render(<Chat apiBaseUrl={BASE} initialMessages={saved} />);
+
+    const question = screen.getByText("Who won 1976?").parentElement;
+    expect(question).toHaveTextContent("You asked: Who won 1976?");
+  });
+
+  it("marks each answer's state for its timing-tower stripe", () => {
+    const { container } = render(<Chat apiBaseUrl={BASE} initialMessages={saved} />);
+
+    const states = [...container.querySelectorAll("article")].map((a) =>
+      a.getAttribute("data-status"),
+    );
+    expect(states).toEqual(["done", "error"]);
+  });
+});

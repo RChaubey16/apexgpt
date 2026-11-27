@@ -48,6 +48,7 @@ The features being built now, planned the same way as the MVP ([archived plan](.
   - **Scope:** a design system, the shared header and every chat screen. Behaviour and tests stay the same; no new chat features.
   - **Split into two PRs,** F8.4a (the foundation and header) and F8.4b (the chat screens), so the look can be reviewed before every screen changes.
   - **The logo keeps its shape** (the three stripes), recoloured to the new palette.
+  - **F8.4b, the chat:** questions are condensed header lines in a left-aligned log, not bubbles. Each answer has a timing-tower stripe coloured by its state: yellow while streaming, quiet grey when done, red on an error, dashed when stopped. Starter questions are rows of a timing table, not cards. Citations and links are wet blue. Keyboard focus rings are hard white, so red is only the logo, Send and errors.
 
 ### Open questions (settled when the feature starts)
 

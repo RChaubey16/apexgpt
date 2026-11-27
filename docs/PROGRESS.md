@@ -22,7 +22,7 @@ Related: [PLAN.md](./PLAN.md) (the features being built now) · [FEATURES.md](./
 | **Hosting** | Coolify on one VPS (backend 768 MB / 1 CPU, frontend 384 MB) · Neon Postgres 18 + pgvector (~80 MB of the 1 GB free tier) |
 | **Data** | Seasons 1950–2025: Jolpica-F1 statistics, 14,581 chunks from ~2,350 Wikipedia articles |
 | **Health** | Production smoke test PASS (infrastructure 7/7, answers 8/8) · weekly encrypted backup verified by a test restore |
-| **In progress** | Phase 8 (v1.1.0): F8.4a, the pit wall design system and site header (PR raised). See [PLAN.md](./PLAN.md) |
+| **In progress** | Phase 8 (v1.1.0): F8.4b, the chat screens in the pit wall design (PR raised). See [PLAN.md](./PLAN.md) |
 | **Last updated** | 2026-11-27 |
 
 **What v1.0.0 does:**
@@ -34,7 +34,7 @@ The full list is in [FEATURES.md](./FEATURES.md#shipped-in-v100).
 
 ## Next up
 
-**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1–F8.3 are merged; **F8.4a** (the revamp's foundation) is in review; next is **F8.4b, `feature/revamp-chat`**, then F8.5.
+**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1–F8.4a are merged; **F8.4b** (the chat screens) is in review; next is **F8.5, `feature/season-page`**.
 
 After that, pick from:
 1. **The open issues below,** especially the ones marked ⭐ (they affect answer quality or operations).
@@ -55,8 +55,8 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | F8.1 App icons and favicons | `feature/app-icons` | #59 | ✅ | Logo = the header's three speed stripes (`frontend/brand/`); `npm run icons` generates the favicon (16/32/48), SVG icon, Apple icon, manifest icons (192/512/maskable) and the API domain's favicon |
 | F8.2 Page metadata and social previews | `feature/page-metadata` | #60 | ✅ | Title "ApexGPT: Formula 1 chat assistant"; Open Graph and Twitter cards with a 1200×630 image (`brand/og.svg`); per-page canonical URLs; `robots.txt` and `sitemap.xml`. Needs `NEXT_PUBLIC_SITE_URL` in Coolify (required) |
 | F8.3 Current season endpoint | `feature/season-api` | #61 | ✅ | `GET /api/season/current`: standings and the next race (every session, UTC) from Jolpica; cached 10 min, stale data served for up to 24 h when Jolpica is down, 503 otherwise; off-season handled; `RATE_LIMIT_SEASON`. The smoke test checks it (infrastructure now 8 checks) |
-| F8.4a Revamp: design system and site header | `feature/revamp-shell` | #62 | 🔍 | The "pit wall" direction: slate, tyre-compound colours for status, Archivo (condensed for display); logo and share image recoloured; a shared `SiteHeader` with navigation (hidden until `/season` is live) |
-| F8.4b Revamp: the chat screens | `feature/revamp-chat` | | ⬜ | |
+| F8.4a Revamp: design system and site header | `feature/revamp-shell` | #62 | ✅ | The "pit wall" direction: slate, tyre-compound colours for status, Archivo (condensed for display); logo and share image recoloured; a shared `SiteHeader` with navigation (hidden until `/season` is live) |
+| F8.4b Revamp: the chat screens | `feature/revamp-chat` | | 🔍 | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
 | F8.5 Current season page | `feature/season-page` | | ⬜ | |
 | Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |
 

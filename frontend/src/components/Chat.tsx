@@ -172,15 +172,12 @@ export function Chat({
       >
         <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-6 px-4 py-6">
           {conversation.messages.length === 0 ? (
-            <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-6 py-4">
-              <div className="flex flex-col items-center gap-2 text-center">
-                <p className="text-xs font-semibold tracking-[0.25em] text-accent-text uppercase">
-                  Lights out
-                </p>
-                <h2 className="text-2xl font-black italic tracking-tight sm:text-3xl">
+            <div className="my-auto flex w-full flex-col gap-6 py-4">
+              <div className="flex flex-col gap-2">
+                <h2 className="text-3xl leading-tight font-extrabold tracking-tight font-stretch-condensed sm:text-4xl">
                   What do you want to know?
                 </h2>
-                <p className="max-w-md text-soft">
+                <p className="max-w-[60ch] text-soft">
                   Ask about any driver, team, circuit, season or rivalry from 1950 to
                   2025.
                 </p>
@@ -241,13 +238,13 @@ export function Chat({
                   : "Chat is unavailable (frontend misconfigured)"
               }
               disabled={apiBaseUrl === null}
-              className="max-h-40 min-h-11 min-w-0 flex-1 resize-none rounded-xl border border-control bg-raised px-4 py-2.5 text-base text-foreground placeholder:text-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
+              className="max-h-40 min-h-11 min-w-0 flex-1 resize-none rounded-md border border-control bg-raised px-4 py-2.5 text-base text-foreground placeholder:text-muted focus:border-foreground disabled:cursor-not-allowed disabled:opacity-50"
             />
             {answering ? (
               <button
                 type="button"
                 onClick={() => controller.current?.abort()}
-                className="h-11 shrink-0 rounded-xl border border-control px-4 text-sm font-medium text-soft hover:border-foreground hover:text-foreground"
+                className="h-11 shrink-0 rounded-md border border-control px-4 text-base font-semibold text-soft font-stretch-condensed hover:border-foreground hover:text-foreground"
               >
                 Stop
               </button>
@@ -255,7 +252,7 @@ export function Chat({
               <button
                 type="submit"
                 disabled={!canSend}
-                className="h-11 shrink-0 -skew-x-6 rounded-lg bg-accent px-5 text-sm font-bold tracking-wide text-on-accent uppercase hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-raised disabled:text-muted"
+                className="h-11 shrink-0 rounded-md bg-accent px-5 text-base font-bold text-on-accent font-stretch-condensed hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-raised disabled:text-muted"
               >
                 Send
               </button>
@@ -279,11 +276,17 @@ function questionBefore(messages: Message[], index: number): string {
   return previous?.role === "user" ? previous.content : "";
 }
 
+/**
+ * A question, set like a timing-screen header: left-aligned, condensed, with
+ * a rule above each one after the first, so a chat reads as a log of
+ * question-and-answer laps rather than chat bubbles.
+ */
 function UserMessageView({ content }: { content: string }) {
   return (
-    <div className="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-r-sm border-r-2 border-accent bg-raised px-4 py-2.5 text-foreground">
-      {content}
-    </div>
+    <p className="border-t border-line pt-5 text-lg leading-snug font-semibold break-words whitespace-pre-wrap text-foreground font-stretch-semi-condensed first:border-t-0 first:pt-0">
+      <span className="sr-only">You asked: </span>
+      <span>{content}</span>
+    </p>
   );
 }
 
@@ -302,9 +305,12 @@ function AnswerView({
   children: ReactNode;
 }) {
   const status = statusLine(answer);
+  // The timing-tower stripe: its colour is the answer's state. Yellow (the
+  // medium compound) while it streams, quiet once done, red on an error,
+  // dashed when stopped.
   return (
     <article
-      className="flex max-w-full min-w-0 flex-col gap-2 border-l-2 border-line pl-3 sm:pl-4 data-[status=streaming]:border-accent"
+      className="flex max-w-full min-w-0 flex-col gap-2 border-l-[3px] border-control pl-3 transition-colors duration-500 sm:pl-4 data-[status=error]:border-accent data-[status=stopped]:border-dashed data-[status=streaming]:border-warning"
       aria-busy={answer.status === "streaming"}
       data-status={answer.status}
     >
@@ -320,7 +326,7 @@ function AnswerView({
       {status && (
         <p className="flex items-center gap-2 text-sm text-soft" role="status">
           <span
-            className="h-2 w-2 animate-pulse rounded-full bg-accent"
+            className="h-2 w-2 animate-pulse rounded-full bg-warning"
             aria-hidden="true"
           />
           {status}
@@ -329,7 +335,7 @@ function AnswerView({
       {answer.status === "stopped" && <p className="text-sm text-muted">Stopped.</p>}
       {answer.status === "error" && (
         <p
-          className="rounded-lg border border-danger-line bg-danger-bg px-3 py-2 text-sm text-danger-text"
+          className="rounded-md border border-danger-line bg-danger-bg px-3 py-2 text-sm text-danger-text"
           role="alert"
         >
           {answer.error}

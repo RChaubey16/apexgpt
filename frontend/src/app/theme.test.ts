@@ -116,3 +116,17 @@ describe("components", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("pit wall type (F8.4)", () => {
+  // Dropped in the revamp: all-caps tracked labels, italic display type and
+  // skewed buttons. Labels are sentence case; emphasis comes from Archivo's
+  // condensed width and weight instead.
+  it("sets no text in all caps, italics or skew", () => {
+    const offenders = sourceFiles(SRC).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(/\b(uppercase|italic|skew-x-6)\b/g)].map(
+        (m) => `${file.slice(SRC.length + 1)}: ${m[0]}`,
+      ),
+    );
+    expect(offenders).toEqual([]);
+  });
+});

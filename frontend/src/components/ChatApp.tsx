@@ -165,17 +165,18 @@ export function ChatApp({ apiBaseUrl, storage: storageOverride, stream }: ChatAp
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-expanded={drawerOpen}
-            className="min-h-10 rounded-lg px-3 text-sm text-soft hover:bg-raised hover:text-foreground"
+            className="min-h-10 rounded-md px-3 text-sm text-soft hover:bg-raised hover:text-foreground"
           >
-            ☰ Chats{conversations.length > 0 && ` (${conversations.length})`}
+            <span aria-hidden="true">☰ </span>
+            Chats{conversations.length > 0 && ` (${conversations.length})`}
           </button>
           {active && (
             <button
               type="button"
               onClick={startNew}
-              className="min-h-10 rounded-lg px-3 text-sm text-soft hover:bg-raised hover:text-foreground"
+              className="min-h-10 rounded-md px-3 text-sm text-soft hover:bg-raised hover:text-foreground"
             >
-              + New chat
+              New chat
             </button>
           )}
         </div>
