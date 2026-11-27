@@ -22,7 +22,7 @@ Related: [PLAN.md](./PLAN.md) (the features being built now) · [FEATURES.md](./
 | **Hosting** | Coolify on one VPS (backend 768 MB / 1 CPU, frontend 384 MB) · Neon Postgres 18 + pgvector (~80 MB of the 1 GB free tier) |
 | **Data** | Seasons 1950–2025: Jolpica-F1 statistics, 14,581 chunks from ~2,350 Wikipedia articles |
 | **Health** | Production smoke test PASS (infrastructure 7/7, answers 8/8) · weekly encrypted backup verified by a test restore |
-| **In progress** | Phase 8 (v1.1.0): F8.6, the F1 app restyle (PR raised). See [PLAN.md](./PLAN.md) |
+| **In progress** | Phase 8 (v1.1.0): F8.7, decided championships on `/season` (PR raised). See [PLAN.md](./PLAN.md) |
 | **Last updated** | 2026-11-27 |
 
 **What v1.0.0 does:**
@@ -34,7 +34,7 @@ The full list is in [FEATURES.md](./FEATURES.md#shipped-in-v100).
 
 ## Next up
 
-**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1–F8.5 are merged. The F8.4 "pit wall" look was rejected once seen locally, so **F8.6** restyles everything in the F1 app style (in review). Next is **F8.7, `feature/season-champions`**; then deploy, run the smoke test and tag `v1.1.0`.
+**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1–F8.5 are merged. The F8.4 "pit wall" look was rejected once seen locally, so F8.6 restyled everything in the F1 app style (merged). **F8.7** (decided championships) is in review; then deploy, run the smoke test and tag `v1.1.0`.
 
 After that, pick from:
 1. **The open issues below,** especially the ones marked ⭐ (they affect answer quality or operations).
@@ -58,8 +58,8 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | F8.4a Revamp: design system and site header | `feature/revamp-shell` | #62 | ✅ | The "pit wall" direction: slate, tyre-compound colours for status, Archivo (condensed for display); logo and share image recoloured; a shared `SiteHeader` with navigation (hidden until `/season` is live) |
 | F8.4b Revamp: the chat screens | `feature/revamp-chat` | #63 | ✅ | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
 | F8.5 Current season page | `feature/season-page` | #64 | ✅ | `/season`: the next race (countdown, sessions in local time, the next one marked) and two timing towers with gap to the leader and team colour stripes; stale, off-season and error states. Turns on the header navigation and adds `/season` to the sitemap |
-| F8.6 Restyle: the F1 app style | `feature/f1-restyle` | #65 | 🔍 | Replaces the pit wall look of F8.4a/b and F8.5 (rejected: "all white and big text"): carbon, F1 red, Titillium Web, 14px base, card rows, boxed countdown |
-| F8.7 Decided championships on `/season` | `feature/season-champions` | | ⬜ | Backend works out decided titles (sprints included); the page names the champions |
+| F8.6 Restyle: the F1 app style | `feature/f1-restyle` | #65 | ✅ | Replaces the pit wall look of F8.4a/b and F8.5 (rejected: "all white and big text"): carbon, F1 red, Titillium Web, 14px base, card rows, boxed countdown |
+| F8.7 Decided championships on `/season` | `feature/season-champions` | #66 | 🔍 | `champions` in `GET /api/season/current` (decided once the leader's margin beats the points left, sprints included; P1 once the season's over); the page announces them and tags their rows. The frontend accepts a response without the field |
 | Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |
 
 The MVP's 44 features (F0.1–F7.4) are listed in the [archived PROGRESS.md](./archive/v1.0.0-mvp/PROGRESS.md#feature-checklists).
@@ -97,6 +97,7 @@ Carried over from the MVP (each tag is the feature where the issue was found). �
 - **GitHub disables scheduled workflows** after 60 days without commits. If the weekly backup stops, re-enable it under **Actions**. *(F7.3)*
 
 ### Behaviour worth knowing (by design, for now)
+- **The docker compose frontend can serve stale CSS** after git switches branches: its dev server's file watcher misses changes on the bind mount. `docker compose restart frontend` fixes it. *(F8.7)*
 - **Two browser tabs with the same chat open:** the last save wins. *(F5.4)*
 - **The answer cache isn't cleared by a data reload;** entries expire after 24 h. *(F4.4)*
 - **Corpus details:** 4 chunks are longer than the embedder's 512 tokens (their ends are only in full-text search), and 39 articles are very short stubs. *(F2.3/F2.4)*

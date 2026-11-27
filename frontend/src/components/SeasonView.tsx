@@ -18,6 +18,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  championsLine,
   countdown,
   fetchSeason,
   formatPoints,
@@ -134,6 +135,8 @@ function Season({
       ? `Standings after round ${season.round} of ${season.total_rounds}`
       : "Standings";
 
+  const champions = championsLine(season);
+
   return (
     <>
       <div className="flex flex-col gap-0.5">
@@ -150,6 +153,15 @@ function Season({
         )}
       </div>
 
+      {champions && (
+        <p className="flex flex-col gap-0.5 rounded-lg bg-surface px-4 py-3">
+          <span className="text-xs font-semibold tracking-wide text-accent-text uppercase">
+            {season.complete ? "Champions" : "Champions decided"}
+          </span>
+          <span className="font-semibold">{champions}</span>
+        </p>
+      )}
+
       {season.next_race ? (
         <NextRaceView
           race={season.next_race}
@@ -165,8 +177,14 @@ function Season({
       )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[3fr_2fr]">
-        <DriversStandings rows={season.drivers} />
-        <ConstructorsStandings rows={season.constructors} />
+        <DriversStandings
+          rows={season.drivers}
+          champion={season.champions?.driver_id ?? null}
+        />
+        <ConstructorsStandings
+          rows={season.constructors}
+          champion={season.champions?.constructor_id ?? null}
+        />
       </div>
 
       <p className="text-xs text-muted">
@@ -328,7 +346,22 @@ function Heading({ id, children }: { id: string; children: string }) {
   );
 }
 
-function DriversStandings({ rows }: { rows: DriverRow[] }) {
+/** The red tag on a champion's row (F8.7). */
+function ChampionTag() {
+  return (
+    <span className="shrink-0 rounded-sm bg-accent px-1.5 py-px text-[0.7rem] font-bold tracking-wide text-on-accent uppercase">
+      Champion
+    </span>
+  );
+}
+
+function DriversStandings({
+  rows,
+  champion,
+}: {
+  rows: DriverRow[];
+  champion: string | null;
+}) {
   const leader = rows[0]?.points ?? 0;
   return (
     <section aria-labelledby="drivers" className="min-w-0">
@@ -376,6 +409,7 @@ function DriversStandings({ rows }: { rows: DriverRow[] }) {
                         <span className="truncate text-xs text-muted">{d.team}</span>
                       )}
                     </span>
+                    {d.driver_id === champion && <ChampionTag />}
                   </span>
                 </td>
                 <td className={`${cell} hidden text-right text-soft sm:table-cell`}>
@@ -396,7 +430,13 @@ function DriversStandings({ rows }: { rows: DriverRow[] }) {
   );
 }
 
-function ConstructorsStandings({ rows }: { rows: ConstructorRow[] }) {
+function ConstructorsStandings({
+  rows,
+  champion,
+}: {
+  rows: ConstructorRow[];
+  champion: string | null;
+}) {
   const leader = rows[0]?.points ?? 0;
   return (
     <section aria-labelledby="constructors" className="min-w-0">
@@ -436,6 +476,7 @@ function ConstructorsStandings({ rows }: { rows: ConstructorRow[] }) {
                   <span className="flex items-center gap-2.5">
                     <TeamBar colour={teamColour(c.constructor_id)} />
                     <span className="truncate font-bold">{c.name}</span>
+                    {c.constructor_id === champion && <ChampionTag />}
                   </span>
                 </td>
                 <td className={`${cell} hidden text-right text-soft sm:table-cell`}>

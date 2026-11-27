@@ -27,8 +27,10 @@ def test_current_season() -> None:
     body = response.json()
     assert set(body) == {
         "season", "round", "total_rounds", "complete", "drivers", "constructors",
-        "next_race", "fetched_at", "stale",
+        "next_race", "champions", "fetched_at", "stale",
     }  # fmt: skip
+    # fakes.in_season(): leads of 102.5 and 166 with 33 and 58 points left.
+    assert body["champions"] == {"driver_id": "antonelli", "constructor_id": "mercedes"}
     assert body["drivers"][0] == {
         "position": 1, "position_text": "1", "driver_id": "antonelli",
         "code": "ANT", "number": 44, "given_name": "Kimi",
