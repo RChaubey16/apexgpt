@@ -58,7 +58,7 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | F8.4a Revamp: design system and site header | `feature/revamp-shell` | #62 | ✅ | The "pit wall" direction: slate, tyre-compound colours for status, Archivo (condensed for display); logo and share image recoloured; a shared `SiteHeader` with navigation (hidden until `/season` is live) |
 | F8.4b Revamp: the chat screens | `feature/revamp-chat` | #63 | ✅ | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
 | F8.5 Current season page | `feature/season-page` | #64 | ✅ | `/season`: the next race (countdown, sessions in local time, the next one marked) and two timing towers with gap to the leader and team colour stripes; stale, off-season and error states. Turns on the header navigation and adds `/season` to the sitemap |
-| F8.6 Restyle: the F1 app style | `feature/f1-restyle` | | 🔍 | Replaces the pit wall look of F8.4a/b and F8.5 (rejected: "all white and big text"): carbon, F1 red, Titillium Web, 14px base, card rows, boxed countdown |
+| F8.6 Restyle: the F1 app style | `feature/f1-restyle` | #65 | 🔍 | Replaces the pit wall look of F8.4a/b and F8.5 (rejected: "all white and big text"): carbon, F1 red, Titillium Web, 14px base, card rows, boxed countdown |
 | F8.7 Decided championships on `/season` | `feature/season-champions` | | ⬜ | Backend works out decided titles (sprints included); the page names the champions |
 | Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |
 
