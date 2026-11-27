@@ -47,7 +47,7 @@ Planned in [PLAN.md](./PLAN.md):
 - **Page metadata and social previews.**
 - **A current-season endpoint,** with live data from Jolpica, kept out of the chat's data.
 - **A complete frontend revamp.**
-- **A `/season` page:** the drivers' and constructors' standings, and the next race.
+- **A `/season` page:** the drivers' and constructors' standings (with the gap to the leader and team colours), and the next race with a countdown and its sessions in your time zone.
 
 ### Not scheduled yet
 

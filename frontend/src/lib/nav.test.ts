@@ -20,11 +20,11 @@ describe("navigation", () => {
     expect(navigation([page("chat", true), page("season", false)])).toEqual([]);
   });
 
-  it("keeps the season page off until F8.5 builds it", () => {
-    expect(NAV_ITEMS.find((p) => p.id === "season")).toMatchObject({
-      href: "/season",
-      live: false,
-    });
-    expect(navigation()).toEqual([]);
+  it("lists the chat and the current season page (live since F8.5)", () => {
+    expect(navigation().map((p) => [p.label, p.href])).toEqual([
+      ["Chat", "/"],
+      ["Current season", "/season"],
+    ]);
+    expect(NAV_ITEMS.every((p) => p.live)).toBe(true);
   });
 });

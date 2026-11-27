@@ -22,7 +22,7 @@ Related: [PLAN.md](./PLAN.md) (the features being built now) · [FEATURES.md](./
 | **Hosting** | Coolify on one VPS (backend 768 MB / 1 CPU, frontend 384 MB) · Neon Postgres 18 + pgvector (~80 MB of the 1 GB free tier) |
 | **Data** | Seasons 1950–2025: Jolpica-F1 statistics, 14,581 chunks from ~2,350 Wikipedia articles |
 | **Health** | Production smoke test PASS (infrastructure 7/7, answers 8/8) · weekly encrypted backup verified by a test restore |
-| **In progress** | Phase 8 (v1.1.0): F8.4b, the chat screens in the pit wall design (PR raised). See [PLAN.md](./PLAN.md) |
+| **In progress** | Phase 8 (v1.1.0): F8.5, the current season page (PR raised). See [PLAN.md](./PLAN.md) |
 | **Last updated** | 2026-11-27 |
 
 **What v1.0.0 does:**
@@ -34,7 +34,7 @@ The full list is in [FEATURES.md](./FEATURES.md#shipped-in-v100).
 
 ## Next up
 
-**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1–F8.4a are merged; **F8.4b** (the chat screens) is in review; next is **F8.5, `feature/season-page`**.
+**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1–F8.4b are merged; **F8.5** (the `/season` page) is in review; after it: deploy, run the smoke test and tag `v1.1.0`.
 
 After that, pick from:
 1. **The open issues below,** especially the ones marked ⭐ (they affect answer quality or operations).
@@ -56,8 +56,8 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | F8.2 Page metadata and social previews | `feature/page-metadata` | #60 | ✅ | Title "ApexGPT: Formula 1 chat assistant"; Open Graph and Twitter cards with a 1200×630 image (`brand/og.svg`); per-page canonical URLs; `robots.txt` and `sitemap.xml`. Needs `NEXT_PUBLIC_SITE_URL` in Coolify (required) |
 | F8.3 Current season endpoint | `feature/season-api` | #61 | ✅ | `GET /api/season/current`: standings and the next race (every session, UTC) from Jolpica; cached 10 min, stale data served for up to 24 h when Jolpica is down, 503 otherwise; off-season handled; `RATE_LIMIT_SEASON`. The smoke test checks it (infrastructure now 8 checks) |
 | F8.4a Revamp: design system and site header | `feature/revamp-shell` | #62 | ✅ | The "pit wall" direction: slate, tyre-compound colours for status, Archivo (condensed for display); logo and share image recoloured; a shared `SiteHeader` with navigation (hidden until `/season` is live) |
-| F8.4b Revamp: the chat screens | `feature/revamp-chat` | #63 | 🔍 | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
-| F8.5 Current season page | `feature/season-page` | | ⬜ | |
+| F8.4b Revamp: the chat screens | `feature/revamp-chat` | #63 | ✅ | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
+| F8.5 Current season page | `feature/season-page` | #64 | 🔍 | `/season`: the next race (countdown, sessions in local time, the next one marked) and two timing towers with gap to the leader and team colour stripes; stale, off-season and error states. Turns on the header navigation and adds `/season` to the sitemap |
 | Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |
 
 The MVP's 44 features (F0.1–F7.4) are listed in the [archived PROGRESS.md](./archive/v1.0.0-mvp/PROGRESS.md#feature-checklists).

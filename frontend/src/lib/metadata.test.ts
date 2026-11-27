@@ -9,7 +9,13 @@ import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { APP_DESCRIPTION, APP_TITLE } from "@/lib/brand";
 
-import { SITEMAP_PAGES, homeMetadata, pageMetadata, siteMetadata } from "./metadata";
+import {
+  SITEMAP_PAGES,
+  homeMetadata,
+  pageMetadata,
+  seasonMetadata,
+  siteMetadata,
+} from "./metadata";
 
 const SITE = "https://apexgpt.example.com";
 
@@ -87,5 +93,21 @@ describe("robots.txt and sitemap.xml", () => {
   it("fall back to local development without the setting", () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
     expect(robots().sitemap).toBe("http://localhost:3000/sitemap.xml");
+  });
+});
+
+describe("the season page's metadata (F8.5)", () => {
+  it("has its own title, description and canonical address", () => {
+    expect(seasonMetadata.title).toBe("Current season");
+    expect(seasonMetadata.description).toMatch(/standings/);
+    expect(seasonMetadata.alternates).toEqual({ canonical: "/season" });
+    expect(seasonMetadata.openGraph).toMatchObject({
+      url: "/season",
+      siteName: "ApexGPT",
+    });
+  });
+
+  it("is in the sitemap", () => {
+    expect(SITEMAP_PAGES).toEqual(["/", "/season"]);
   });
 });
