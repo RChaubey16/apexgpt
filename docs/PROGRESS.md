@@ -56,7 +56,7 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | F8.2 Page metadata and social previews | `feature/page-metadata` | #60 | ✅ | Title "ApexGPT: Formula 1 chat assistant"; Open Graph and Twitter cards with a 1200×630 image (`brand/og.svg`); per-page canonical URLs; `robots.txt` and `sitemap.xml`. Needs `NEXT_PUBLIC_SITE_URL` in Coolify (required) |
 | F8.3 Current season endpoint | `feature/season-api` | #61 | ✅ | `GET /api/season/current`: standings and the next race (every session, UTC) from Jolpica; cached 10 min, stale data served for up to 24 h when Jolpica is down, 503 otherwise; off-season handled; `RATE_LIMIT_SEASON`. The smoke test checks it (infrastructure now 8 checks) |
 | F8.4a Revamp: design system and site header | `feature/revamp-shell` | #62 | ✅ | The "pit wall" direction: slate, tyre-compound colours for status, Archivo (condensed for display); logo and share image recoloured; a shared `SiteHeader` with navigation (hidden until `/season` is live) |
-| F8.4b Revamp: the chat screens | `feature/revamp-chat` | | 🔍 | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
+| F8.4b Revamp: the chat screens | `feature/revamp-chat` | #63 | 🔍 | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
 | F8.5 Current season page | `feature/season-page` | | ⬜ | |
 | Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |
 
