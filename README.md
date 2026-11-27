@@ -130,7 +130,7 @@ Production runs on a VPS with Coolify ([docker-compose.prod.yml](docker-compose.
 ## Documentation
 
 - [Progress](docs/PROGRESS.md): current status, features in progress, open issues
-- [Plan](docs/PLAN.md): the features being built now (Phase 8, v1.1.0)
+- [Plan](docs/PLAN.md): the next phase, once planned (Phase 8's plan is archived)
 - [Features](docs/FEATURES.md): what shipped in v1.0.0 and what's planned
 - [Deployment](docs/DEPLOYMENT.md): Coolify, Neon, backups and the smoke test
 - [Data strategy](docs/DATA-STRATEGY.md): what data is stored and why
