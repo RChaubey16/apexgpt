@@ -17,26 +17,28 @@ Related: [PLAN.md](./PLAN.md) (the features being built now) · [FEATURES.md](./
 
 | | |
 |---|---|
-| **Version** | [v1.0.0](https://github.com/RChaubey16/apexgpt/releases/tag/v1.0.0), the MVP (released 2026-11-26) |
+| **Version** | [v1.1.0](https://github.com/RChaubey16/apexgpt/releases/tag/v1.1.0): a new look and the current season (released 2026-11-27) · [v1.0.0](https://github.com/RChaubey16/apexgpt/releases/tag/v1.0.0), the MVP (2026-11-26) |
 | **Live** | https://apexgpt.ruturaj.xyz · API https://apexgpt-api.ruturaj.xyz |
 | **Hosting** | Coolify on one VPS (backend 768 MB / 1 CPU, frontend 384 MB) · Neon Postgres 18 + pgvector (~80 MB of the 1 GB free tier) |
 | **Data** | Seasons 1950–2025: Jolpica-F1 statistics, 14,581 chunks from ~2,350 Wikipedia articles |
-| **Health** | Production smoke test PASS (infrastructure 7/7, answers 8/8) · weekly encrypted backup verified by a test restore |
-| **In progress** | Phase 8 (v1.1.0): F8.7, decided championships on `/season` (PR raised). See [PLAN.md](./PLAN.md) |
+| **Health** | Production smoke test PASS on v1.1.0 (infrastructure 8/8, answers 8/8; one answer after a re-run, see the fallback-cache issue) · weekly encrypted backup verified by a test restore |
+| **In progress** | Nothing: Phase 8 is released. The next phase is planned in [PLAN.md](./PLAN.md) first |
 | **Last updated** | 2026-11-27 |
+
+**What v1.1.0 adds:**
+- A `/season` page: live 2026 standings with team colours and gaps, the next race with a countdown in the visitor's time zone, and decided champions.
+- A dark, compact redesign in the spirit of the F1 app; navigation; app icons; link previews.
 
 **What v1.0.0 does:**
 - Cited answers to F1 statistics questions (text-to-SQL over five stats views) and history questions (hybrid search with reranking over Wikipedia).
 - Follow-ups, corrected false premises, and declined out-of-scope questions.
 - A streaming chat UI with local history, copy and feedback.
 
-The full list is in [FEATURES.md](./FEATURES.md#shipped-in-v100).
+The full list is in [FEATURES.md](./FEATURES.md#shipped-in-v110).
 
 ## Next up
 
-**Phase 8, v1.1.0** ([PLAN.md](./PLAN.md)): app icons, page metadata, a current-season endpoint, a frontend revamp and a `/season` page, built one at a time. F8.1–F8.5 are merged. The F8.4 "pit wall" look was rejected once seen locally, so F8.6 restyled everything in the F1 app style (merged). **F8.7** (decided championships) is in review; then deploy, run the smoke test and tag `v1.1.0`.
-
-After that, pick from:
+**Plan the next phase** in [PLAN.md](./PLAN.md) ([WORKFLOW.md](./WORKFLOW.md#planning-a-set-of-features)). Pick from:
 1. **The open issues below,** especially the ones marked ⭐ (they affect answer quality or operations).
 2. **The planned features** in [FEATURES.md](./FEATURES.md#planned).
 
@@ -48,7 +50,7 @@ Before shipping a change that affects answers, run the evaluation (`python -m ev
 
 Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · ✅ merged · ⛔ blocked.
 
-### Phase 8: v1.1.0 ([plan](./PLAN.md))
+### Phase 8: v1.1.0 ✅ released 2026-11-27 ([plan](./archive/v1.1.0/PLAN.md))
 
 | Feature | Branch | PR | Status | Notes |
 |---|---|---|---|---|
@@ -59,8 +61,8 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | F8.4b Revamp: the chat screens | `feature/revamp-chat` | #63 | ✅ | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
 | F8.5 Current season page | `feature/season-page` | #64 | ✅ | `/season`: the next race (countdown, sessions in local time, the next one marked) and two timing towers with gap to the leader and team colour stripes; stale, off-season and error states. Turns on the header navigation and adds `/season` to the sitemap |
 | F8.6 Restyle: the F1 app style | `feature/f1-restyle` | #65 | ✅ | Replaces the pit wall look of F8.4a/b and F8.5 (rejected: "all white and big text"): carbon, F1 red, Titillium Web, 14px base, card rows, boxed countdown |
-| F8.7 Decided championships on `/season` | `feature/season-champions` | #66 | 🔍 | `champions` in `GET /api/season/current` (decided once the leader's margin beats the points left, sprints included; P1 once the season's over); the page announces them and tags their rows. The frontend accepts a response without the field |
-| Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |
+| F8.7 Decided championships on `/season` | `feature/season-champions` | #66 | ✅ | `champions` in `GET /api/season/current` (decided once the leader's margin beats the points left, sprints included; P1 once the season's over); the page announces them and tags their rows. The frontend accepts a response without the field |
+| Deploy, smoke test, tag `v1.1.0` | | | ✅ | Deployed 2026-11-27; smoke test 8/8 and 8/8 (`multi-imola-record` passed on a re-run, see the fallback-cache issue); [release](https://github.com/RChaubey16/apexgpt/releases/tag/v1.1.0) |
 
 The MVP's 44 features (F0.1–F7.4) are listed in the [archived PROGRESS.md](./archive/v1.0.0-mvp/PROGRESS.md#feature-checklists).
 
@@ -71,6 +73,7 @@ The MVP's 44 features (F0.1–F7.4) are listed in the [archived PROGRESS.md](./a
 Carried over from the MVP (each tag is the feature where the issue was found). ⭐ = most worth doing next.
 
 ### Answer quality
+- ⭐ **The answer cache keeps fallback answers for 24 hours.** In the v1.1.0 smoke test, `multi-imola-record` was answered by the OpenRouter fallback while Groq was rate-limited: its SQL found no Imola winners, and that wrong answer was then served from the cache until the backend restarted. Cache fallback answers for a short time (or not at all), or only cache answers whose tools succeeded with rows. *(v1.1.0)*
 - ⭐ **No before/after measurement of the F6.3 tuning yet.** The eval judge grades differently by provider: on identical answers, 7 of 54 verdicts changed between Groq (strict) and Gemini (lenient). Runs judged through the fallback chain can't be compared, which is why the judge is now pinned. Re-judge both runs with one pinned provider when its quota allows: `python -m evals rescore <run> --judge-provider groq` on `data/eval/runs/20261126T031244Z-baseline` and `…T034345Z-tuned`. *(F6.3)*
 - ⭐ **Fallback "echo".** After a provider switch mid-answer, a model can repeat our flattened tool history as its answer (nemotron answered "I called query_stats with {…}."). `prepare_messages` in `backend/app/llm/client.py` writes other providers' tool calls as "I called X with Y."; rephrase or summarise, and test on all three providers. *(F3.3/F6.3)*
 - **Prompt rules not checked live yet.** Two rules from F6.3 haven't been run against a live model:

@@ -38,16 +38,17 @@ The MVP ([release notes](https://github.com/RChaubey16/apexgpt/releases/tag/v1.0
 
 ---
 
+## Shipped in v1.1.0
+
+Phase 8 ([release notes](https://github.com/RChaubey16/apexgpt/releases/tag/v1.1.0), [plan](./archive/v1.1.0/PLAN.md)):
+- **A current season page** (`/season`): the drivers' and constructors' standings with team colours and the gap to the leader; the next race with a live countdown and its sessions in your time zone; the champions once a title is mathematically decided. Live data from Jolpica, kept out of the chat's data.
+- **A dark, compact design** in the spirit of the F1 app (F1 red, Titillium Web), with navigation between Chat and Current season.
+- **App icons and favicons** for both domains, and a web manifest.
+- **Link previews:** titles, descriptions, a share image, a sitemap and robots.txt.
+
+---
+
 ## Planned
-
-### Phase 8: v1.1.0 (in progress)
-
-Planned in [PLAN.md](./PLAN.md):
-- **App icons and favicons,** with an ApexGPT logo.
-- **Page metadata and social previews.**
-- **A current-season endpoint,** with live data from Jolpica, kept out of the chat's data.
-- **A complete frontend revamp.**
-- **A `/season` page:** the drivers' and constructors' standings (with the gap to the leader and team colours), and the next race with a countdown and its sessions in your time zone.
 
 ### Not scheduled yet
 
