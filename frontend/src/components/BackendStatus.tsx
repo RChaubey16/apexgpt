@@ -7,20 +7,22 @@ import { checkReadiness, type ReadinessState } from "@/lib/api";
 type DisplayState = ReadinessState | "checking" | "misconfigured";
 
 const MESSAGES: Record<DisplayState, { label: string; tone: string }> = {
-  checking: { label: "Connecting to the pit wall…", tone: "bg-muted" },
-  ready: { label: "All systems go", tone: "bg-success" },
+  // Tyre-compound colours (globals.css): yellow in progress or degraded,
+  // green ready, red failed.
+  checking: { label: "Connecting to the pit wall…", tone: "border-warning" },
+  ready: { label: "All systems go", tone: "border-success" },
   database_unavailable: {
     label: "Backend is up, but the database is unavailable",
-    tone: "bg-warning",
+    tone: "border-warning",
   },
-  unreachable: { label: "Can't reach the backend", tone: "bg-accent" },
+  unreachable: { label: "Can't reach the backend", tone: "border-accent" },
   unexpected_response: {
     label: "Backend sent an unexpected response",
-    tone: "bg-accent",
+    tone: "border-accent",
   },
   misconfigured: {
     label: "Frontend is misconfigured (backend URL missing or invalid)",
-    tone: "bg-accent",
+    tone: "border-accent",
   },
 };
 
@@ -58,12 +60,13 @@ export function BackendStatus({ apiBaseUrl }: BackendStatusProps) {
 
   return (
     <div
-      className="flex items-center gap-2.5 rounded-full border border-line bg-background px-3 py-1.5 text-xs text-soft sm:text-sm"
+      className="flex items-center gap-2 text-xs text-soft sm:text-sm"
       role="status"
       aria-live="polite"
     >
       <span
-        className={`h-2.5 w-2.5 rounded-full ${tone} ${state === "checking" ? "animate-pulse" : ""}`}
+        // A tyre seen side-on: a coloured ring around a slate hub.
+        className={`h-3 w-3 shrink-0 rounded-full border-[3px] bg-background ${tone} ${state === "checking" ? "animate-pulse" : ""}`}
         aria-hidden="true"
       />
       <span data-testid="backend-status" data-state={state}>
@@ -73,7 +76,7 @@ export function BackendStatus({ apiBaseUrl }: BackendStatusProps) {
         <button
           type="button"
           onClick={retry}
-          className="ml-1 rounded-full border border-control px-3 py-0.5 text-xs text-soft hover:border-foreground hover:text-foreground"
+          className="ml-1 rounded-md border border-control px-2.5 py-0.5 text-xs text-soft hover:border-foreground hover:text-foreground"
         >
           Retry
         </button>

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <title>ApexGPT</title>
-  <rect width="64" height="64" rx="14" fill="#0b0b0f"/>
-  <g fill="#e10600">
+  <rect width="64" height="64" rx="14" fill="#12171d"/>
+  <g fill="#d93a32">
     <path d="M7 50 L17 50 L27 14 L17 14 Z"/>
     <path d="M22 50 L32 50 L42 14 L32 14 Z"/>
     <path d="M37 50 L47 50 L57 14 L47 14 Z"/>

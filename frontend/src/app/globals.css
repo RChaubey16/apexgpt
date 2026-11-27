@@ -1,7 +1,15 @@
 @import "tailwindcss";
 
 /*
- * ApexGPT theme: dark, carbon greys with F1 racing red.
+ * ApexGPT theme (F8.4a): the pit wall. The engineers' timing screens:
+ * deep slate, dense and precise, with colour used for meaning, taken from the
+ * tyre compounds rather than spread on as decoration:
+ *
+ * - soft red (accent): the brand mark and the one primary action;
+ * - medium yellow (warning): something in progress or needing attention;
+ * - intermediate green (success): ready, done;
+ * - wet blue (info): sources and links;
+ * - hard white (foreground): emphasis.
  *
  * Components use these tokens (bg-surface, text-muted, border-line, …), not
  * Tailwind's default palette, so the look is set here in one place
@@ -11,49 +19,56 @@
  * the ratios, so change a colour there and here together.
  */
 @theme {
-  /* Surfaces, darkest first. */
-  --color-background: #0b0b0f;
-  --color-surface: #141419;
-  --color-raised: #1e1e25;
-  --color-hover: #26262f;
+  /* Surfaces: slate, darkest first. */
+  --color-background: #12171d;
+  --color-surface: #1a2028;
+  --color-raised: #222a34;
+  --color-hover: #2b3440;
 
   /* Lines: dividers, then form-control borders (3:1 on the page). */
-  --color-line: #2a2a33;
-  --color-control: #6b6b78;
+  --color-line: #303a47;
+  --color-control: #6e7a8a;
 
-  /* Text, strongest first. */
-  --color-foreground: #f2f2f5;
-  --color-soft: #c8c8d2;
-  --color-muted: #9b9ba8;
+  /* Text, strongest first. Foreground is the hard compound's white. */
+  --color-foreground: #f4f5f2;
+  --color-soft: #c3cad3;
+  --color-muted: #93a0ae;
 
-  /* F1 red: fills and rings (accent), and red text on dark (accent-text). */
-  --color-accent: #e10600;
-  --color-accent-strong: #c80500;
-  --color-accent-text: #ff6b63;
+  /* Soft compound red: fills and rings (accent), red text on slate. */
+  --color-accent: #d93a32;
+  --color-accent-strong: #c9302a;
+  --color-accent-text: #ff7a70;
   --color-on-accent: #ffffff;
 
-  /* Status. */
-  --color-success: #22c55e;
-  --color-warning: #f5a524;
-  --color-warning-text: #fbbf54;
-  --color-warning-bg: #2a1f0a;
+  /* Medium compound yellow: in progress, caution. */
+  --color-warning: #f2c230;
+  --color-warning-text: #f5cd4e;
+  --color-warning-bg: #2a2410;
+
+  /* Intermediate green: ready. */
+  --color-success: #3dbe5b;
+  --color-success-text: #5fd47a;
+
+  /* Wet blue: sources and links. */
+  --color-info: #3a8fe0;
+  --color-info-text: #7db8f2;
+
+  /* Errors. */
   --color-danger-text: #ff8f87;
-  --color-danger-bg: #2a0f0f;
-  --color-danger-line: #6b1a17;
+  --color-danger-bg: #2c1416;
+  --color-danger-line: #6b2226;
 }
 
+/*
+ * Type: Archivo, one family at two widths. Its width axis gives the timing
+ * screen's condensed face (`font-stretch-condensed`, for the wordmark,
+ * headings and figures) and a normal width for reading. Figures are tabular
+ * everywhere, so numbers line up like a timing tower. Geist Mono is for code
+ * and SQL only.
+ */
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-archivo);
   --font-mono: var(--font-geist-mono);
-}
-
-/* The checkered-flag band under the header. */
-@utility checkered {
-  background-image: repeating-conic-gradient(
-    var(--color-foreground) 0 25%,
-    var(--color-background) 0 50%
-  );
-  background-size: 8px 8px;
 }
 
 /* Racing stripes for the logo mark. */
@@ -75,7 +90,8 @@ html {
 body {
   background: var(--color-background);
   color: var(--color-foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
   -webkit-tap-highlight-color: transparent;
 }
 

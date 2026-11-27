@@ -23,7 +23,8 @@ The features being built now, planned the same way as the MVP ([archived plan](.
 | F8.1 | `feature/app-icons` | An ApexGPT logo (SVG, from the racing-stripe motif); favicons for both domains (frontend and API); an `apple-touch-icon`; a web manifest with 192/512 and maskable icons | `feat: add app icons and favicons` |
 | F8.2 | `feature/page-metadata` | Title template, description, canonical URL, Open Graph and Twitter card tags, a social preview image (1200×630), `robots.txt` and a sitemap | `feat: add page metadata and social previews` |
 | F8.3 | `feature/season-api` | `GET /api/season/current`: the drivers' and constructors' standings plus the next race, from the Jolpica API; a server-side cache; validated external data; the off-season handled; a rate limit | `feat: add current season endpoint` |
-| F8.4 | `feature/frontend-revamp` | The complete redesign, using Claude's **frontend-design** skill (install it before starting). The exact scope is settled when it starts, and it may split into smaller features once designed | `feat: revamp the frontend design` |
+| F8.4a | `feature/revamp-shell` | The redesign's foundation, with Claude's **frontend-design** skill: the "pit wall" design tokens (colours, type), the Archivo font, the logo and share image recoloured, and a shared site header with navigation between pages (shown once there are two) | `feat: add the pit wall design system and site header` |
+| F8.4b | `feature/revamp-chat` | Every chat screen in the new design: the chat list and drawer, the empty state and starter questions, answers (the timing-tower stripe, tables, citations, sources), the composer, errors and notices. Behaviour unchanged | `feat: restyle the chat in the pit wall design` |
 | F8.5 | `feature/season-page` | The `/season` page in the new design: both standings tables, the next race in the visitor's local time, and navigation (Chat · Current season) | `feat: add current season page` |
 
 **After F8.5:** deploy, run the smoke test, and tag `v1.1.0` with a GitHub Release.
@@ -39,6 +40,14 @@ The features being built now, planned the same way as the MVP ([archived plan](.
   - **The next race:** round, name, circuit and location, the race start, and every session of the weekend (practice, sprint qualifying, sprint, qualifying), all in UTC. The page shows them in the visitor's time zone and runs the countdown.
   - **The off-season:** the final standings with `complete: true`, plus the next season's first race once Jolpica publishes the calendar (`next_race: null` until then). If Jolpica's "current" moves to a season with no races yet, the previous season's final standings are shown.
   - **Freshness:** cached for 10 minutes (Jolpica's own cache time), so ~18 requests an hour at most. When Jolpica fails, the last data is served with `stale: true` for up to 24 hours, retried at most once a minute; with nothing cached, a 503.
+
+- **F8.4, settled when it started (2026-11-27):**
+  - **Direction: the pit wall.** The engineers' timing screens: deep slate (not black), dense and precise. Colour is used for meaning and taken from the tyre compounds: soft red for the logo and the one primary action, medium yellow for in progress, intermediate green for ready, wet blue for sources and links, and the hard compound's white for emphasis.
+  - **Type:** Archivo, one family at two widths. The condensed width is for the wordmark, headings and figures, and the normal width for reading. Figures are tabular everywhere. Geist Mono is for code and SQL only.
+  - **Dropped:** the checkered band, all-caps tracked labels, "A · B · C" meta lines and the red "GPT" in the wordmark (the generic defaults the skill steers away from).
+  - **Scope:** a design system, the shared header and every chat screen. Behaviour and tests stay the same; no new chat features.
+  - **Split into two PRs,** F8.4a (the foundation and header) and F8.4b (the chat screens), so the look can be reviewed before every screen changes.
+  - **The logo keeps its shape** (the three stripes), recoloured to the new palette.
 
 ### Open questions (settled when the feature starts)
 

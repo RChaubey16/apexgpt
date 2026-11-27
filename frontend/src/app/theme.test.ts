@@ -47,9 +47,16 @@ describe("contrast", () => {
 
 describe("theme colours", () => {
   it.each(
-    ["foreground", "soft", "muted", "accent-text", "danger-text", "warning-text"].flatMap(
-      (text) => SURFACES.map((surface) => [text, surface]),
-    ),
+    [
+      "foreground",
+      "soft",
+      "muted",
+      "accent-text",
+      "danger-text",
+      "warning-text",
+      "success-text",
+      "info-text",
+    ].flatMap((text) => SURFACES.map((surface) => [text, surface])),
   )("%s text on %s meets WCAG AA (4.5:1)", (text, surface) => {
     expect(contrast(color(text), color(surface))).toBeGreaterThanOrEqual(4.5);
   });
@@ -69,6 +76,10 @@ describe("theme colours", () => {
     ["control", "background"],
     ["control", "surface"],
     ["control", "raised"],
+    // Status colours (tyre compounds) used as dots, rings and bars.
+    ["success", "surface"],
+    ["warning", "surface"],
+    ["info", "surface"],
   ])("%s is visible on %s (3:1, for focus rings and control borders)", (ui, surface) => {
     expect(contrast(color(ui), color(surface))).toBeGreaterThanOrEqual(3);
   });
