@@ -59,7 +59,7 @@ Work since v1.0.0. Status: ⬜ planned · 🟡 in progress · 🔍 PR raised · 
 | F8.4b Revamp: the chat screens | `feature/revamp-chat` | #63 | ✅ | Questions as condensed header lines (no bubbles); answers' timing-tower stripe shows their state; starter questions as timing-table rows; blue citations; no caps, italics or skew (a test guards it); white focus rings |
 | F8.5 Current season page | `feature/season-page` | #64 | ✅ | `/season`: the next race (countdown, sessions in local time, the next one marked) and two timing towers with gap to the leader and team colour stripes; stale, off-season and error states. Turns on the header navigation and adds `/season` to the sitemap |
 | F8.6 Restyle: the F1 app style | `feature/f1-restyle` | #65 | ✅ | Replaces the pit wall look of F8.4a/b and F8.5 (rejected: "all white and big text"): carbon, F1 red, Titillium Web, 14px base, card rows, boxed countdown |
-| F8.7 Decided championships on `/season` | `feature/season-champions` | | 🔍 | `champions` in `GET /api/season/current` (decided once the leader's margin beats the points left, sprints included; P1 once the season's over); the page announces them and tags their rows. The frontend accepts a response without the field |
+| F8.7 Decided championships on `/season` | `feature/season-champions` | #66 | 🔍 | `champions` in `GET /api/season/current` (decided once the leader's margin beats the points left, sprints included; P1 once the season's over); the page announces them and tags their rows. The frontend accepts a response without the field |
 | Deploy, smoke test, tag `v1.1.0` | | | ⬜ | |
 
 The MVP's 44 features (F0.1–F7.4) are listed in the [archived PROGRESS.md](./archive/v1.0.0-mvp/PROGRESS.md#feature-checklists).
