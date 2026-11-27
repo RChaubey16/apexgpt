@@ -58,6 +58,12 @@ export interface NextRace {
   sessions: Session[];
 }
 
+/** Who has won each title (F8.7); null while it's still open. */
+export interface Champions {
+  driver_id: string | null;
+  constructor_id: string | null;
+}
+
 export interface SeasonSnapshot {
   season: number;
   round: number | null;
@@ -66,6 +72,8 @@ export interface SeasonSnapshot {
   drivers: DriverRow[];
   constructors: ConstructorRow[];
   next_race: NextRace | null;
+  /** Optional: a backend from before F8.7 doesn't send it. */
+  champions?: Champions;
   fetched_at: string;
   stale: boolean;
 }
@@ -181,6 +189,10 @@ export function isSeasonSnapshot(v: unknown): v is SeasonSnapshot {
     Array.isArray(v.constructors) &&
     v.constructors.every(isConstructor) &&
     orNull(isNextRace)(v.next_race) &&
+    (v.champions === undefined ||
+      (isObject(v.champions) &&
+        orNull(isString)(v.champions.driver_id) &&
+        orNull(isString)(v.champions.constructor_id))) &&
     isDate(v.fetched_at) &&
     typeof v.stale === "boolean"
   );
@@ -334,4 +346,24 @@ export const NEUTRAL_TEAM_COLOUR = "#6e7a8a"; // --color-control
 
 export function teamColour(teamId: string | null): string {
   return (teamId && TEAM_COLOURS[teamId]) || NEUTRAL_TEAM_COLOUR;
+}
+
+/**
+ * The line announcing decided titles (F8.7), or null while both are open.
+ * Names come from the standings; an id missing from them is ignored.
+ */
+export function championsLine(season: SeasonSnapshot): string | null {
+  const { driver_id, constructor_id } = season.champions ?? {};
+  const driver = driver_id && season.drivers.find((d) => d.driver_id === driver_id);
+  const team =
+    constructor_id &&
+    season.constructors.find((c) => c.constructor_id === constructor_id);
+  const name = driver && `${driver.given_name} ${driver.family_name}`;
+  const year = season.season;
+  if (name && team) return `${name} and ${team.name} are the ${year} world champions.`;
+  if (name)
+    return `${name} is the ${year} world champion. The constructors' title is still open.`;
+  if (team)
+    return `${team.name} are the ${year} constructors' champions. The drivers' title is still open.`;
+  return null;
 }

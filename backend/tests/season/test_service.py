@@ -20,6 +20,7 @@ from tests.season.fakes import (
     DRIVERS,
     FakeJolpica,
     calendar,
+    constructor_entry,
     constructors,
     driver_entry,
     drivers,
@@ -310,3 +311,91 @@ def test_requests_identify_the_client() -> None:
     agent = fake.requests[0].headers["user-agent"]
     assert agent.startswith("apexgpt-backend/")
     assert str(fake.requests[0].url).startswith(BASE + "/")
+
+
+# --- decided championships (F8.7) -----------------------------------------------------
+
+
+def _standings(drivers_points: list[str], teams_points: list[str], rnd: int = 2):
+    names = ["Antonelli", "Norris", "Leclerc"]
+    teams = ["Mercedes", "McLaren", "Ferrari"]
+    return {
+        "current/driverStandings.json": drivers(2026, rnd, [
+            driver_entry(i + 1, "X", names[i], p) for i, p in enumerate(drivers_points)
+        ]),
+        "current/constructorStandings.json": constructors(2026, rnd, [
+            constructor_entry(i + 1, teams[i], p) for i, p in enumerate(teams_points)
+        ]),
+    }  # fmt: skip
+
+
+# in_season(): round 2 of 3 done; round 3 (6 Dec) is a sprint weekend, so a
+# driver can still score 25 + 8 = 33 and a team 43 + 15 = 58.
+
+
+@pytest.mark.parametrize(
+    ("driver_points", "team_points", "expected"),
+    [
+        (["134", "100"], ["259", "200"], ("antonelli", "mercedes")),  # 34 > 33, 59 > 58
+        (["133", "100"], ["258", "200"], (None, None)),  # level is still possible
+        (["120", "100"], ["300", "200"], (None, "mercedes")),
+        (["150", "100"], ["210", "200"], ("antonelli", None)),
+    ],
+)  # fmt: skip
+def test_a_title_is_decided_once_nobody_can_catch_the_leader(
+    driver_points: list[str], team_points: list[str], expected: tuple
+) -> None:
+    snap = snapshot(in_season(**_standings(driver_points, team_points)))
+    assert (snap.champions.driver_id, snap.champions.constructor_id) == expected
+
+
+def test_without_a_sprint_fewer_points_are_left() -> None:
+    no_sprint = calendar(2026, [race(2026, 1, "2026-03-08"),
+                                race(2026, 2, "2026-11-29"),
+                                race(2026, 3, "2026-12-06")])  # fmt: skip
+    # 26 > 25 (no sprint), but it wouldn't be with a sprint (33).
+    fake = in_season(
+        **{"current.json": no_sprint}, **_standings(["126", "100"], ["1", "0"])
+    )
+    assert snapshot(fake).champions.driver_id == "antonelli"
+
+
+def test_once_the_season_is_over_p1_is_champion() -> None:
+    fake = in_season(**_standings(["101", "100"], ["201", "200"], rnd=3))
+    snap = snapshot(fake, dt.datetime(2026, 12, 10, tzinfo=dt.UTC))
+    assert snap.complete is True
+    assert (snap.champions.driver_id, snap.champions.constructor_id) == (
+        "antonelli", "mercedes",
+    )  # fmt: skip
+
+
+def test_last_seasons_final_standings_name_its_champions() -> None:
+    fake = FakeJolpica({
+        "current.json": calendar(2027, [race(2027, 1, "2027-03-07")]),
+        "current/driverStandings.json": drivers(2027, None, []),
+        "current/constructorStandings.json": constructors(2027, None, []),
+        "2026/driverStandings.json": drivers(2026, 24, DRIVERS),
+        "2026/constructorStandings.json": constructors(2026, 24, CONSTRUCTORS),
+    })  # fmt: skip
+    snap = snapshot(fake, dt.datetime(2027, 1, 15, tzinfo=dt.UTC))
+    assert (snap.champions.driver_id, snap.champions.constructor_id) == (
+        "antonelli", "mercedes",
+    )  # fmt: skip
+
+
+def test_no_champion_without_a_p1() -> None:
+    fake = in_season(**{"current/driverStandings.json": drivers(
+        2026, 2, [driver_entry(None, "Michael", "Schumacher", "500")])})  # fmt: skip
+    assert snapshot(fake).champions.driver_id is None
+
+
+def test_points_left_counts_races_and_sprints() -> None:
+    from app.season.jolpica import Race
+    from app.season.service import points_left
+
+    plain = Race.model_validate(race(2026, 1, "2026-03-08"))
+    sprint = Race.model_validate(race(2026, 2, "2026-03-15",
+                                      Sprint={"date": "2026-03-14", "time": "10:00:00Z"}))  # fmt: skip
+    assert points_left([]) == (0, 0)
+    assert points_left([plain]) == (25, 43)
+    assert points_left([plain, sprint]) == (25 + 33, 43 + 58)

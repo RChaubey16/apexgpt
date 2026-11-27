@@ -205,4 +205,46 @@ describe("SeasonView", () => {
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     expect(load).not.toHaveBeenCalled();
   });
+
+  it("announces decided champions and tags their rows (F8.7)", async () => {
+    view(
+      loads(
+        snapshot({ champions: { driver_id: "antonelli", constructor_id: "mercedes" } }),
+      ),
+    );
+
+    expect(
+      await screen.findByText(
+        "Andrea Kimi Antonelli and Mercedes are the 2026 world champions.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Champions decided")).toBeInTheDocument();
+    const drivers = screen.getByRole("region", { name: "Drivers" });
+    const teams = screen.getByRole("region", { name: "Constructors" });
+    expect(within(drivers).getAllByText("Champion")).toHaveLength(1);
+    expect(within(drivers).getAllByRole("row")[1]).toHaveTextContent("Champion");
+    expect(within(teams).getAllByRole("row")[1]).toHaveTextContent("Champion");
+  });
+
+  it("says just 'Champions' once the season is over", async () => {
+    view(
+      loads(
+        snapshot({
+          complete: true,
+          next_race: null,
+          champions: { driver_id: "antonelli", constructor_id: "mercedes" },
+        }),
+      ),
+    );
+
+    expect(await screen.findByText("Champions")).toBeInTheDocument();
+  });
+
+  it("shows no champions while both titles are open", async () => {
+    view(loads(snapshot()));
+
+    await screen.findByRole("region", { name: "Drivers" });
+    expect(screen.queryByText(/world champion/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Champion")).not.toBeInTheDocument();
+  });
 });

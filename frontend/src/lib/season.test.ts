@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  championsLine,
   countdown,
   fetchSeason,
   formatPoints,
@@ -155,5 +156,50 @@ describe("helpers", () => {
     expect(teamColour("mercedes")).toBe("#27f4d2");
     expect(teamColour("new_team")).toBe(NEUTRAL_TEAM_COLOUR);
     expect(teamColour(null)).toBe(NEUTRAL_TEAM_COLOUR);
+  });
+});
+
+describe("championsLine (F8.7)", () => {
+  const both = { driver_id: "antonelli", constructor_id: "mercedes" };
+
+  it("names both champions", () => {
+    expect(championsLine(snapshot({ champions: both }))).toBe(
+      "Andrea Kimi Antonelli and Mercedes are the 2026 world champions.",
+    );
+  });
+
+  it("names one, saying the other title is open", () => {
+    expect(
+      championsLine(snapshot({ champions: { ...both, constructor_id: null } })),
+    ).toBe(
+      "Andrea Kimi Antonelli is the 2026 world champion. The constructors' title is still open.",
+    );
+    expect(championsLine(snapshot({ champions: { ...both, driver_id: null } }))).toBe(
+      "Mercedes are the 2026 constructors' champions. The drivers' title is still open.",
+    );
+  });
+
+  it("says nothing while both are open, or for an id not in the standings", () => {
+    expect(championsLine(snapshot())).toBeNull();
+    expect(
+      championsLine(
+        snapshot({ champions: { driver_id: "nobody", constructor_id: null } }),
+      ),
+    ).toBeNull();
+  });
+
+  it("is validated in the response", () => {
+    expect(isSeasonSnapshot(snapshot({ champions: both }))).toBe(true);
+    // A backend from before F8.7 sends none: no champions, not bad data.
+    const old: Partial<SeasonSnapshot> = snapshot();
+    delete old.champions;
+    expect(isSeasonSnapshot(old)).toBe(true);
+    expect(championsLine(old as SeasonSnapshot)).toBeNull();
+    expect(isSeasonSnapshot(snapshot({ champions: null as never }))).toBe(false);
+    expect(
+      isSeasonSnapshot(
+        snapshot({ champions: { driver_id: 1, constructor_id: null } as never }),
+      ),
+    ).toBe(false);
   });
 });

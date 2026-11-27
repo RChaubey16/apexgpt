@@ -94,6 +94,7 @@ export function snapshot(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapsho
         { kind: "race", date: "2026-11-29", start: "2026-11-29T16:00:00Z" },
       ],
     },
+    champions: { driver_id: null, constructor_id: null },
     fetched_at: "2026-11-27T11:55:00Z",
     stale: false,
     ...overrides,

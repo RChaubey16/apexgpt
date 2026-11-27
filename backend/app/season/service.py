@@ -18,6 +18,8 @@ Which season, and the off-season:
   Jolpica's "current" moves to a year with no races yet, that's the year
   before, marked complete.
 - `complete` is true once the standings include the calendar's last round.
+- `champions`: a title is decided once the leader is further ahead than
+  anyone can still score (sprints included), or when the season is over.
 - The next race is the first race not finished yet (its start + RACE_HOURS),
   so a race stays "next" while it runs. After the finale it's the next
   season's opener once that calendar is published, None until then.
@@ -113,6 +115,14 @@ class NextRace(BaseModel):
     sessions: list[Session] = Field(description="In order, the race last")
 
 
+class Champions(BaseModel):
+    """Who has won each title: decided once nobody can catch the leader, or
+    when the season is over. None while a title is open."""
+
+    driver_id: str | None
+    constructor_id: str | None
+
+
 class SeasonSnapshot(BaseModel):
     season: int = Field(description="The season the standings are for")
     round: int | None = Field(description="Standings after this round")
@@ -121,6 +131,7 @@ class SeasonSnapshot(BaseModel):
     drivers: list[DriverRow]
     constructors: list[ConstructorRow]
     next_race: NextRace | None
+    champions: Champions
     fetched_at: dt.datetime
     stale: bool = Field(
         default=False, description="Jolpica is unreachable; this is the last data"
@@ -189,6 +200,43 @@ def _next_race_info(race: Race) -> NextRace:
     )
 
 
+# The most a driver or a team can score in a round (F8.7). Races pay
+# 25-18-15-12-10-8-6-4-2-1 and sprints 8-7-6-5-4-3-2-1; the fastest-lap point
+# was dropped after 2024. A team's best is its two cars finishing first and
+# second. Revisit if the points system changes.
+DRIVER_MAX_RACE, DRIVER_MAX_SPRINT = 25, 8
+TEAM_MAX_RACE, TEAM_MAX_SPRINT = 25 + 18, 8 + 7
+
+
+def points_left(remaining: list[Race]) -> tuple[int, int]:
+    """The most points a driver, and a team, can still score in these rounds."""
+    sprints = sum(
+        any(kind == "sprint" for kind, _ in race.sessions()) for race in remaining
+    )
+    rounds = len(remaining)
+    return (
+        rounds * DRIVER_MAX_RACE + sprints * DRIVER_MAX_SPRINT,
+        rounds * TEAM_MAX_RACE + sprints * TEAM_MAX_SPRINT,
+    )
+
+
+def champion[S: (DriverStanding, ConstructorStanding)](
+    entries: list[S], left: float, complete: bool
+) -> S | None:
+    """The leader, once nobody can catch them (or the season is over).
+
+    The leader must be ahead by more than `left`: a margin of exactly `left`
+    could still end level, and a tie goes to countback, which we don't predict.
+    """
+    ranked = [e for e in entries if e.position is not None]
+    if not ranked or ranked[0].position != 1:
+        return None
+    if complete:
+        return ranked[0]
+    second = ranked[1].points if len(ranked) > 1 else 0.0
+    return ranked[0] if ranked[0].points - second > left else None
+
+
 async def build_snapshot(client: JolpicaClient, now: dt.datetime) -> SeasonSnapshot:
     """Raises JolpicaError."""
     calendar, drivers, constructors = await asyncio.gather(
@@ -216,10 +264,18 @@ async def build_snapshot(client: JolpicaClient, now: dt.datetime) -> SeasonSnaps
             raise JolpicaError("driver and constructor standings are rounds apart")
         total_rounds = drivers.round
         complete = True
+        remaining: list[Race] = []
     else:
         complete = drivers.round >= len(calendar.races)
+        # Rounds not yet in the standings; a race just finished but not yet
+        # scored still counts, which errs towards "not decided".
+        remaining = [race for race in calendar.races if race.round > drivers.round]
         if upcoming is None:
             upcoming = next_race(await client.calendar(str(calendar.season + 1)), now)
+
+    driver_left, team_left = points_left(remaining)
+    top_driver = champion(drivers.entries, driver_left, complete)
+    top_team = champion(constructors.entries, team_left, complete)
 
     return SeasonSnapshot(
         season=drivers.season,
@@ -229,6 +285,10 @@ async def build_snapshot(client: JolpicaClient, now: dt.datetime) -> SeasonSnaps
         drivers=[_driver_row(e) for e in drivers.entries],
         constructors=[_constructor_row(e) for e in constructors.entries],
         next_race=_next_race_info(upcoming) if upcoming else None,
+        champions=Champions(
+            driver_id=top_driver.driver.driver_id if top_driver else None,
+            constructor_id=top_team.constructor.constructor_id if top_team else None,
+        ),
         fetched_at=now,
     )
 
