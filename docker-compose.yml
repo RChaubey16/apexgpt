@@ -82,6 +82,10 @@ services:
       RATE_LIMIT_FEEDBACK: ${RATE_LIMIT_FEEDBACK:-30/minute;500/day}
       ANSWER_CACHE_SIZE: ${ANSWER_CACHE_SIZE:-256}
       ANSWER_CACHE_TTL_SECONDS: ${ANSWER_CACHE_TTL_SECONDS:-86400}
+      # Current season (F8.3): live data from Jolpica, cached.
+      RATE_LIMIT_SEASON: ${RATE_LIMIT_SEASON:-60/minute;2000/day}
+      JOLPICA_BASE_URL: ${JOLPICA_BASE_URL:-https://api.jolpi.ca/ergast/f1}
+      SEASON_CACHE_TTL_SECONDS: ${SEASON_CACHE_TTL_SECONDS:-600}
       # JSON-lines log, rotated by size (F4.5); data/logs/ on the host.
       LOG_FILE: /app/logs/apexgpt.log
       LOG_FILE_MAX_MB: ${LOG_FILE_MAX_MB:-10}

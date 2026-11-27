@@ -6,7 +6,8 @@
 1. Infrastructure: the frontend page and its /api/health; the backend's
    /health (environment production), /health/ready (and its latency: the first
    call after 5+ idle minutes includes Neon waking up), /docs hidden, and CORS
-   allowing the frontend's origin and nothing else.
+   allowing the frontend's origin and nothing else, and /api/season/current
+   (F8.3) serving fresh standings from Jolpica.
 2. Answers: the golden questions marked `smoke: true`, asked through
    POST /api/chat and scored with the deterministic checks (answer values,
    tools, sources, follow-up rewrites). No LLM judge: the result is repeatable
@@ -226,6 +227,28 @@ def infra_checks(
             f"HTTP {r.status_code}, allow-origin {allowed}",
         )
 
+    def season() -> InfraCheck:
+        r = client.get(f"{api}/api/season/current")
+        body = _json(r)
+        drivers, stale = body.get("drivers"), body.get("stale")
+        ok = (
+            r.status_code == 200
+            and isinstance(body.get("season"), int)
+            and isinstance(drivers, list)
+            and len(drivers) > 0
+            and isinstance(body.get("constructors"), list)
+            and stale is False
+        )
+        if r.status_code != 200:
+            detail = f"HTTP {r.status_code}"
+        else:
+            race = body.get("next_race") or {}
+            detail = (
+                f"HTTP 200, {body.get('season')} after round {body.get('round')}, "
+                f"next {race.get('name', 'none')}, stale {stale}"
+            )
+        return InfraCheck("backend /api/season/current", ok, detail)
+
     def page() -> InfraCheck:
         r = client.get(f"{frontend}/")
         return InfraCheck(
@@ -247,6 +270,7 @@ def infra_checks(
         ("API docs hidden", docs),
         ("CORS allows the frontend", cors_allowed),
         ("CORS refuses other origins", cors_refused),
+        ("backend /api/season/current", season),
         ("frontend page", page),
         ("frontend /api/health", frontend_health),
     ):

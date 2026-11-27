@@ -141,6 +141,14 @@ def test_ask_failures(respond, error: str) -> None:  # noqa: ANN001
     assert error in ask(_client(respond), API, STATS_Q).error
 
 
+SEASON = {
+    "season": 2026, "round": 21, "total_rounds": 23, "complete": False,
+    "drivers": [{"position": 1, "family_name": "Antonelli"}],
+    "constructors": [{"position": 1, "name": "Mercedes"}],
+    "next_race": {"name": "Qatar Grand Prix"}, "stale": False,
+}  # fmt: skip
+
+
 def site(**overrides):  # noqa: ANN003, ANN201
     """A fake production site; overrides replace a path's response."""
 
@@ -165,6 +173,8 @@ def site(**overrides):  # noqa: ANN003, ANN201
                 return httpx.Response(400)
             if request.url.path == "/api/chat":
                 return httpx.Response(200, text=ANSWER)
+            if request.url.path == "/api/season/current":
+                return httpx.Response(200, json=SEASON)
             return httpx.Response(404)
         if request.url.host == fe_host:
             if request.url.path == "/api/health":
@@ -183,7 +193,11 @@ def test_infra_checks_pass_on_a_healthy_site() -> None:
     assert [c.name for c in checks][0] == "backend /health/ready"  # first: wakes Neon
     assert all(c.ok for c in checks), [c for c in checks if not c.ok]
     assert ready == 0.5
-    assert len(checks) == 7
+    assert len(checks) == 8
+    season = next(c for c in checks if c.name == "backend /api/season/current")
+    assert season.detail == (
+        "HTTP 200, 2026 after round 21, next Qatar Grand Prix, stale False"
+    )
 
 
 @pytest.mark.parametrize(
@@ -216,6 +230,30 @@ def test_infra_checks_pass_on_a_healthy_site() -> None:
                 )
             },
             "CORS allows the frontend",
+        ),
+        (
+            {
+                "GET api.apexgpt.example/api/season/current": lambda r: httpx.Response(
+                    503, json={"detail": "unavailable"}
+                )
+            },
+            "backend /api/season/current",
+        ),
+        (
+            {
+                "GET api.apexgpt.example/api/season/current": lambda r: httpx.Response(
+                    200, json={**SEASON, "stale": True}
+                )
+            },
+            "backend /api/season/current",
+        ),
+        (
+            {
+                "GET api.apexgpt.example/api/season/current": lambda r: httpx.Response(
+                    200, json={**SEASON, "drivers": []}
+                )
+            },
+            "backend /api/season/current",
         ),
         (
             {"GET apexgpt.example/api/health": lambda r: httpx.Response(502)},
@@ -274,7 +312,7 @@ def test_a_whole_run_paces_questions_and_scores_them() -> None:
     assert any("FAIL stats-b" in line and "(cached)" in line for line in lines)
 
     text = render(report, "2026-11-26T10:00:00+00:00")
-    assert "**FAIL**: infrastructure 7/7, answers 1/2" in text
+    assert "**FAIL**: infrastructure 8/8, answers 1/2" in text
     assert "| `stats-a` | ok |" in text
     assert "answer: missing ['104']" in text
     assert "## Failed answers" in text

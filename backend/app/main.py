@@ -12,12 +12,13 @@ from sqlalchemy.orm import sessionmaker
 
 from app import __version__
 from app.answer import build_orchestrator
-from app.api.routes import chat, favicon, feedback, health
+from app.api.routes import chat, favicon, feedback, health, season
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.rate_limit import RateLimiter, parse_limits
 from app.db.session import create_db_engine
+from app.season.service import SeasonService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -55,7 +56,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         {
             "chat": parse_limits(settings.rate_limit_chat),
             "feedback": parse_limits(settings.rate_limit_feedback),
+            "season": parse_limits(settings.rate_limit_season),
         }
+    )
+    app.state.season_service = SeasonService(
+        settings.jolpica_base_url, settings.season_cache_ttl_seconds
     )
     app.dependency_overrides[get_settings] = lambda: settings
 
@@ -71,5 +76,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(chat.router)
     app.include_router(feedback.router)
+    app.include_router(season.router)
     app.include_router(favicon.router)
     return app
