@@ -27,7 +27,7 @@ const PUBLIC_ICONS = join(FRONTEND, "public", "icons");
 const BACKEND_STATIC = join(FRONTEND, "..", "backend", "app", "static");
 
 // Matches --color-background in globals.css.
-const BACKGROUND = "#12171d";
+const BACKGROUND = "#14141c";
 // The maskable icon's mark fills this share of the canvas, inside the 80 %
 // safe zone that platforms keep when they crop to a circle or squircle.
 const MASKABLE_SCALE = 0.7;

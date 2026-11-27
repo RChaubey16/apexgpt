@@ -85,12 +85,8 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
       <ol className="my-2 list-decimal space-y-1 pl-6">{children}</ol>
     ),
     li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-    h1: ({ children }) => (
-      <h3 className="mt-4 mb-2 text-xl font-bold font-stretch-condensed">{children}</h3>
-    ),
-    h2: ({ children }) => (
-      <h3 className="mt-4 mb-2 text-xl font-bold font-stretch-condensed">{children}</h3>
-    ),
+    h1: ({ children }) => <h3 className="mt-3 mb-1.5 text-base font-bold">{children}</h3>,
+    h2: ({ children }) => <h3 className="mt-3 mb-1.5 text-base font-bold">{children}</h3>,
     h3: ({ children }) => <h4 className="mt-3 mb-1.5 font-semibold">{children}</h4>,
     h4: ({ children }) => <h4 className="mt-3 mb-1.5 font-semibold">{children}</h4>,
     blockquote: ({ children }) => (
@@ -104,7 +100,7 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
       </code>
     ),
     pre: ({ children }) => (
-      <pre className="my-2 overflow-x-auto rounded-md bg-surface p-3 text-sm">
+      <pre className="my-2 overflow-x-auto rounded-md bg-raised p-3 text-sm">
         {children}
       </pre>
     ),
@@ -113,7 +109,7 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
     th: ({ children, style }) => (
       <th
         style={style}
-        className="border-b border-control bg-surface px-3 py-1.5 text-left text-sm font-semibold whitespace-nowrap text-soft font-stretch-condensed"
+        className="border-b border-line bg-raised px-3 py-1.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-muted uppercase"
       >
         {children}
       </th>
@@ -129,7 +125,7 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
 function ScrollTable({ children }: { children: ReactNode }) {
   return (
     <div className="my-3 max-w-full overflow-x-auto rounded-md border border-line">
-      <table className="w-full border-collapse text-sm tabular-nums [&_tbody_tr:hover]:bg-surface [&_tbody_tr:last-child_td]:border-b-0">
+      <table className="w-full border-collapse text-sm tabular-nums [&_tbody_tr:hover]:bg-raised [&_tbody_tr:last-child_td]:border-b-0">
         {children}
       </table>
     </div>
@@ -159,7 +155,7 @@ function DataTable({ table }: { table: Table }) {
             {table.columns.map((c) => (
               <th
                 key={c}
-                className="border-b border-control bg-surface px-3 py-1.5 text-left text-sm font-semibold whitespace-nowrap text-soft font-stretch-condensed"
+                className="border-b border-line bg-raised px-3 py-1.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-muted uppercase"
               >
                 {columnLabel(c)}
               </th>
@@ -186,7 +182,7 @@ function DataTable({ table }: { table: Table }) {
 function Sources({ sources }: { sources: Source[] }) {
   return (
     <section aria-label="Sources" className="mt-1">
-      <h4 className="mb-1.5 text-sm font-semibold text-soft font-stretch-condensed">
+      <h4 className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">
         Sources
       </h4>
       <ol className="flex flex-col gap-1 text-sm">

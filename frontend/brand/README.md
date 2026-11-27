@@ -1,6 +1,6 @@
 # ApexGPT brand assets
 
-The logo is the header's speed-stripe mark: three slanted soft-compound red stripes (`#d93a32`) on the site's slate background (`#12171d`), recoloured in F8.4a for the pit wall design.
+The logo is the header's speed-stripe mark: three slanted F1-red stripes (`#e10600`) on the site's carbon background (`#14141c`), recoloured in F8.6.
 
 | File              | Use                                                                                                                                                                                             |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

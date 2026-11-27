@@ -1,55 +1,51 @@
 @import "tailwindcss";
 
 /*
- * ApexGPT theme (F8.4a): the pit wall. The engineers' timing screens:
- * deep slate, dense and precise, with colour used for meaning, taken from the
- * tyre compounds rather than spread on as decoration:
+ * ApexGPT theme (F8.6): dark carbon, compact, F1 red, in the spirit of the
+ * official F1 app (its feel, not its brand: our own logo and a free font).
  *
- * - soft red (accent): the brand mark and the one primary action;
- * - medium yellow (warning): something in progress or needing attention;
- * - intermediate green (success): ready, done;
- * - wet blue (info): sources and links;
- * - hard white (foreground): emphasis.
+ * - Carbon surfaces, with content on slightly lighter cards.
+ * - F1 red (accent) for the active tab, the next race and the main action.
+ * - White for primary content, kept small; grey for everything secondary.
+ * - Status: yellow in progress, green ready; blue for links and sources.
+ * - The base size is 14px (html below), so the whole UI, spacing included,
+ *   is compact.
  *
  * Components use these tokens (bg-surface, text-muted, border-line, …), not
  * Tailwind's default palette, so the look is set here in one place
  * (src/app/theme.test.ts checks both). Text colours meet WCAG AA (4.5:1) on
- * every surface they sit on; `accent` and `control` are for non-text UI
- * (buttons, focus rings, input borders) and meet 3:1. theme.test.ts checks
- * the ratios, so change a colour there and here together.
+ * every surface they sit on; `accent` and `control` are for non-text UI and
+ * meet 3:1. theme.test.ts checks the ratios, so change a colour there and
+ * here together.
  */
 @theme {
-  /* Surfaces: slate, darkest first. */
-  --color-background: #12171d;
-  --color-surface: #1a2028;
-  --color-raised: #222a34;
-  --color-hover: #2b3440;
+  /* Carbon surfaces, darkest first: page, cards, raised, hover. */
+  --color-background: #14141c;
+  --color-surface: #1f1f2a;
+  --color-raised: #2a2a36;
+  --color-hover: #33333f;
 
   /* Lines: dividers, then form-control borders (3:1 on the page). */
-  --color-line: #303a47;
-  --color-control: #6e7a8a;
+  --color-line: #2f2f3b;
+  --color-control: #7c7c8e;
 
-  /* Text, strongest first. Foreground is the hard compound's white. */
-  --color-foreground: #f4f5f2;
-  --color-soft: #c3cad3;
-  --color-muted: #93a0ae;
+  /* Text, strongest first. */
+  --color-foreground: #ffffff;
+  --color-soft: #c4c4cf;
+  --color-muted: #a0a0ae;
 
-  /* Soft compound red: fills and rings (accent), red text on slate. */
-  --color-accent: #d93a32;
-  --color-accent-strong: #c9302a;
-  --color-accent-text: #ff7a70;
+  /* F1 red: fills, rings and bars (accent), red text on carbon. */
+  --color-accent: #e10600;
+  --color-accent-strong: #c00500;
+  --color-accent-text: #ff7a72;
   --color-on-accent: #ffffff;
 
-  /* Medium compound yellow: in progress, caution. */
+  /* Status. */
   --color-warning: #f2c230;
   --color-warning-text: #f5cd4e;
   --color-warning-bg: #2a2410;
-
-  /* Intermediate green: ready. */
   --color-success: #3dbe5b;
   --color-success-text: #5fd47a;
-
-  /* Wet blue: sources and links. */
   --color-info: #3a8fe0;
   --color-info-text: #7db8f2;
 
@@ -60,14 +56,12 @@
 }
 
 /*
- * Type: Archivo, one family at two widths. Its width axis gives the timing
- * screen's condensed face (`font-stretch-condensed`, for the wordmark,
- * headings and figures) and a normal width for reading. Figures are tabular
- * everywhere, so numbers line up like a timing tower. Geist Mono is for code
- * and SQL only.
+ * Type: Titillium Web, a compact, sporty face in the spirit of F1 broadcast
+ * graphics (400 body, 600 labels, 700 names and figures). Geist Mono is for
+ * code and SQL only.
  */
 @theme inline {
-  --font-sans: var(--font-archivo);
+  --font-sans: var(--font-titillium);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -85,12 +79,15 @@
 
 html {
   color-scheme: dark;
+  /* 14px base: every rem-based size and gap is compact. Relative, so the
+     visitor's own font-size setting still scales it. */
+  font-size: 87.5%;
 }
 
 body {
   background: var(--color-background);
   color: var(--color-foreground);
-  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-family: var(--font-titillium), system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   -webkit-tap-highlight-color: transparent;
 }
@@ -100,8 +97,7 @@ body {
   color: var(--color-on-accent);
 }
 
-/* One visible focus ring for keyboard users, everywhere: the hard compound's
-   white, so red keeps its one job (the logo and Send). */
+/* One visible focus ring for keyboard users, everywhere. */
 :focus-visible {
   outline: 2px solid var(--color-foreground);
   outline-offset: 2px;

@@ -117,16 +117,19 @@ describe("components", () => {
   });
 });
 
-describe("pit wall type (F8.4)", () => {
-  // Dropped in the revamp: all-caps tracked labels, italic display type and
-  // skewed buttons. Labels are sentence case; emphasis comes from Archivo's
-  // condensed width and weight instead.
-  it("sets no text in all caps, italics or skew", () => {
+describe("type (F8.6)", () => {
+  // Compact F1-app style: caps are fine for small labels and surnames, but
+  // no italic display type or skewed buttons (dropped in F8.4).
+  it("sets no text in italics or skew", () => {
     const offenders = sourceFiles(SRC).flatMap((file) =>
-      [...readFileSync(file, "utf8").matchAll(/\b(uppercase|italic|skew-x-6)\b/g)].map(
+      [...readFileSync(file, "utf8").matchAll(/\b(italic|skew-x-6)\b/g)].map(
         (m) => `${file.slice(SRC.length + 1)}: ${m[0]}`,
       ),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it("uses a compact 14px base size", () => {
+    expect(css).toMatch(/html\s*{[^}]*font-size:\s*87\.5%/);
   });
 });

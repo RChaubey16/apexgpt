@@ -136,7 +136,7 @@ export function ChatApp({ apiBaseUrl, storage: storageOverride, stream }: ChatAp
 
   return (
     <div className="flex min-h-0 flex-1">
-      <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-line bg-surface p-3 md:block lg:w-72">
+      <aside className="hidden w-60 shrink-0 overflow-y-auto border-r border-line bg-background p-3 md:block lg:w-64">
         {list}
       </aside>
 
