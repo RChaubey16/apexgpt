@@ -103,7 +103,7 @@ describe("ChatApp", () => {
     const app = setup();
     await askAndFinish(app, "Who won 1976?", "James Hunt.");
 
-    await app.user.click(within(app.chats()).getByRole("button", { name: "+ New chat" }));
+    await app.user.click(within(app.chats()).getByRole("button", { name: "New chat" }));
 
     expect(screen.getByRole("list", { name: "Starter questions" })).toBeInTheDocument();
     expect(loadConversations(app.storage!)).toHaveLength(1);
@@ -119,7 +119,7 @@ describe("ChatApp", () => {
     const app = setup();
     await app.user.type(app.input(), "half a question");
 
-    await app.user.click(within(app.chats()).getByRole("button", { name: "+ New chat" }));
+    await app.user.click(within(app.chats()).getByRole("button", { name: "New chat" }));
 
     expect(app.input()).toHaveValue("half a question");
   });
@@ -297,12 +297,12 @@ describe("ChatApp", () => {
     seed(storage, "a", "Who won 1976?", "James Hunt.", 1);
     const app = setup(storage);
 
-    await app.user.click(screen.getByRole("button", { name: "☰ Chats (1)" }));
+    await app.user.click(screen.getByRole("button", { name: "Chats (1)" }));
     const drawer = screen.getByRole("dialog", { name: "Saved chats" });
     await app.user.keyboard("{Escape}");
     expect(drawer).not.toBeInTheDocument();
 
-    await app.user.click(screen.getByRole("button", { name: "☰ Chats (1)" }));
+    await app.user.click(screen.getByRole("button", { name: "Chats (1)" }));
     const inDrawer = within(screen.getByRole("dialog", { name: "Saved chats" }));
     await app.user.click(inDrawer.getByRole("button", { name: "Who won 1976?" }));
 

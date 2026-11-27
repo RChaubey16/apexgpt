@@ -36,9 +36,9 @@ export function ConversationList({
       <button
         type="button"
         onClick={onNew}
-        className="min-h-10 rounded-lg border border-control px-3 text-left text-sm font-semibold text-foreground hover:border-accent hover:bg-raised"
+        className="min-h-10 rounded-md border border-control px-3 text-left text-base font-semibold text-foreground font-stretch-condensed hover:border-foreground hover:bg-raised"
       >
-        + New chat
+        New chat
       </button>
       {conversations.length > 0 && (
         <ul className="flex flex-col gap-0.5">
@@ -107,7 +107,7 @@ function ConversationRow({
             if (e.key === "Escape") finish(false);
           }}
           onBlur={() => finish(true)}
-          className="w-full rounded-lg border border-accent bg-raised px-3 py-1.5 text-base text-foreground focus-visible:outline-none md:text-sm"
+          className="w-full rounded-md border border-foreground bg-raised px-3 py-1.5 text-base text-foreground focus-visible:outline-none md:text-sm"
         />
       </li>
     );
@@ -115,7 +115,7 @@ function ConversationRow({
 
   if (mode === "confirm-delete") {
     return (
-      <li className="flex items-center gap-1 rounded-lg bg-raised px-3 py-1 text-sm">
+      <li className="flex items-center gap-1 rounded-md bg-raised px-3 py-1 text-sm">
         <span className="min-w-0 flex-1 truncate text-soft">
           Delete “{conversation.title}”?
         </span>
@@ -135,7 +135,7 @@ function ConversationRow({
 
   return (
     <li
-      className={`group flex items-center gap-1 rounded-lg pr-1 ${active ? "bg-raised shadow-[inset_2px_0_0_var(--color-accent)]" : "hover:bg-raised"}`}
+      className={`group flex items-center gap-1 rounded-md pr-1 ${active ? "bg-raised shadow-[inset_3px_0_0_var(--color-foreground)]" : "hover:bg-raised"}`}
     >
       <button
         type="button"

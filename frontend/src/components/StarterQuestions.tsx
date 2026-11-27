@@ -46,11 +46,16 @@ interface StarterQuestionsProps {
   disabled?: boolean;
 }
 
+/**
+ * Laid out like rows of a timing table, not cards: the short title in a
+ * condensed column, the question beside it, rows ruled apart. On phones the
+ * title sits above the question.
+ */
 export function StarterQuestions({ onPick, disabled = false }: StarterQuestionsProps) {
   return (
     <ul
       aria-label="Starter questions"
-      className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2"
+      className="w-full divide-y divide-line border-y border-line"
     >
       {STARTER_QUESTIONS.map((s) => (
         <li key={s.question}>
@@ -58,12 +63,14 @@ export function StarterQuestions({ onPick, disabled = false }: StarterQuestionsP
             type="button"
             onClick={() => onPick(s.question)}
             disabled={disabled}
-            className="flex h-full w-full flex-col gap-1 rounded-xl border border-line border-l-accent border-l-2 bg-surface px-4 py-3 text-left transition-colors hover:border-accent hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line disabled:hover:border-l-accent disabled:hover:bg-surface"
+            className="group flex w-full flex-col gap-0.5 px-2 py-3 text-left hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent sm:flex-row sm:items-baseline sm:gap-4"
           >
-            <span className="text-xs font-bold tracking-wider text-accent-text uppercase">
+            <span className="shrink-0 text-base font-semibold text-foreground font-stretch-condensed sm:w-44">
               {s.title}
             </span>
-            <span className="text-sm text-soft">{s.question}</span>
+            <span className="text-soft group-hover:text-foreground group-disabled:group-hover:text-soft">
+              {s.question}
+            </span>
           </button>
         </li>
       ))}

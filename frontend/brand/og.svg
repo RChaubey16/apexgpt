@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
   <title>ApexGPT: Formula 1 chat assistant</title>
   <rect width="1200" height="630" fill="#12171d"/>
-  <!-- The timing-tower stripe that marks answers in the app (F8.4). -->
+  <!-- A brand stripe in the logo red, echoing the timing-tower stripe beside answers (F8.4). -->
   <rect x="0" y="0" width="12" height="630" fill="#d93a32"/>
   <!-- The logo tile (brand/icon.svg, scaled 3.5x). -->
   <g transform="translate(96 150) scale(3.5)">

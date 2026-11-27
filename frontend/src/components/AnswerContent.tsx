@@ -48,7 +48,7 @@ function CitationChip({ source }: { source: Source }) {
       rel="noopener noreferrer"
       title={sourceLabel(source)}
       aria-label={`Source ${sourceNumber(source.id)}: ${sourceLabel(source)}`}
-      className="mx-0.5 inline-flex h-5 min-w-5 -translate-y-0.5 items-center justify-center rounded-full bg-raised px-1.5 align-middle text-[0.7rem] font-semibold text-accent-text no-underline hover:bg-accent hover:text-on-accent"
+      className="mx-0.5 inline-flex h-5 min-w-5 -translate-y-0.5 items-center justify-center rounded-full bg-raised px-1.5 align-middle text-[0.7rem] font-semibold text-info-text no-underline hover:bg-info hover:text-background"
     >
       {sourceNumber(source.id)}
     </a>
@@ -68,7 +68,7 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
           href={href}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          className="text-accent-text underline underline-offset-2 hover:text-foreground"
+          className="text-info-text underline underline-offset-2 hover:text-foreground"
         >
           {children}
         </a>
@@ -85,12 +85,16 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
       <ol className="my-2 list-decimal space-y-1 pl-6">{children}</ol>
     ),
     li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-    h1: ({ children }) => <h3 className="mt-4 mb-2 text-lg font-bold">{children}</h3>,
-    h2: ({ children }) => <h3 className="mt-4 mb-2 text-lg font-bold">{children}</h3>,
+    h1: ({ children }) => (
+      <h3 className="mt-4 mb-2 text-xl font-bold font-stretch-condensed">{children}</h3>
+    ),
+    h2: ({ children }) => (
+      <h3 className="mt-4 mb-2 text-xl font-bold font-stretch-condensed">{children}</h3>
+    ),
     h3: ({ children }) => <h4 className="mt-3 mb-1.5 font-semibold">{children}</h4>,
     h4: ({ children }) => <h4 className="mt-3 mb-1.5 font-semibold">{children}</h4>,
     blockquote: ({ children }) => (
-      <blockquote className="my-2 border-l-2 border-accent pl-3 text-soft">
+      <blockquote className="my-2 border-l-2 border-control pl-3 text-soft">
         {children}
       </blockquote>
     ),
@@ -100,7 +104,7 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
       </code>
     ),
     pre: ({ children }) => (
-      <pre className="my-2 overflow-x-auto rounded-lg bg-surface p-3 text-sm">
+      <pre className="my-2 overflow-x-auto rounded-md bg-surface p-3 text-sm">
         {children}
       </pre>
     ),
@@ -109,7 +113,7 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
     th: ({ children, style }) => (
       <th
         style={style}
-        className="border-b border-control bg-surface px-3 py-1.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-soft uppercase"
+        className="border-b border-control bg-surface px-3 py-1.5 text-left text-sm font-semibold whitespace-nowrap text-soft font-stretch-condensed"
       >
         {children}
       </th>
@@ -124,7 +128,7 @@ function markdownComponents(sources: ReadonlyMap<string, Source>): Components {
 
 function ScrollTable({ children }: { children: ReactNode }) {
   return (
-    <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-line">
+    <div className="my-3 max-w-full overflow-x-auto rounded-md border border-line">
       <table className="w-full border-collapse text-sm tabular-nums [&_tbody_tr:hover]:bg-surface [&_tbody_tr:last-child_td]:border-b-0">
         {children}
       </table>
@@ -155,7 +159,7 @@ function DataTable({ table }: { table: Table }) {
             {table.columns.map((c) => (
               <th
                 key={c}
-                className="border-b border-control bg-surface px-3 py-1.5 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-soft uppercase"
+                className="border-b border-control bg-surface px-3 py-1.5 text-left text-sm font-semibold whitespace-nowrap text-soft font-stretch-condensed"
               >
                 {columnLabel(c)}
               </th>
@@ -182,13 +186,13 @@ function DataTable({ table }: { table: Table }) {
 function Sources({ sources }: { sources: Source[] }) {
   return (
     <section aria-label="Sources" className="mt-1">
-      <h4 className="mb-1.5 text-xs font-semibold tracking-wider text-muted uppercase">
+      <h4 className="mb-1.5 text-sm font-semibold text-soft font-stretch-condensed">
         Sources
       </h4>
       <ol className="flex flex-col gap-1 text-sm">
         {sources.map((s) => (
           <li key={s.id} className="flex items-baseline gap-2">
-            <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-raised px-1.5 text-[0.7rem] font-semibold text-accent-text">
+            <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-raised px-1.5 text-[0.7rem] font-semibold text-info-text">
               {sourceNumber(s.id)}
             </span>
             <a

@@ -100,9 +100,10 @@ body {
   color: var(--color-on-accent);
 }
 
-/* One visible focus ring for keyboard users, everywhere. */
+/* One visible focus ring for keyboard users, everywhere: the hard compound's
+   white, so red keeps its one job (the logo and Send). */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-foreground);
   outline-offset: 2px;
 }
 
