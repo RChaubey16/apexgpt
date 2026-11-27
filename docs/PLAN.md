@@ -50,9 +50,10 @@ The features being built now, planned the same way as the MVP ([archived plan](.
   - **The logo keeps its shape** (the three stripes), recoloured to the new palette.
   - **F8.4b, the chat:** questions are condensed header lines in a left-aligned log, not bubbles. Each answer has a timing-tower stripe coloured by its state: yellow while streaming, quiet grey when done, red on an error, dashed when stopped. Starter questions are rows of a timing table, not cards. Citations and links are wet blue. Keyboard focus rings are hard white, so red is only the logo, Send and errors.
 
-### Open questions (settled when the feature starts)
-
-- **F8.5: the page.** How the standings, the next race and the countdown are laid out, in the new design.
+- **F8.5, settled when it started (2026-11-27):**
+  - **Layout:** the next race first (name, circuit, a live countdown, and the weekend's sessions in the visitor's time zone, the next one marked), then the drivers' and constructors' standings as two timing towers, side by side on wide screens (3:2) and stacked on phones.
+  - **Extras:** each row shows the gap to the leader, and a stripe in its team's colour (a small map in the frontend; a team not in it gets a neutral grey). "Title still open" markers were left out.
+  - **Loaded in the browser** from `GET /api/season/current`, like the chat; the backend caches it.
 
 ### Facts checked while planning (2026-11-26)
 

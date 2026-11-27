@@ -65,3 +65,20 @@ export function parseSiteUrl(raw: string | undefined): string {
 export function getSiteUrl(): string {
   return parseSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 }
+
+/**
+ * The backend URL for a page, or null when it's misconfigured: the error is
+ * logged on the server (at build or render) and the page shows a generic
+ * message instead of crashing.
+ */
+export function apiBaseUrlOrNull(): string | null {
+  try {
+    return getApiBaseUrl();
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      console.error(`[config] ${error.message}`);
+      return null;
+    }
+    throw error;
+  }
+}

@@ -24,7 +24,8 @@ describe("SiteHeader", () => {
   });
 
   it("shows no navigation while the chat is the only page", () => {
-    render(<SiteHeader current="chat" apiBaseUrl={null} />);
+    const chatOnly = BOTH.map((p) => ({ ...p, live: p.id === "chat" }));
+    render(<SiteHeader current="chat" apiBaseUrl={null} items={chatOnly} />);
 
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
@@ -40,6 +41,19 @@ describe("SiteHeader", () => {
     );
     expect(screen.getByRole("link", { name: "Chat" })).not.toHaveAttribute(
       "aria-current",
+    );
+  });
+
+  it("links both pages by default, the chat current on the home page", () => {
+    render(<SiteHeader current="chat" apiBaseUrl={null} />);
+
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Current season" })).toHaveAttribute(
+      "href",
+      "/season",
     );
   });
 

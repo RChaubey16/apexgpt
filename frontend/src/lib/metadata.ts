@@ -49,5 +49,13 @@ export function pageMetadata(path: string): Metadata {
 
 export const homeMetadata: Metadata = pageMetadata("/");
 
-/** The pages listed in /sitemap.xml. Add new pages here (e.g. /season in F8.5). */
-export const SITEMAP_PAGES: readonly string[] = ["/"];
+/** The current season page (F8.5): "Current season · ApexGPT". */
+export const seasonMetadata: Metadata = {
+  ...pageMetadata("/season"),
+  title: "Current season",
+  description:
+    "The current Formula 1 season: the drivers' and constructors' standings, and the next race with a countdown and its sessions in your time zone.",
+};
+
+/** The pages listed in /sitemap.xml. Add new pages here. */
+export const SITEMAP_PAGES: readonly string[] = ["/", "/season"];
